@@ -1,0 +1,6 @@
+distributed:
+  worker:
+    heartbeat:
+      interval: 5000  # Time in ms
+  comm:
+    timeout: 50s  # Time in seconds

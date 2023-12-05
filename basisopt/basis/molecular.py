@@ -8,13 +8,14 @@ from basisopt.bse_wrapper import fetch_basis
 from basisopt.containers import (
     InternalBasis,
     OptCollection,
+    MinimizeCollection,
     Result,
     basis_to_dict,
     dict_to_basis,
 )
 from basisopt.exceptions import DataNotFound, EmptyBasis
 from basisopt.molecule import Molecule
-from basisopt.opt.optimizers import collective_optimize
+from basisopt.opt.optimizers import collective_optimize, collective_minimize
 from basisopt.opt.strategies import Strategy
 from basisopt.util import bo_logger
 
@@ -202,6 +203,7 @@ class MolecularBasis(Basis):
         strategy: Strategy = Strategy(),
         reference: str = 'cc-pvqz',
         params: dict[str, Any] = {},
+        minimisation: bool = False,
     ):
         """Sets up the basis ready for optimization by creating AtomicBasis objects for each unique
         atom in the set, and calling setup for those - see the signature of AtomicBasis.setup for
@@ -212,7 +214,7 @@ class MolecularBasis(Basis):
 
         for m in self.molecules():
             m.method = method
-
+                
         self._atomic_bases = {}
         for atom in self._atoms:
             self._atomic_bases[atom] = AtomicBasis(atom)
@@ -221,15 +223,24 @@ class MolecularBasis(Basis):
                 method=method,
                 quality=quality,
                 strategy=strategy,
+                #reference=(reference, 0.0),
                 reference=('dummy', 0.0),
                 params=params,
             )
+            
+
         self.basis = {k: v.get_basis()[k] for k, v in self._atomic_bases.items()}
         if reference is not None:
             if api.which_backend() == 'Empty':
                 bo_logger.warning("No backend currently set, can't compute reference value")
             else:
-                ref_basis = fetch_basis(reference, self.unique_atoms())
+                if minimisation:
+                    ref_basis = self.basis
+                else:
+                    try:
+                        ref_basis = fetch_basis(reference, self.unique_atoms())
+                    except:
+                        ref_basis = fetch_basis('cc-pvdz', self.unique_atoms())
                 for m in self.molecules():
                     bo_logger.info(
                         "Calculating reference value for molecule %s using %s and %s/%s",
@@ -249,6 +260,10 @@ class MolecularBasis(Basis):
                     bo_logger.info("Reference value set to %f", value)
 
         self._done_setup = True
+        try:
+            strategy.molecular_basis_setup = True
+        except:
+            pass
         bo_logger.info("Molecular basis setup complete")
 
     def optimize(
@@ -282,6 +297,44 @@ class MolecularBasis(Basis):
                 npass=npass,
                 parallel=parallel,
             )
+        else:
+            bo_logger.error("Please call setup first")
+            self.opt_results = None
+        return self.opt_results
+
+    def minimizer(
+            self,
+            algorithm: str = 'Nelder-mead',
+            params: dict[str, Any] = {},
+            reg: Callable[[np.ndarray],float] = lambda x: 0,
+            npass: int = 1,
+            parallel: bool = False,
+        ) -> MinimizeCollection:
+        """Calls the minimzer to minimize all the atomic basis sets in this basis
+        
+        Arguments:
+             algorithm (str): name of scipy.optimize algorithm to use
+             params (dict): parameters to pass to scipy.optimize
+             reg (callable): regularization to use
+             npass (int): number of optimization passes to do
+             parallel (bool): if True, molecular calculations will be distributed in parallel
+             
+        Returns:
+            dictionary of scipy.optimize.minimze results objects, indexed by atom
+            
+        """
+        if self._done_setup:
+            opt_data = [
+                (k, algorithm, v.strategy, reg, params) for k, v in self._atomic_bases.items()
+            ]
+            self.opt_results = collective_minimize(
+                self._molecules.values(),
+                self.basis,
+                opt_data=opt_data,
+                npass=npass,
+                parallel=parallel,
+            )
+        
         else:
             bo_logger.error("Please call setup first")
             self.opt_results = None

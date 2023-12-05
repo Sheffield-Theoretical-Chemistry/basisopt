@@ -8,7 +8,7 @@ from basisopt.bse_wrapper import fetch_ecp, internal_basis_converter
 from basisopt.exceptions import EmptyCalculation, PropertyNotAvailable
 from basisopt.molecule import Molecule
 from basisopt.wrappers.wrapper import Wrapper, available
-
+from basisopt import bo_logger
 
 class Psi4Wrapper(Wrapper):
     """Wrapper for Psi4"""
@@ -86,6 +86,7 @@ class Psi4Wrapper(Wrapper):
         # create output file
         outfile = tmp + f"{m.name}-{m.method}-" + name + ".out"
         psi4.core.set_output_file(outfile, False)
+        #psi4.core.set_num_threads(1)
 
         # create the molecule
         self.psi4_mol = self.convert_molecule(m)

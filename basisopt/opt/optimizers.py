@@ -12,6 +12,8 @@ from basisopt.util import bo_logger
 from .regularisers import Regulariser
 from .strategies import Strategy
 
+class ToleranceReached(Exception):
+    pass
 
 def _atomic_opt(
     basis: InternalBasis,
@@ -38,15 +40,31 @@ def _atomic_opt(
     bo_logger.info("Algorithm: %s, Strategy: %s", algorithm, strategy.name)
     objective_value = objective(strategy.get_active(basis, element))
     bo_logger.info("Initial objective value: %f", objective_value)
+    func_eval = None
+    x_vals = None
+
+    def callback(xk):
+    # Can be included for verbosity?
+        nonlocal func_eval, x_vals
+        if not func_eval:
+            func_eval=objective(xk)
+            x_vals = np.array(xk)
+        else:
+            func_eval = objective(xk)
+            x_vals = np.array(xk)
+            
+            
+    atomic_opt_counter = 1
 
     # Keep going until strategy says stop
     results = {}
-    ctr = 1
+    ctr_iter=1
     while strategy.next(basis, element, objective_value):
         bo_logger.info("Doing step %d", strategy._step + 1)
         guess = strategy.get_active(basis, element)
         if len(guess) > 0:
-            res = minimize(objective, guess, method=algorithm, **opt_params)
+            res = minimize(objective, guess, method=algorithm, callback=callback, **opt_params)
+            atomic_opt_counter+=1
             objective_value = res.fun
             info_str = "\n".join(
                 [
@@ -55,13 +73,12 @@ def _atomic_opt(
                     f"Delta: {objective_value - strategy.last_objective}",
                 ]
             )
-            results[f"atomicopt{ctr}"] = res
-            ctr += 1
+            results[f"atomicopt{ctr_iter}"] = res
+            ctr_iter += 1
         else:
             info_str = "Skipping empty shell"
         bo_logger.info(info_str)
     return results
-
 
 def optimize(
     molecule: Molecule,
@@ -120,7 +137,6 @@ def optimize(
 
 OptData = tuple[str, str, Strategy, Regulariser, dict[str, Any]]
 
-
 def collective_optimize(
     molecules: list[Molecule],
     basis: InternalBasis,
@@ -153,9 +169,17 @@ def collective_optimize(
         total = 0.0
 
         # loop over elements in opt_data, and collect objective into total
-        ctr = 1
+        ctr_iter = 1
         for el, alg, strategy, reg, params in opt_data:
-
+            counter = None
+            last_x = None
+            def calculate_rmse(errors):
+                n = len(errors)
+                if n == 0:
+                    return 0  # Return 0 if the list is empty
+                sum_of_squares = sum(error ** 2 for error in errors)
+                rmse = np.sqrt(sum_of_squares / n)
+                return rmse
             def objective(x):
                 """Set exponents, compute objective for every molecule in set
                 Regularisation only applied once at end
@@ -171,18 +195,106 @@ def collective_optimize(
                     params=strategy.params,
                     parallel=parallel,
                 )
+                errors = []
                 for mol in molecules:
                     value = results[mol.name]
                     name = strategy.eval_type + "_" + el.title()
                     mol.add_result(name, value)
                     result = value - mol.get_reference(strategy.eval_type)
                     local_total += np.linalg.norm(result)
+                    errors.append(result)
+                error = calculate_rmse(errors)
                 return local_total + reg(x)
 
             strategy.initialise(basis, el)
             res = _atomic_opt(basis, el, alg, strategy, params, objective)
             total += strategy.last_objective
-            results[f"pass{i}_opt{ctr}"] = res
-            ctr += 1
+            results[f"pass{i}_opt{ctr_iter}"] = res
+            ctr_iter += 1
+        bo_logger.info('Collective objective: %f', total)
+    return results
+
+def collective_minimize(
+    molecules: list[Molecule],
+    basis: InternalBasis,
+    opt_data: list[OptData] = [],
+    npass: int = 3,
+    parallel: bool = False,
+) -> OptCollection:
+    """General purpose optimizer for a collection of atomic bases
+
+     Arguments:
+          molecules (list): list of Molecule objects to be included in objective
+          basis: internal basis dictionary, will be used for all molecules
+          opt_data (list): list of tuples, with one tuple for each atomic basis to be
+              optimized, (element, algorithm, strategy, regularizer, opt_params) - see the
+              signature of _atomic_opt or optimize
+          npass (int): number of passes to do, i.e. it will optimize each atomic basis
+              listed in opt_data in order, then loop back and iterate npass times
+          parallel (bool): if True, will try to run Molecule calcs in parallel
+
+    Returns:
+          dictionary of dictionaries of scipy.optimize results for each step,
+          corresponding to tuple in opt_data
+
+    Raises:
+          FailedCalculation
+    """
+    results = {}
+    for i in range(npass):
+        bo_logger.info("Collective pass %d", i + 1)
+        total = 0.0
+
+        # loop over elements in opt_data, and collect objective into total
+        ctr_iter = 1
+        for el, alg, strategy, reg, params in opt_data:
+            counter = None
+            last_x = None
+            def calculate_rmse(errors):
+                n = len(errors)
+                if n == 0:
+                    return 0  # Return 0 if the list is empty
+                sum_of_squares = sum(error ** 2 for error in errors)
+                rmse = np.sqrt(sum_of_squares / n)
+                return rmse
+            def objective(x):
+                """Set exponents, compute objective for every molecule in set
+                Regularisation only applied once at end
+                """
+                
+                strategy.set_active(x, basis, el)
+                local_total = 0.0
+                for mol in molecules:
+                    mol.basis = basis
+
+                results = api.run_all(
+                    evaluate=strategy.eval_type,
+                    mols=molecules,
+                    params=strategy.params,
+                    parallel=parallel,
+                )
+                errors = []
+                for mol in molecules:
+                    value = results[mol.name]
+                    name = strategy.eval_type + "_" + el.title()
+                    result = value - mol.get_reference(strategy.eval_type)
+                    local_total += np.linalg.norm(result)
+                    # print(f'Difference from start: {result}')
+                    # print(f'Current calc value: {value}')
+                    # try:
+                    #     print(f'Change between = {value - mol._results[name]}')
+                    # except:
+                    #     pass
+                    errors.append(result)
+                    mol.add_result(name, value)
+                error = calculate_rmse(errors)
+                #print(local_total)
+                return value
+
+            strategy.initialise(basis, el)
+            res = _atomic_opt(basis, el, alg, strategy, params, objective)
+            total += strategy.last_objective
+            results[f"pass{i}_opt{ctr_iter}"] = res
+            ctr_iter += 1
         bo_logger.info('Collective objective: %f', total)
     return results

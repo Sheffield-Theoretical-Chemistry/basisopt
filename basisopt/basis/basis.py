@@ -93,6 +93,7 @@ def legendre_expansion(params: LegParams) -> list[Shell]:
                 ln_a += A_vals[k] * legendre(k)((((2 * (j + 1)) - 2) / (n - 1)) - 1)
             exponents.append(np.exp(ln_a))
         new_shell.exps = np.array(exponents)
+        new_shell.leg_params = (A_vals, n)
         uncontract_shell(new_shell)
         el_basis.append(new_shell)
     return el_basis

@@ -1,5 +1,6 @@
 # data
 from functools import cache
+from enum import Enum
 
 import numpy as np
 from mendeleev import element as md_element
@@ -46,9 +47,54 @@ WTParams = list[tuple[float, float, float, float, int]]
     an int of the total number of primitive exponents"""
 
 """Dictionary with pre-optimised Legendre polynomial expansions for atoms"""
-_LEGENDRE_DATA = {}
+_LEGENDRE_DATA = {'H':[((0.5791370689162065, 3.2955596461127117, 0.3999767944361504), 4)],
+                  'O':[((3.4174900497114864, 4.784959304546835, 0.4046496334817625, 0.32153529729777813,0.1,0.1,0.1),18),
+                       ((0.9864434246240155, 2.6122570482610104, 0.09389700641803553,0.1,0.1),13)],
+                  'C':[((2.81152131369441, 4.8137600723824905, 0.3960033764998072, 0.3223113625820494,0.1,0.1,0.1),18),
+                       ((1.035947000305927, 4.036920452498576, 0.40764065318594833,0.1,0.1),13)],
+                  'N':[((2.353040817432179, 4.048541474698897, -0.09314147775313775, 0.19585250830229028,0.1,0.1,0.1),18),
+                       ((1.385499407734574, 4.034095650793709, 0.39661360731962203,0.1,0.1),13)]}
 
 LegParams = list[tuple[tuple, int]]
+
+class GROUNDSTATE_MULTIPLICITIES(Enum):
+    H   = 2
+    He  = 1
+    Li  = 2
+    Be  = 1
+    B   = 2
+    C   = 3
+    N   = 4
+    O   = 3
+    F   = 2
+    Ne  = 1
+    Na  = 2
+    Mg  = 1
+    Al  = 2
+    Si  = 3
+    P   = 4
+    S   = 3
+    Cl  = 2
+    Ar  = 1
+    K   = 2
+    Ca  = 1
+    Sc  = 2
+    Ti  = 3
+    V   = 4
+    Cr  = 7
+    Mn  = 6
+    Fe  = 5 
+    Co  = 4
+    Ni  = 3
+    Cu  = 2
+    Zn  = 1
+    Ga  = 2
+    Ge  = 3
+    As  = 4
+    Se  = 3
+    Br  = 2
+    Kr  = 1
+    
 
 
 def get_even_temper_params(atom: str = 'H', accuracy: float = 1e-5) -> ETParams:
@@ -71,7 +117,7 @@ def get_legendre_params(atom: str = 'H', accuracy: float = 1e-5) -> LegParams:
         log_acc = -np.log10(accuracy)
         index = max(4, log_acc) - 4
         index = int(min(index, 3))
-        return _LEGENDRE_DATA[atom][index]
+        return _LEGENDRE_DATA[atom]
     else:
         return []
 

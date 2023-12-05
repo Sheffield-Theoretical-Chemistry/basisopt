@@ -12,6 +12,7 @@ from basisopt.exceptions import ElementNotSet
 from basisopt.molecule import Molecule
 from basisopt.opt.eventemper import EvenTemperedStrategy
 from basisopt.opt.legendre import LegendreStrategy
+from basisopt.opt.legendreSingle import LegendreSingleOrbitalStrategy, LegendreSingleOrbitalAStrategy
 from basisopt.opt.optimizers import optimize
 from basisopt.opt.strategies import Strategy
 from basisopt.opt.welltemper import WellTemperedStrategy
@@ -60,7 +61,7 @@ class AtomicBasis(Basis):
          _symbol (str): atomic symbol in lowercase
     """
 
-    def __init__(self, name: str = 'H', charge: int = 0, mult: int = 1):
+    def __init__(self, name: str = 'H', charge: int = 0, mult = None):
         super().__init__()
 
         self._element = None
@@ -70,10 +71,15 @@ class AtomicBasis(Basis):
         self.et_params = None
         self.leg_params = None
         self.wt_params = None
-
+        
+        #Set multiplicity to the value held in the data.GROUNDSTATE_MULTIPLICITES
+        #Enum object holding all the ground state multiplicities
         if self._element is not None:
             self.charge = charge
-            self.multiplicity = mult
+            if self.charge == 0 and mult == None:
+                self.multiplicity = getattr(data.GROUNDSTATE_MULTIPLICITIES, self.element.symbol).value
+            else:
+                self.multiplicity = mult
 
     def save(self, filename: str):
         """Pickles the AtomicBasis object into a binary file"""
@@ -356,8 +362,10 @@ class AtomicBasis(Basis):
         accuracy: float = 1e-5,
         max_n: int = 18,
         max_l: int = -1,
-        exact_ref: bool = True,
+        exact_ref: bool = False,
+        target_ref = 'cc-pvdz',
         params: dict[str, Any] = {},
+        strat_params: dict[str, Any] = {},
     ):
         """Looks up or computes a Legendre polynomial-based expansion for the atom
 
@@ -379,14 +387,122 @@ class AtomicBasis(Basis):
             # optimize new params
             if exact_ref:
                 reference = ('exact', data._ATOMIC_HF_ENERGIES[self._element.atomic_number])
+            elif type(target_ref)==tuple:
+                reference = target_ref
             else:
-                reference = ('cc-pV5Z', None)
+                reference = (target_ref, None)
             strategy = LegendreStrategy(max_n=max_n, max_l=max_l)
             self.setup(method=method, strategy=strategy, reference=reference, params=params)
             self.optimize(algorithm='Nelder-Mead', params=params)
             self.leg_params = strategy.shells
         else:
+            if exact_ref:
+                reference = ('exact', data._ATOMIC_HF_ENERGIES[self._element.atomic_number])
+            elif type(target_ref)==tuple:
+                reference = target_ref
+            else:
+                reference = (target_ref, None)
+            strategy = LegendreStrategy(max_n=max_n, max_l=max_l)
+            self.setup(method=method, strategy=strategy, reference=reference, params=params)
+            self.optimize(algorithm='Nelder-Mead', params=params)
+            self.leg_params = strategy.shells
             self._molecule.basis[self._symbol] = legendre_expansion(self.leg_params)            
+
+    @needs_element
+    def set_legendre_single(
+        self,
+        method: str = 'hf',
+        accuracy: float = 1e-5,
+        max_n: int = 18,
+        max_l: int = -1,
+        exact_ref: bool = True,
+        target_ref = 'cc-pvdz',
+        params: dict[str, Any] = {},
+        strat_params: dict[str, Any] = {},
+        run_step = 0,
+        init_basis = None,
+    ):
+        """Looks up or computes a Legendre polynomial-based expansion for the atom
+    
+        Arguments:
+             method (str): method to use; possibilities can be found through Wrapper object
+             accuracy (float): the tolerance to optimize to, compared to reference value
+             max_n (int): max number of primitives per shell
+             max_l (int): angular momentum to go up to; if -1, will use max l in minimal config
+             exact_ref (bool): uses exact numerical HF energy if True,
+             calculates cc-pV5Z reference value if False
+             params (dict): dictionary of parameters to pass to the backend -
+             see the relevant Wrapper object for options
+    
+        Sets:
+             self.leg_params
+        """
+        self.leg_params = data.get_legendre_params(atom=self._symbol.title(), accuracy=accuracy)
+        if len(self.leg_params) == 0:
+            # optimize new params
+            if exact_ref:
+                reference = ('exact', data._ATOMIC_HF_ENERGIES[self._element.atomic_number])
+            elif type(target_ref)==tuple:
+                reference = target_ref
+            else:
+                reference = (target_ref, None)
+            strategy = LegendreSingleOrbitalStrategy(max_n=max_n, max_l=max_l,
+                                              run_step=run_step, init_basis = init_basis)
+            if strat_params:
+                strategy.params=strat_params
+            self.setup(method=method, strategy=strategy, reference=reference, params=params)
+            self.optimize(algorithm='Nelder-Mead', params=params)
+            self.leg_params = strategy.shells
+        else:
+            self._molecule.basis[self._symbol] = legendre_expansion(self.leg_params)
+
+    @needs_element
+    def set_legendre_single_A(
+        self,
+        method: str = 'hf',
+        accuracy: float = 1e-5,
+        max_n: int = 18,
+        max_l: int = -1,
+        exact_ref: bool = True,
+        target_ref = 'cc-pvdz',
+        params: dict[str, Any] = {},
+        strat_params: dict[str, Any] = {},
+        run_step = 0,
+        init_basis = None,
+    ):
+        """Looks up or computes a Legendre polynomial-based expansion for the atom
+    
+        Arguments:
+             method (str): method to use; possibilities can be found through Wrapper object
+             accuracy (float): the tolerance to optimize to, compared to reference value
+             max_n (int): max number of primitives per shell
+             max_l (int): angular momentum to go up to; if -1, will use max l in minimal config
+             exact_ref (bool): uses exact numerical HF energy if True,
+             calculates cc-pV5Z reference value if False
+             params (dict): dictionary of parameters to pass to the backend -
+             see the relevant Wrapper object for options
+    
+        Sets:
+             self.leg_params
+        """
+        self.leg_params = data.get_legendre_params(atom=self._symbol.title(), accuracy=accuracy)
+        if len(self.leg_params) == 0:
+            # optimize new params
+            if exact_ref:
+                reference = ('exact', data._ATOMIC_HF_ENERGIES[self._element.atomic_number])
+            elif type(target_ref)==tuple:
+                reference = target_ref
+            else:
+                reference = (target_ref, None)
+            strategy = LegendreSingleStrategy(max_n=max_n, max_l=max_l,
+                                              run_step=run_step, init_basis = init_basis)
+            if strat_params:
+                strategy.params=strat_params
+            self.setup(method=method, strategy=strategy, reference=reference, params=params)
+            self.optimize(algorithm='Nelder-Mead', params=params)
+            self.leg_params = strategy.shells
+        else:
+            self._molecule.basis[self._symbol] = legendre_expansion(self.leg_params)
 
     @needs_element
     def optimize(self, algorithm: str = 'Nelder-Mead', params: dict[str, Any] = {}) -> OptResult:
