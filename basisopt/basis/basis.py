@@ -9,7 +9,6 @@ from scipy.special import legendre
 from basisopt import data
 from basisopt.containers import InternalBasis, Result, Shell
 from basisopt.data import ETParams, LegParams, WTParams
-
 from basisopt.testing import Test
 from basisopt.util import bo_logger, dict_decode
 
@@ -68,6 +67,7 @@ def even_temper_expansion(params: ETParams) -> list[Shell]:
         el_basis.append(new_shell)
     return el_basis
 
+
 def legendre_expansion(params: LegParams) -> list[Shell]:
     """Forms a basis for an element from Petersson's Legendre expansion
 
@@ -96,6 +96,7 @@ def legendre_expansion(params: LegParams) -> list[Shell]:
         uncontract_shell(new_shell)
         el_basis.append(new_shell)
     return el_basis
+
 
 def well_temper_expansion(params: WTParams) -> list[Shell]:
     """Forms a basis for an element from well tempered expansion parameters

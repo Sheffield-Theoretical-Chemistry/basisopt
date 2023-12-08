@@ -39,7 +39,7 @@ def test_even_temper_expansion():
     assert len(p_shell.exps) == 12
     assert almost_equal(p_shell.exps[11], 474.989023, thresh=1e-6)
 
-    
+
 def test_legendre_expansion():
     leg_params = [((3.0, 4.5, 0.75, 0.25, 0.1, 0.1), 13), ((2.2, 4.5, 0.44, 0.29, 0.07, 0.02), 12)]
     leg_basis = basis.legendre_expansion(leg_params)
@@ -53,7 +53,7 @@ def test_legendre_expansion():
     assert len(p_shell.exps) == 12
     assert almost_equal(p_shell.exps[10], 457.218308, thresh=1e-6)
 
-    
+
 def test_well_temper_expansion():
     wt_params = [(0.1, 2.3, 12.2, 8.6, 13), (0.2, 2.1, 32.8, 9.9, 10)]
     wt_basis = basis.well_temper_expansion(wt_params)

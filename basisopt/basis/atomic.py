@@ -18,7 +18,13 @@ from basisopt.opt.welltemper import WellTemperedStrategy
 from basisopt.util import bo_logger
 
 from . import zetatools as zt
-from .basis import Basis, even_temper_expansion, legendre_expansion, well_temper_expansion
+from .basis import (
+    Basis,
+    even_temper_expansion,
+    legendre_expansion,
+    well_temper_expansion,
+)
+
 
 def needs_element(func: Callable) -> Callable:
     """Decorator that checks if the AtomicBasis has an element attribute
@@ -60,7 +66,7 @@ class AtomicBasis(Basis):
          _symbol (str): atomic symbol in lowercase
     """
 
-    def __init__(self, name: str = 'H', charge: int = 0, mult = None):
+    def __init__(self, name: str = 'H', charge: int = 0, mult: int = None):
         super().__init__()
 
         self._element = None
@@ -70,12 +76,12 @@ class AtomicBasis(Basis):
         self.et_params = None
         self.leg_params = None
         self.wt_params = None
-        
-        #Set multiplicity to the value held in the data.GROUNDSTATE_MULTIPLICITES
-        #Enum object holding all the ground state multiplicities
+
+        # Set multiplicity to the value held in the data.GROUNDSTATE_MULTIPLICITES
+        # Enum object holding all the ground state multiplicities
         if self._element is not None:
             self.charge = charge
-            if self.charge == 0 and mult == None:
+            if self.charge == 0 and mult is None:
                 self.multiplicity = getattr(data.GROUNDSTATE_MULTIPLICITIES, self.element.symbol).value
             else:
                 self.multiplicity = mult
@@ -391,7 +397,7 @@ class AtomicBasis(Basis):
             self.optimize(algorithm='Nelder-Mead', params=params)
             self.leg_params = strategy.shells
         else:
-            self._molecule.basis[self._symbol] = legendre_expansion(self.leg_params)            
+            self._molecule.basis[self._symbol] = legendre_expansion(self.leg_params)
 
     @needs_element
     def optimize(self, algorithm: str = 'Nelder-Mead', params: dict[str, Any] = {}) -> OptResult:

@@ -5,7 +5,7 @@ import numpy as np
 from monty.json import MSONable
 
 from .containers import basis_to_dict, dict_to_basis
-from .data import atomic_number, GROUNDSTATE_MULTIPLICITIES
+from .data import GROUNDSTATE_MULTIPLICITIES, atomic_number
 from .exceptions import InvalidDiatomic
 from .util import bo_logger, dict_decode
 
