@@ -8,7 +8,10 @@ from tests.data.utils import almost_equal
 def test_uncontract_shell():
     shell = basis.Shell()
     shell.exps = np.array([0.1, 1.0, 2.0, 4.0, 8.0])
-    shell.coefs = [np.array([0.5, -0.5, 0.0, 0.0, 0.0]), np.array([0.0, 0.0, 1.0, -0.5, -0.5])]
+    shell.coefs = [
+        np.array([0.5, -0.5, 0.0, 0.0, 0.0]),
+        np.array([0.0, 0.0, 1.0, -0.5, -0.5]),
+    ]
     basis.uncontract_shell(shell)
     assert len(shell.coefs) == len(shell.exps)
     for c in shell.coefs:
@@ -18,11 +21,11 @@ def test_uncontract_shell():
 def test_uncontract():
     vdz = get_vdz_internal()
 
-    new_vdz = basis.uncontract(vdz, elements=['o'])
-    assert 'o' not in new_vdz
+    new_vdz = basis.uncontract(vdz, elements=["o"])
+    assert "o" not in new_vdz
 
     new_vdz = basis.uncontract(vdz)
-    for s in new_vdz['h']:
+    for s in new_vdz["h"]:
         assert len(s.exps) == len(s.coefs)
 
 
@@ -41,7 +44,10 @@ def test_even_temper_expansion():
 
 
 def test_legendre_expansion():
-    leg_params = [((3.0, 4.5, 0.75, 0.25, 0.1, 0.1), 13), ((2.2, 4.5, 0.44, 0.29, 0.07, 0.02), 12)]
+    leg_params = [
+        ((3.0, 4.5, 0.75, 0.25, 0.1, 0.1), 13),
+        ((2.2, 4.5, 0.44, 0.29, 0.07, 0.02), 12),
+    ]
     leg_basis = basis.legendre_expansion(leg_params)
     assert len(leg_basis) == 2
 

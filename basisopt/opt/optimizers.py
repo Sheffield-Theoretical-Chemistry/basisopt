@@ -66,7 +66,7 @@ def _atomic_opt(
 def optimize(
     molecule: Molecule,
     element: Optional[str] = None,
-    algorithm: str = 'l-bfgs-b',
+    algorithm: str = "l-bfgs-b",
     strategy: Strategy = Strategy(),
     reg: Regulariser = (lambda x: 0),
     opt_params: dict[str, Any] = {},
@@ -184,5 +184,5 @@ def collective_optimize(
             total += strategy.last_objective
             results[f"pass{i}_opt{ctr}"] = res
             ctr += 1
-        bo_logger.info('Collective objective: %f', total)
+        bo_logger.info("Collective objective: %f", total)
     return results

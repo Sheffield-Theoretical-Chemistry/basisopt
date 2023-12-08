@@ -20,7 +20,18 @@ def atomic_number(element: str) -> int:
     return el.atomic_number
 
 
-AM_DICT = {'s': 0, 'p': 1, 'd': 2, 'f': 3, 'g': 4, 'h': 5, 'i': 6, 'j': 7, 'k': 8, 'l': 9}
+AM_DICT = {
+    "s": 0,
+    "p": 1,
+    "d": 2,
+    "f": 3,
+    "g": 4,
+    "h": 5,
+    "i": 6,
+    "j": 7,
+    "k": 8,
+    "l": 9,
+}
 """Dictionary converting letter-value angular momenta to l quantum number"""
 
 INV_AM_DICT = dict((v, k) for k, v in AM_DICT.items())
@@ -91,7 +102,7 @@ class GROUNDSTATE_MULTIPLICITIES(Enum):
     Kr = 1
 
 
-def get_even_temper_params(atom: str = 'H', accuracy: float = 1e-5) -> ETParams:
+def get_even_temper_params(atom: str = "H", accuracy: float = 1e-5) -> ETParams:
     """Searches for the relevant even tempered expansion
     from _EVEN_TEMPERED_DATA
     """
@@ -104,7 +115,7 @@ def get_even_temper_params(atom: str = 'H', accuracy: float = 1e-5) -> ETParams:
         return []
 
 
-def get_legendre_params(atom: str = 'H', accuracy: float = 1e-5) -> LegParams:
+def get_legendre_params(atom: str = "H", accuracy: float = 1e-5) -> LegParams:
     """Searches for the relevant Legendre polynomial-based expansion
     from _LEGENDRE_DATA
     """
@@ -117,7 +128,7 @@ def get_legendre_params(atom: str = 'H', accuracy: float = 1e-5) -> LegParams:
         return []
 
 
-def get_well_temper_params(atom: str = 'H', accuracy: float = 1e-5) -> WTParams:
+def get_well_temper_params(atom: str = "H", accuracy: float = 1e-5) -> WTParams:
     """Searches for the relevant well tempered expansion
     from _WELL_TEMPERED_DATA
     """

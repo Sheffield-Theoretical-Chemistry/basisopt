@@ -66,11 +66,11 @@ class AtomicBasis(Basis):
          _symbol (str): atomic symbol in lowercase
     """
 
-    def __init__(self, name: str = 'H', charge: int = 0, mult: int = None):
+    def __init__(self, name: str = "H", charge: int = 0, mult: int = None):
         super().__init__()
 
         self._element = None
-        self._molecule = Molecule(name=name + '_atom')
+        self._molecule = Molecule(name=name + "_atom")
         self.element = name
         self._done_setup = False
         self.et_params = None
@@ -82,13 +82,15 @@ class AtomicBasis(Basis):
         if self._element is not None:
             self.charge = charge
             if self.charge == 0 and mult is None:
-                self.multiplicity = getattr(data.GROUNDSTATE_MULTIPLICITIES, self.element.symbol).value
+                self.multiplicity = getattr(
+                    data.GROUNDSTATE_MULTIPLICITIES, self.element.symbol
+                ).value
             else:
                 self.multiplicity = mult
 
     def save(self, filename: str):
         """Pickles the AtomicBasis object into a binary file"""
-        with open(filename, 'wb') as f:
+        with open(filename, "wb") as f:
             pickle.dump(self, f)
             f.close()
         bo_logger.info("Dumped object of type %s to %s", type(self), filename)
@@ -102,7 +104,7 @@ class AtomicBasis(Basis):
         d["leg_params"] = self.leg_params
         d["wt_params"] = self.wt_params
 
-        if hasattr(self, 'strategy'):
+        if hasattr(self, "strategy"):
             if isinstance(self.strategy, Strategy):
                 d["strategy"] = self.strategy.as_dict()
                 d["config"] = self.config
@@ -140,7 +142,7 @@ class AtomicBasis(Basis):
         try:
             self._element = MDElement(name.title())
             self._symbol = name.lower()
-            self._molecule.name = name + '_atom'
+            self._molecule.name = name + "_atom"
             self._molecule._atom_names = [name]
             self._molecule._coords = [np.array([0.0, 0.0, 0.0])]
             self.results.name = self._molecule.name
@@ -156,7 +158,9 @@ class AtomicBasis(Basis):
     def charge(self, new_charge: int):
         nelec = self._element.electrons - new_charge
         if nelec < 1:
-            bo_logger.warning("A charge of %d would remove all electrons, setting to 0", new_charge)
+            bo_logger.warning(
+                "A charge of %d would remove all electrons, setting to 0", new_charge
+            )
             self._charge = 0
         else:
             self._charge = new_charge
@@ -184,7 +188,9 @@ class AtomicBasis(Basis):
     def config(self, new_config: zt.Configuration):
         minimal = self.minimal()
         if zt.compare(minimal, new_config) < 0:
-            bo_logger.warning("Configuration %s is insufficient, using minimal config", new_config)
+            bo_logger.warning(
+                "Configuration %s is insufficient, using minimal config", new_config
+            )
             self._config = minimal
         else:
             self._config = new_config
@@ -196,7 +202,7 @@ class AtomicBasis(Basis):
         return zt.minimal(self._element)
 
     @needs_element
-    def configuration(self, quality: str = 'dz'):
+    def configuration(self, quality: str = "dz"):
         """Sets the basis set configuration to a desired quality
 
         Arguments:
@@ -220,10 +226,10 @@ class AtomicBasis(Basis):
     @needs_element
     def setup(
         self,
-        method: str = 'ccsd(t)',
-        quality: str = 'dz',
+        method: str = "ccsd(t)",
+        quality: str = "dz",
         strategy: Strategy = Strategy(),
-        reference: tuple[str, Optional[InternalBasis]] = ('cc-pvqz', None),
+        reference: tuple[str, Optional[InternalBasis]] = ("cc-pvqz", None),
         params: dict[str, Any] = {},
     ):
         """Sets up the basis ready for optimization. Must be called before optimize is called
@@ -256,8 +262,10 @@ class AtomicBasis(Basis):
         if value is None:
             # Compute
             value = 0.0
-            if api.which_backend() == 'Empty':
-                bo_logger.warning("No backend currently set, can't compute reference value")
+            if api.which_backend() == "Empty":
+                bo_logger.warning(
+                    "No backend currently set, can't compute reference value"
+                )
             else:
                 bo_logger.info(
                     "Calculating reference value using %s and %s/%s",
@@ -278,14 +286,16 @@ class AtomicBasis(Basis):
 
         # Make a guess for the primitives
         bo_logger.info("Generating starting guess from %s", strategy.guess.__name__)
-        self._molecule.basis[self._symbol] = strategy.guess(self, params=strategy.guess_params)
+        self._molecule.basis[self._symbol] = strategy.guess(
+            self, params=strategy.guess_params
+        )
         self._done_setup = True
         bo_logger.info("Atomic basis setup complete")
 
     @needs_element
     def set_even_tempered(
         self,
-        method: str = 'hf',
+        method: str = "hf",
         accuracy: float = 1e-5,
         max_n: int = 18,
         max_l: int = -1,
@@ -307,16 +317,23 @@ class AtomicBasis(Basis):
         Sets:
              self.et_params
         """
-        self.et_params = data.get_even_temper_params(atom=self._symbol.title(), accuracy=accuracy)
+        self.et_params = data.get_even_temper_params(
+            atom=self._symbol.title(), accuracy=accuracy
+        )
         if len(self.et_params) == 0:
             # optimize new params
             if exact_ref:
-                reference = ('exact', data._ATOMIC_HF_ENERGIES[self._element.atomic_number])
+                reference = (
+                    "exact",
+                    data._ATOMIC_HF_ENERGIES[self._element.atomic_number],
+                )
             else:
-                reference = ('cc-pV5Z', None)
+                reference = ("cc-pV5Z", None)
             strategy = EvenTemperedStrategy(max_n=max_n, max_l=max_l)
-            self.setup(method=method, strategy=strategy, reference=reference, params=params)
-            self.optimize(algorithm='Nelder-Mead', params=params)
+            self.setup(
+                method=method, strategy=strategy, reference=reference, params=params
+            )
+            self.optimize(algorithm="Nelder-Mead", params=params)
             self.et_params = strategy.shells
         else:
             self._molecule.basis[self._symbol] = even_temper_expansion(self.et_params)
@@ -324,7 +341,7 @@ class AtomicBasis(Basis):
     @needs_element
     def set_well_tempered(
         self,
-        method: str = 'hf',
+        method: str = "hf",
         accuracy: float = 1e-5,
         max_n: int = 18,
         max_l: int = -1,
@@ -346,16 +363,23 @@ class AtomicBasis(Basis):
         Sets:
              self.wt_params
         """
-        self.wt_params = data.get_well_temper_params(atom=self._symbol.title(), accuracy=accuracy)
+        self.wt_params = data.get_well_temper_params(
+            atom=self._symbol.title(), accuracy=accuracy
+        )
         if len(self.wt_params) == 0:
             # optimize new params
             if exact_ref:
-                reference = ('exact', data._ATOMIC_HF_ENERGIES[self._element.atomic_number])
+                reference = (
+                    "exact",
+                    data._ATOMIC_HF_ENERGIES[self._element.atomic_number],
+                )
             else:
-                reference = ('cc-pV5Z', None)
+                reference = ("cc-pV5Z", None)
             strategy = WellTemperedStrategy(max_n=max_n, max_l=max_l)
-            self.setup(method=method, strategy=strategy, reference=reference, params=params)
-            self.optimize(algorithm='Nelder-Mead')
+            self.setup(
+                method=method, strategy=strategy, reference=reference, params=params
+            )
+            self.optimize(algorithm="Nelder-Mead")
             self.wt_params = strategy.shells
         else:
             self._molecule.basis[self._symbol] = well_temper_expansion(self.wt_params)
@@ -363,7 +387,7 @@ class AtomicBasis(Basis):
     @needs_element
     def set_legendre(
         self,
-        method: str = 'hf',
+        method: str = "hf",
         accuracy: float = 1e-5,
         max_n: int = 18,
         max_l: int = -1,
@@ -385,22 +409,31 @@ class AtomicBasis(Basis):
         Sets:
              self.leg_params
         """
-        self.leg_params = data.get_legendre_params(atom=self._symbol.title(), accuracy=accuracy)
+        self.leg_params = data.get_legendre_params(
+            atom=self._symbol.title(), accuracy=accuracy
+        )
         if len(self.leg_params) == 0:
             # optimize new params
             if exact_ref:
-                reference = ('exact', data._ATOMIC_HF_ENERGIES[self._element.atomic_number])
+                reference = (
+                    "exact",
+                    data._ATOMIC_HF_ENERGIES[self._element.atomic_number],
+                )
             else:
-                reference = ('cc-pV5Z', None)
+                reference = ("cc-pV5Z", None)
             strategy = LegendreStrategy(max_n=max_n, max_l=max_l)
-            self.setup(method=method, strategy=strategy, reference=reference, params=params)
-            self.optimize(algorithm='Nelder-Mead', params=params)
+            self.setup(
+                method=method, strategy=strategy, reference=reference, params=params
+            )
+            self.optimize(algorithm="Nelder-Mead", params=params)
             self.leg_params = strategy.shells
         else:
             self._molecule.basis[self._symbol] = legendre_expansion(self.leg_params)
 
     @needs_element
-    def optimize(self, algorithm: str = 'Nelder-Mead', params: dict[str, Any] = {}) -> OptResult:
+    def optimize(
+        self, algorithm: str = "Nelder-Mead", params: dict[str, Any] = {}
+    ) -> OptResult:
         """Runs the basis optimization
 
         Arguments:

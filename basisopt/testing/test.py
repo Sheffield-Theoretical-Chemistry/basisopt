@@ -56,7 +56,7 @@ class Test(Result):
         self,
         method: str,
         basis: Optional[InternalBasis] = None,
-        basis_name: str = 'cc-pvqz',
+        basis_name: str = "cc-pvqz",
         params: dict[str, Any] = {},
     ):
         """Calculates reference value for the test, should not need to be overridden
@@ -116,14 +116,14 @@ class PropertyTest(Test):
     def __init__(
         self,
         name: str,
-        prop: str = 'energy',
+        prop: str = "energy",
         mol: Optional[Molecule] = None,
         xyz_file: Optional[str] = None,
         charge: int = 0,
         mult: int = 1,
     ):
         super().__init__(name, mol=mol, xyz_file=xyz_file, charge=charge, mult=mult)
-        self._eval_type = ''
+        self._eval_type = ""
         self.eval_type = prop
 
     @property
@@ -138,7 +138,9 @@ class PropertyTest(Test):
         else:
             raise PropertyNotAvailable(name)
 
-    def calculate(self, method: str, basis: InternalBasis, params: dict[str, Any] = {}) -> Any:
+    def calculate(
+        self, method: str, basis: InternalBasis, params: dict[str, Any] = {}
+    ) -> Any:
         """Calculates the test value
 
         Arguments:
@@ -154,7 +156,9 @@ class PropertyTest(Test):
         # run calculation
         self.molecule.basis = basis
         self.molecule.method = method
-        success = api.run_calculation(evaluate=self.eval_type, mol=self.molecule, params=params)
+        success = api.run_calculation(
+            evaluate=self.eval_type, mol=self.molecule, params=params
+        )
         if success != 0:
             raise FailedCalculation
 
@@ -174,7 +178,7 @@ class PropertyTest(Test):
     @classmethod
     def from_dict(cls, d):
         test = Test.from_dict(d)
-        prop = d.get("eval_type", 'energy')
+        prop = d.get("eval_type", "energy")
         instance = cls(test.name, prop=prop, mol=test.molecule)
         instance.reference = test.reference
         instance._data_keys = test._data_keys

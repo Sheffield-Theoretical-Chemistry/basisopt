@@ -54,17 +54,17 @@ class Wrapper:
         _methods (dict): dictionary of all possible calculation types, pointing to member funcs
     """
 
-    def __init__(self, name: str = 'Empty'):
+    def __init__(self, name: str = "Empty"):
         self._name = name
 
         self._methods = {
-            'energy': self.energy,
-            'dipole': self.dipole,
-            'quadrupole': self.quadrupole,
-            'trans_dipole': self.trans_dipole,
-            'trans_quadrupole': self.trans_quadrupole,
-            'polarizability': self.polarizability,
-            'jk_error': self.jk_error,
+            "energy": self.energy,
+            "dipole": self.dipole,
+            "quadrupole": self.quadrupole,
+            "trans_dipole": self.trans_dipole,
+            "trans_quadrupole": self.trans_quadrupole,
+            "polarizability": self.polarizability,
+            "jk_error": self.jk_error,
         }
 
         self._method_strings = {}
@@ -95,7 +95,7 @@ class Wrapper:
         Raises:
              InvalidMethodString
         """
-        parts = string.split('.')
+        parts = string.split(".")
         if len(parts) < 2:
             raise InvalidMethodString
 
@@ -111,7 +111,9 @@ class Wrapper:
         """Cleans up any temporary files"""
         pass
 
-    def run(self, evaluate: str, molecule: Molecule, params: dict[str, Any], tmp: str = "") -> int:
+    def run(
+        self, evaluate: str, molecule: Molecule, params: dict[str, Any], tmp: str = ""
+    ) -> int:
         """Runs a calculation with this backend
         MUST BE IMPLEMENTED IN ALL WRAPPERS
 
@@ -127,7 +129,9 @@ class Wrapper:
         method_str = f"{molecule.method}.{evaluate}".lower()
         try:
             if self.verify_method_string(method_str):
-                self._values[evaluate] = self._methods[evaluate](molecule, tmp=tmp, **params)
+                self._values[evaluate] = self._methods[evaluate](
+                    molecule, tmp=tmp, **params
+                )
                 return 0
             raise MethodNotAvailable(method_str)
         except KeyError as e:
@@ -137,7 +141,7 @@ class Wrapper:
             bo_logger.error("Unable to run %s with %s backend", method_str, self._name)
             return -1
 
-    def method_is_available(self, method: str = 'energy') -> bool:
+    def method_is_available(self, method: str = "energy") -> bool:
         """Returns True if a calculation type is available, false otherwise"""
         try:
             func = self._methods[method]

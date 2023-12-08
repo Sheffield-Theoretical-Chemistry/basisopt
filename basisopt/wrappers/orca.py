@@ -24,23 +24,23 @@ class OrcaWrapper(Wrapper):
         """Args:
         orca_path (str): path to the orca executable
         """
-        super().__init__(name='Orca')
+        super().__init__(name="Orca")
         self._path = orca_path
         self._method_strings = {
-            'hf': ['energy', 'dipole', 'quadrupole', 'polarizability', 'jk_error'],
-            'rhf': ['energy', 'dipole', 'quadrupole', 'polarizability', 'jk_error'],
-            'uhf': ['energy', 'dipole', 'quadrupole', 'polarizability', 'jk_error'],
-            'dft': ['energy', 'dipole', 'quadrupole', 'polarizability', 'jk_error'],
-            'mp2': ['energy', 'dipole', 'quadrupole'],
-            'scs-mp2': ['energy', 'dipole', 'quadrupole'],
-            'dlpno-mp2': ['energy', 'dipole', 'quadrupole'],
-            'ccsd': ['energy', 'dipole', 'quadrupole'],
-            'dlpno-ccsd': ['energy', 'dipole', 'quadrupole'],
-            'ccsd(t)': ['energy', 'dipole', 'quadrupole'],
-            'dlpno-ccsd(t)': ['energy', 'dipole', 'quadrupole'],
-            'cisd': ['energy', 'trans_dipole', 'trans_quadrupole'],
-            'casscf': ['energy', 'trans_dipole', 'trans_quadrupole'],
-            'rasscf': ['energy', 'trans_dipole', 'trans_quadrupole'],
+            "hf": ["energy", "dipole", "quadrupole", "polarizability", "jk_error"],
+            "rhf": ["energy", "dipole", "quadrupole", "polarizability", "jk_error"],
+            "uhf": ["energy", "dipole", "quadrupole", "polarizability", "jk_error"],
+            "dft": ["energy", "dipole", "quadrupole", "polarizability", "jk_error"],
+            "mp2": ["energy", "dipole", "quadrupole"],
+            "scs-mp2": ["energy", "dipole", "quadrupole"],
+            "dlpno-mp2": ["energy", "dipole", "quadrupole"],
+            "ccsd": ["energy", "dipole", "quadrupole"],
+            "dlpno-ccsd": ["energy", "dipole", "quadrupole"],
+            "ccsd(t)": ["energy", "dipole", "quadrupole"],
+            "dlpno-ccsd(t)": ["energy", "dipole", "quadrupole"],
+            "cisd": ["energy", "trans_dipole", "trans_quadrupole"],
+            "casscf": ["energy", "trans_dipole", "trans_quadrupole"],
+            "rasscf": ["energy", "trans_dipole", "trans_quadrupole"],
         }
         self._pwd = "."
 
@@ -161,7 +161,7 @@ class OrcaWrapper(Wrapper):
         basis += "end\n"
 
         # write to file
-        with open(f"{prefix}.inp", 'w', encoding='utf-8') as f:
+        with open(f"{prefix}.inp", "w", encoding="utf-8") as f:
             f.write(cmd)
             f.write(mol)
             f.write(basis)
@@ -178,7 +178,9 @@ class OrcaWrapper(Wrapper):
         run_cmd = f"{self._path}/{program} {prefix}.inp > {prefix}.out"
         subprocess.run(run_cmd, shell=True, check=True)
 
-    def _read_property_file(self, prefix: str, search_strings: list[str]) -> dict[str, Any]:
+    def _read_property_file(
+        self, prefix: str, search_strings: list[str]
+    ) -> dict[str, Any]:
         """Reads in desired results from the orca [name]_property.txt file.
 
         Arguments:
@@ -192,14 +194,14 @@ class OrcaWrapper(Wrapper):
             a dictionary of {search_string}:{value}
         """
         # read in the property file
-        with open(f"{prefix}_property.txt", 'r') as f:
+        with open(f"{prefix}_property.txt", "r") as f:
             lines = f.readlines()
 
         # break the search strings up by module
         modules = {}
         special_keys = []
         for s in search_strings:
-            words = s.split(':')
+            words = s.split(":")
             if words[0] not in modules:
                 if "Electric_Properties" in words[0]:
                     # Dipoles/Quadrupoles are vectors/matrices
@@ -220,8 +222,8 @@ class OrcaWrapper(Wrapper):
                 # annoyingly, some properties have colons after the property name
                 # while others just have a space, because ORCA is horribly
                 # inconsistent about how it prints things out
-                if ':' in line:
-                    words = line.split(':')
+                if ":" in line:
+                    words = line.split(":")
                     name = words[0].strip()
                     key = f"{current_module}:{name}"
                     if name in modules[current_module]:
@@ -263,7 +265,7 @@ class OrcaWrapper(Wrapper):
                     # currently taking the isotropic polarizability
                     # could change to take raw tensor
                     line = lines[line_ix]
-                    res = line.split(':')[1].strip()
+                    res = line.split(":")[1].strip()
                 results[f"{key}:{name}"] = res
 
         return results
@@ -279,7 +281,12 @@ class OrcaWrapper(Wrapper):
         os.chdir(self._pwd)
 
     def _property_calc(
-        self, mol: Molecule, search_string: str, density_needed: bool, tmp: str, **params
+        self,
+        mol: Molecule,
+        search_string: str,
+        density_needed: bool,
+        tmp: str,
+        **params,
     ) -> Any:
         """Run an ORCA calculation and look up a property
 
@@ -328,9 +335,9 @@ class OrcaWrapper(Wrapper):
         if "RIJK" in cmd:
             cmd = cmd.replace("RIJK", "")
 
-        if 'energy' not in mol._references:
+        if "energy" not in mol._references:
             params["command_line"] = cmd
-            mol.add_reference('energy', self.energy(mol, tmp=tmp, **params))
+            mol.add_reference("energy", self.energy(mol, tmp=tmp, **params))
 
         if fit_type == "jk":
             cmd += " RIJK"
@@ -338,8 +345,8 @@ class OrcaWrapper(Wrapper):
             cmd += " RIJONX"
 
         params["command_line"] = cmd
-        mol.add_result('energy', self.energy(mol, tmp=tmp, **params))
-        return mol.get_delta('energy')
+        mol.add_result("energy", self.energy(mol, tmp=tmp, **params))
+        return mol.get_delta("energy")
 
     @available
     def dipole(self, mol, tmp="", **params):
@@ -348,7 +355,9 @@ class OrcaWrapper(Wrapper):
         search_string = self._density_prefix(mol.method)
         if not search_string:
             search_string = "scf"
-        search_string = search_string.upper() + "_Electric_Properties:Total Dipole moment"
+        search_string = (
+            search_string.upper() + "_Electric_Properties:Total Dipole moment"
+        )
         return self._property_calc(mol, search_string, True, tmp, **params)
 
     @available
@@ -358,7 +367,9 @@ class OrcaWrapper(Wrapper):
         search_string = self._density_prefix(mol.method)
         if not search_string:
             search_string = "scf"
-        search_string = search_string.upper() + "_Electric_Properties:Total quadrupole moment"
+        search_string = (
+            search_string.upper() + "_Electric_Properties:Total quadrupole moment"
+        )
         return self._property_calc(mol, search_string, True, tmp, **params)
 
     @available
@@ -368,5 +379,7 @@ class OrcaWrapper(Wrapper):
         search_string = self._density_prefix(mol.method)
         if not search_string:
             search_string = "scf"
-        search_string = search_string.upper() + "_Electric_Properties:Isotropic polarizability"
+        search_string = (
+            search_string.upper() + "_Electric_Properties:Isotropic polarizability"
+        )
         return self._property_calc(mol, search_string, True, tmp, **params)

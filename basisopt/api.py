@@ -9,7 +9,7 @@ from basisopt.molecule import Molecule
 from basisopt.wrappers.dummy import DummyWrapper
 from basisopt.wrappers.wrapper import Wrapper
 
-bo_logger = logging.getLogger('basisopt')
+bo_logger = logging.getLogger("basisopt")
 
 try:
     import dask
@@ -104,9 +104,9 @@ def set_logger(level: int = logging.INFO, filename: str = None):
     """Initialises Python logging, formatting it nicely,
     and optionally printing to a file.
     """
-    log_format = '%(asctime)s - ' '%(funcName)s - ' '%(levelname)s - ' '%(message)s'
-    bold_seq = '\033[1m'
-    colorlog_format = f'{bold_seq} ' '%(log_color)s ' f'{log_format}'
+    log_format = "%(asctime)s - " "%(funcName)s - " "%(levelname)s - " "%(message)s"
+    bold_seq = "\033[1m"
+    colorlog_format = f"{bold_seq} " "%(log_color)s " f"{log_format}"
     colorlog.basicConfig(format=colorlog_format)
     bo_logger.setLevel(level)
 
@@ -162,7 +162,7 @@ def molpro(path: str):
 
 
 def run_calculation(
-    evaluate: str = 'energy', mol: Molecule = None, params: dict[Any, Any] = {}
+    evaluate: str = "energy", mol: Molecule = None, params: dict[Any, Any] = {}
 ) -> int:
     """Interface to the wrapper used to run a calculation.
 
@@ -180,7 +180,7 @@ def run_calculation(
 
 
 def _one_job(
-    mol: Molecule, evaluate: str = 'energy', params: dict[Any, Any] = {}
+    mol: Molecule, evaluate: str = "energy", params: dict[Any, Any] = {}
 ) -> tuple[str, Any]:
     """Internal helper to run a single job in a distributed array"""
     success = _CURRENT_BACKEND.run(evaluate, mol, params, tmp=_TMP_DIR)
@@ -192,7 +192,7 @@ def _one_job(
 
 
 def run_all(
-    evaluate: str = 'energy',
+    evaluate: str = "energy",
     mols: list[Molecule] = [],
     params: dict[Any, Any] = {},
     parallel: bool = False,

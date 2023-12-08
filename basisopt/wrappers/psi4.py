@@ -14,27 +14,27 @@ class Psi4Wrapper(Wrapper):
     """Wrapper for Psi4"""
 
     def __init__(self):
-        super().__init__(name='Psi4')
+        super().__init__(name="Psi4")
         self._method_strings = {
-            'scf': ['energy', 'dipole', 'quadrupole'],
-            'hf': ['energy', 'dipole', 'quadrupole'],
-            'dft': ['energy', 'dipole', 'quadrupole'],
-            'mp2': ['energy', 'dipole', 'quadrupole'],
-            'mp3': ['energy'],
-            'mp4': ['energy'],
-            'lccd': ['energy', 'dipole', 'quadrupole', 'polarizability'],
-            'lccsd': ['energy', 'dipole', 'quadrupole', 'polarizability'],
-            'cc2': ['energy', 'dipole', 'quadrupole', 'polarizability'],
-            'cc3': ['energy'],
-            'ccsd': ['energy', 'dipole', 'quadrupole', 'polarizability'],
-            'ccsd(t)': ['energy', 'dipole', 'quadrupole', 'polarizability'],
-            'cisd': ['energy', 'trans_dipole', 'trans_quadrupole'],
-            'ras-ci': ['energy'],
-            'casscf': ['energy', 'trans_dipole', 'trans_quadrupole'],
-            'rasscf': ['energy', 'trans_dipole', 'trans_quadrupole'],
-            'adc(1)': ['energy', 'dipole', 'trans_dipole'],
-            'adc(2)': ['energy', 'dipole', 'trans_dipole'],
-            'adc(3)': ['energy', 'dipole', 'trans_dipole'],
+            "scf": ["energy", "dipole", "quadrupole"],
+            "hf": ["energy", "dipole", "quadrupole"],
+            "dft": ["energy", "dipole", "quadrupole"],
+            "mp2": ["energy", "dipole", "quadrupole"],
+            "mp3": ["energy"],
+            "mp4": ["energy"],
+            "lccd": ["energy", "dipole", "quadrupole", "polarizability"],
+            "lccsd": ["energy", "dipole", "quadrupole", "polarizability"],
+            "cc2": ["energy", "dipole", "quadrupole", "polarizability"],
+            "cc3": ["energy"],
+            "ccsd": ["energy", "dipole", "quadrupole", "polarizability"],
+            "ccsd(t)": ["energy", "dipole", "quadrupole", "polarizability"],
+            "cisd": ["energy", "trans_dipole", "trans_quadrupole"],
+            "ras-ci": ["energy"],
+            "casscf": ["energy", "trans_dipole", "trans_quadrupole"],
+            "rasscf": ["energy", "trans_dipole", "trans_quadrupole"],
+            "adc(1)": ["energy", "dipole", "trans_dipole"],
+            "adc(2)": ["energy", "dipole", "trans_dipole"],
+            "adc(3)": ["energy", "dipole", "trans_dipole"],
         }
         self._restricted_options = ["functional"]
         self.psi4_mol = None
@@ -57,10 +57,10 @@ class Psi4Wrapper(Wrapper):
         psi4.properties
         """
         m = method.lower()
-        if m in ['scf', 'hf']:
-            return 'SCF'
-        elif m in ['cisd']:
-            return 'CI'
+        if m in ["scf", "hf"]:
+            return "SCF"
+        elif m in ["cisd"]:
+            return "CI"
         return method.upper()
 
     def _command_string(self, method: str, **params) -> str:
@@ -92,7 +92,9 @@ class Psi4Wrapper(Wrapper):
         self.psi4_mol.set_molecular_charge(m.charge)
         self.psi4_mol.set_multiplicity(m.multiplicity)
 
-        options = {k: v for k, v in self._globals.items() if k not in self._restricted_options}
+        options = {
+            k: v for k, v in self._globals.items() if k not in self._restricted_options
+        }
         for k, v in params.items():
             if k not in self._restricted_options:
                 options[k] = v
@@ -110,7 +112,7 @@ class Psi4Wrapper(Wrapper):
         ecp_string = "\n"
         for atom, name in m.ecps.items():
             ecp = fetch_ecp(name, [atom])
-            lines = write_formatted_basis_str(ecp, fmt="psi4").split('\n')
+            lines = write_formatted_basis_str(ecp, fmt="psi4").split("\n")
             ecp_string += "\n".join(lines[4:])
         psi4.basis_helper(g94_basis + ecp_string)
 
@@ -119,14 +121,19 @@ class Psi4Wrapper(Wrapper):
         psi4.core.clean()
 
     def _get_properties(
-        self, mol: Molecule, name: str = "prop", properties: list[str] = [], tmp: str = "", **params
+        self,
+        mol: Molecule,
+        name: str = "prop",
+        properties: list[str] = [],
+        tmp: str = "",
+        **params,
     ) -> dict[str, Any]:
         """Helper function to retrieve a property value from Psi4
         after a calculation.
         """
         ptype = self._property_prefix(mol.method)
         if ptype == "DFT":
-            func = params['functional']
+            func = params["functional"]
             ptype = func.upper()
         strings = [ptype + " " + p.upper() for p in properties]
 
@@ -154,19 +161,21 @@ class Psi4Wrapper(Wrapper):
 
     @available
     def dipole(self, mol, tmp="", **params):
-        results = self._get_properties(mol, name="dipole", properties=['dipole'], tmp=tmp, **params)
-        return results['dipole']
+        results = self._get_properties(
+            mol, name="dipole", properties=["dipole"], tmp=tmp, **params
+        )
+        return results["dipole"]
 
     @available
     def quadrupole(self, mol, tmp="", **params):
         results = self._get_properties(
-            mol, name="quadrupole", properties=['quadrupole'], tmp=tmp, **params
+            mol, name="quadrupole", properties=["quadrupole"], tmp=tmp, **params
         )
-        return results['quadrupole']
+        return results["quadrupole"]
 
     @available
     def polarizability(self, mol, tmp="", **params):
         results = self._get_properties(
-            mol, name="polar", properties=['polarizability'], tmp=tmp, **params
+            mol, name="polar", properties=["polarizability"], tmp=tmp, **params
         )
-        return results['polarizability']
+        return results["polarizability"]

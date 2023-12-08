@@ -53,10 +53,14 @@ class EvenTemperedStrategy(Strategy):
     """
 
     def __init__(
-        self, eval_type: str = 'energy', target: float = 1e-5, max_n: int = 18, max_l: int = -1
+        self,
+        eval_type: str = "energy",
+        target: float = 1e-5,
+        max_n: int = 18,
+        max_l: int = -1,
     ):
         super().__init__(eval_type=eval_type, pre=unit)
-        self.name = 'EvenTemper'
+        self.name = "EvenTemper"
         self.shells = []
         self.shell_done = []
         self.target = target
@@ -82,7 +86,7 @@ class EvenTemperedStrategy(Strategy):
         """Creates EvenTemperedStrategy from MSONable dictionary"""
         strategy = Strategy.from_dict(d)
         instance = cls(
-            eval_type=d.get("eval_type", 'energy'),
+            eval_type=d.get("eval_type", "energy"),
             target=d.get("target", 1e-5),
             max_n=d.get("max_n", 18),
             max_l=d.get("max_l", -1),

@@ -19,7 +19,7 @@ def make_bse_shell(shell: Shell) -> dict[str, Any]:
          a BSE-format gto_spherical shell
     """
     new_shell = {
-        "function_type": 'gto_spherical',
+        "function_type": "gto_spherical",
         "region": "",
         "angular_momentum": [data.AM_DICT[shell.l]],
         "exponents": [f"{x:e}" for x in shell.exps],
@@ -39,9 +39,11 @@ def make_internal_shell(shell: dict[str, Any]) -> Shell:
          an internal Shell object
     """
     new_shell = Shell()
-    new_shell.l = data.INV_AM_DICT[shell['angular_momentum'][0]]
-    new_shell.exps = np.array([float(x) for x in shell['exponents']])
-    new_shell.coefs = [np.array([float(c) for c in arr]) for arr in shell['coefficients']]
+    new_shell.l = data.INV_AM_DICT[shell["angular_momentum"][0]]
+    new_shell.exps = np.array([float(x) for x in shell["exponents"]])
+    new_shell.coefs = [
+        np.array([float(c) for c in arr]) for arr in shell["coefficients"]
+    ]
     return new_shell
 
 
@@ -56,17 +58,17 @@ def internal_to_bse(basis: InternalBasis) -> BSEBasis:
          a BSE basis of type 'component' with 'gto_spherical' function types
     """
     # get a container
-    bse_basis = bse.skel.create_skel('component')
-    bse_basis['function_types'] = ['gto_spherical']
+    bse_basis = bse.skel.create_skel("component")
+    bse_basis["function_types"] = ["gto_spherical"]
     elements = {}
     # add all the elements
     for el, b in basis.items():
-        new_element = bse.skel.create_skel('element')
-        new_element['electron_shells'] = [make_bse_shell(s) for s in b]
+        new_element = bse.skel.create_skel("element")
+        new_element["electron_shells"] = [make_bse_shell(s) for s in b]
         z = bse.lut.element_Z_from_sym(el, as_str=True)
         elements[z] = new_element
 
-    bse_basis['elements'] = elements
+    bse_basis["elements"] = elements
     return bse_basis
 
 
@@ -82,9 +84,9 @@ def bse_to_internal(basis: BSEBasis) -> InternalBasis:
          an internal basis dictionary
     """
     new_basis = {}
-    for z, e in basis['elements'].items():
+    for z, e in basis["elements"].items():
         shells = {}
-        for s in e['electron_shells']:
+        for s in e["electron_shells"]:
             internal = make_internal_shell(s)
             if internal.l not in shells:
                 shells[internal.l] = internal
@@ -99,14 +101,14 @@ def bse_to_internal(basis: BSEBasis) -> InternalBasis:
                     sl.coefs.append(np.concatenate([np.zeros(nc), c]))
         el = bse.lut.element_sym_from_Z(z)
         new_basis[el] = []
-        for l in ['s', 'p', 'd', 'f', 'g', 'h', 'i']:
+        for l in ["s", "p", "d", "f", "g", "h", "i"]:
             if l not in shells:
                 break
             new_basis[el].append(shells[l])
     return new_basis
 
 
-def internal_basis_converter(basis: InternalBasis, fmt: str = 'gaussian94') -> str:
+def internal_basis_converter(basis: InternalBasis, fmt: str = "gaussian94") -> str:
     """Writes out an internal basis in the desired BSE format
 
     Arguments:
@@ -146,8 +148,8 @@ def fetch_ecp(name: str, elements: list[str]) -> BSEBasis:
          a BSE basis dictionary
     """
     basis = bse.get_basis(name, elements)
-    for el, elbas in basis['elements'].items():
-        assert 'ecp_potentials' in elbas, f"Element {el} does not have an ECP in {name}"
-        if 'electron_shells' in elbas:
-            del elbas['electron_shells']
+    for el, elbas in basis["elements"].items():
+        assert "ecp_potentials" in elbas, f"Element {el} does not have an ECP in {name}"
+        if "electron_shells" in elbas:
+            del elbas["electron_shells"]
     return basis

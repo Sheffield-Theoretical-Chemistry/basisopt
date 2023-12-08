@@ -21,7 +21,7 @@ class JKFitBasis(Basis):
 
     def __init__(
         self,
-        name: str = 'H',
+        name: str = "H",
         charge: int = 0,
         mult=1,
         mol: Optional[Molecule] = None,
@@ -76,7 +76,7 @@ class JKFitBasis(Basis):
         """Returns jfit or jkfit basis, depending on
         basis_type attribute
         """
-        if self.basis_type == 'jfit':
+        if self.basis_type == "jfit":
             return self._molecule.jbasis
         return self._molecule.jkbasis
 
@@ -85,7 +85,7 @@ class JKFitBasis(Basis):
         basis: InternalBasis,
         guess: Optional[Union[str, InternalBasis]] = None,
         config: Optional[list[int]] = None,
-        method: str = 'rhf',
+        method: str = "rhf",
         params: dict[str, Any] = {},
     ):
         """Sets up the basis ready for optimization. Must be called before optimize is called
@@ -116,7 +116,7 @@ class JKFitBasis(Basis):
         if config:
             self.strategy = ReduceStrategy(
                 starting_basis,
-                eval_type='jk_error',
+                eval_type="jk_error",
                 method=method,
                 target=1.0,
                 shell_mins=config,
@@ -125,19 +125,21 @@ class JKFitBasis(Basis):
                 **params,
             )
         else:
-            self.strategy = Strategy(eval_type='jk_error')
+            self.strategy = Strategy(eval_type="jk_error")
 
         self.strategy.basis_type = self.basis_type
         self.strategy.orbital_basis = basis
         self._molecule.basis = basis
         self._molecule.method = method
-        if self.basis_type == 'jfit':
+        if self.basis_type == "jfit":
             self._molecule.jbasis = starting_basis
         else:
             self._molecule.jkbasis = starting_basis
         self._done_setup = True
 
-    def optimize(self, algorithm: str = 'Nelder-Mead', params: dict[str, Any] = {}) -> OptResult:
+    def optimize(
+        self, algorithm: str = "Nelder-Mead", params: dict[str, Any] = {}
+    ) -> OptResult:
         """Runs the basis optimization
 
         Arguments:
@@ -167,8 +169,8 @@ def jkfit_collection(
     mult: int = 1,
     mol: Optional[Molecule] = None,
     jonly: bool = False,
-    method: str = 'rhf',
-    algorithm: str = 'Nelder-Mead',
+    method: str = "rhf",
+    algorithm: str = "Nelder-Mead",
     opt_params: dict[str, Any] = {},
     params: dict[str, Any] = {},
 ) -> list[JKFitBasis]:
@@ -194,7 +196,9 @@ def jkfit_collection(
     results = []
     guess = starting_guess
     for basis, config in basis_pairs:
-        new_jk = JKFitBasis(name=element, charge=charge, mult=mult, mol=mol, jonly=jonly)
+        new_jk = JKFitBasis(
+            name=element, charge=charge, mult=mult, mol=mol, jonly=jonly
+        )
         new_jk.setup(basis, guess=guess, config=config, method=method, params=params)
         _ = new_jk.optimize(algorithm=algorithm, params=opt_params)
         results.append(new_jk.copy())

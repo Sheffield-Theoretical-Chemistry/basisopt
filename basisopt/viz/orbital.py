@@ -31,8 +31,12 @@ def contour3d(
     """
     nj = n * 1j
     X, Y, Z = np.mgrid[
-        (lower[0]) : (upper[0]) : nj, (lower[1]) : (upper[1]) : nj, (lower[2]) : (upper[2]) : nj
+        (lower[0]) : (upper[0]) : nj,
+        (lower[1]) : (upper[1]) : nj,
+        (lower[2]) : (upper[2]) : nj,
     ]
     f = gto.compute(X, Y, Z, i=ix, m=m)
     bo_logger.debug("Contour min: %12.6f, max: %12.6f", np.min(f), np.max(f))
-    return mlab.contour3d(X, Y, Z, f, contours=contours, colormap='cool', transparent=True)
+    return mlab.contour3d(
+        X, Y, Z, f, contours=contours, colormap="cool", transparent=True
+    )

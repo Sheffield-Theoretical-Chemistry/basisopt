@@ -13,20 +13,20 @@ class MolproWrapper(Wrapper):
     """Wrapper for Molpro using pymolpro"""
 
     def __init__(self):
-        super().__init__(name='Molpro')
+        super().__init__(name="Molpro")
         self._method_strings = {
-            'hf': ['energy'],
-            'rhf': ['energy'],
-            'uhf': ['energy'],
-            'mp2': ['energy'],
-            'rmp2': ['energy'],
-            'ump2': ['energy'],
-            'ccsd': ['energy'],
-            'ccsd(t)': ['energy'],
-            'uccsd': ['energy'],
-            'uccsd(t)': ['energy'],
-            'rks': ['energy'],
-            'uks': ['energy'],
+            "hf": ["energy"],
+            "rhf": ["energy"],
+            "uhf": ["energy"],
+            "mp2": ["energy"],
+            "rmp2": ["energy"],
+            "ump2": ["energy"],
+            "ccsd": ["energy"],
+            "ccsd(t)": ["energy"],
+            "uccsd": ["energy"],
+            "uccsd(t)": ["energy"],
+            "rks": ["energy"],
+            "uks": ["energy"],
         }
 
     def convert_molecule(self, m: Molecule) -> str:
@@ -48,8 +48,8 @@ class MolproWrapper(Wrapper):
         parameters for a given method.
         Returns an empty string if the params are not found.
         """
-        method_search = method + '-params'
-        param_options = params.get(method_search, '')
+        method_search = method + "-params"
+        param_options = params.get(method_search, "")
         return param_options
 
     def _command_string(self, method: str, **params) -> str:
@@ -60,18 +60,18 @@ class MolproWrapper(Wrapper):
         method_options = self._convert_params(method, **params)
         # Post-HF calculations need to specify the HF part too
         # hence check for any user-supplied params for the HF part.
-        if method in ['mp2', 'ccsd', 'ccsd(t)']:
-            ref_options = self._convert_params('hf', **params)
+        if method in ["mp2", "ccsd", "ccsd(t)"]:
+            ref_options = self._convert_params("hf", **params)
             command = f"{{hf{ref_options}}}\n{{{method}{method_options}}}"
-        elif method in ['rmp2', 'uccsd', 'uccsd(t)']:
-            ref_options = self._convert_params('rhf', **params)
+        elif method in ["rmp2", "uccsd", "uccsd(t)"]:
+            ref_options = self._convert_params("rhf", **params)
             command = f"{{rhf{ref_options}}}\n{{{method}{method_options}}}"
-        elif method in ['ump2']:
-            ref_options = self._convert_params('uhf', **params)
+        elif method in ["ump2"]:
+            ref_options = self._convert_params("uhf", **params)
             command = f"{{uhf{ref_options}}}\n{{{method}{method_options}}}"
         # For DFT based methods, the functional must be specified separately
         # to other params
-        elif method in ['rks', 'uks']:
+        elif method in ["rks", "uks"]:
             if "functional" in params:
                 xcfun = params["functional"]
                 command = f"{{{method},{xcfun}{method_options}}}"
@@ -93,7 +93,7 @@ class MolproWrapper(Wrapper):
         ecp_str = ""
         for atom, name in m.ecps.items():
             ecp = fetch_ecp(name, [atom])
-            lines = write_formatted_basis_str(ecp, fmt="molpro").split('\n')
+            lines = write_formatted_basis_str(ecp, fmt="molpro").split("\n")
             ecp_str += "\n".join(lines[4:])
         return ecp_str
 
@@ -126,7 +126,7 @@ class MolproWrapper(Wrapper):
 
         # Handle options, molecule, basis
         g_param_str = ""
-        glo_params = params.get("global-params", '')
+        glo_params = params.get("global-params", "")
         if glo_params:
             g_param_str = glo_params + "\n"
         cmd = self._command_string(m.method, **params)
@@ -144,13 +144,13 @@ class MolproWrapper(Wrapper):
     def _get_energy(self, proj: Project, meth: str) -> float:
         """Helper function to retrieve the energy from
         Molpro after a calculation"""
-        if meth in ['hf', 'rhf', 'uhf', 'rks', 'uks']:
+        if meth in ["hf", "rhf", "uhf", "rks", "uks"]:
             energy = proj.energies()[0]
-        elif meth in ['mp2']:
+        elif meth in ["mp2"]:
             energy = proj.energies()[-1]
-        elif meth in ['rmp2', 'ump2', 'ccsd']:
+        elif meth in ["rmp2", "ump2", "ccsd"]:
             energy = proj.energies(method=f"{meth.upper()}")[-1]
-        elif meth in ['uccsd', 'uccsd(t)']:
+        elif meth in ["uccsd", "uccsd(t)"]:
             energy = proj.energy(method=f"RHF-{meth.upper()}")
         else:
             energy = proj.energy(method=f"{meth.upper()}")

@@ -23,7 +23,7 @@ class Shell(MSONable):
     """
 
     def __init__(self):
-        self.l = 's'
+        self.l = "s"
         self.exps = np.array([])
         self.coefs = []
 
@@ -54,9 +54,9 @@ class Shell(MSONable):
         """
         d = dict_decode(d)
         instance = cls()
-        instance.l = d.get('l', 's')
-        instance.exps = d.get('exps', np.array([]))
-        instance.coefs = d.get('coefs', [])
+        instance.l = d.get("l", "s")
+        instance.exps = d.get("exps", np.array([]))
+        instance.coefs = d.get("coefs", [])
         return instance
 
     def compute(self, x: float, y: float, z: float, i: int = 0, m: int = 0) -> float:
@@ -125,7 +125,7 @@ def dict_to_basis(d: dict[str, Any]) -> InternalBasis:
         shell = d[key]
         if len(shell) > 0:
             obj = type(shell[0]).__name__
-            if obj != 'Shell':
+            if obj != "Shell":
                 return {k: [Shell.from_dict(s) for s in v] for k, v in d.items()}
     return d
 
@@ -152,7 +152,7 @@ class Result(MSONable):
         _children (list): references to child Result objects
     """
 
-    def __init__(self, name: str = 'Empty'):
+    def __init__(self, name: str = "Empty"):
         self.name = name
         self._data_keys = {}
         self._data_values = {}
@@ -268,7 +268,7 @@ class Result(MSONable):
 
     def add_child(self, child: object):
         """Adds a child Result to this Result"""
-        if hasattr(child, '_depth'):
+        if hasattr(child, "_depth"):
             child.depth = self.depth + 1
             self._children.append(child)
         else:
@@ -299,14 +299,14 @@ class Result(MSONable):
 
     def save(self, filename: str):
         """Pickles the Result object into a file"""
-        with open(filename, 'wb') as f:
+        with open(filename, "wb") as f:
             pickle.dump(self, f)
             f.close()
         bo_logger.info("Dumped object of type %s to %s", type(data), filename)
 
     def load(self, filename: str) -> object:
         """Loads and returns a Result object from a file pickle"""
-        with open(filename, 'rb') as f:
+        with open(filename, "rb") as f:
             pkl_data = pickle.load(f)
             f.close()
         bo_logger.info("Loaded object of type %s from %s", type(pkl_data), filename)
@@ -328,7 +328,7 @@ class Result(MSONable):
             cd = c.as_dict()
             del cd["@module"]
             del cd["@class"]
-            d['children'].append(cd)
+            d["children"].append(cd)
         return d
 
     @classmethod

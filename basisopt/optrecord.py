@@ -32,8 +32,8 @@ class OptRecord(Result):
         self,
         step_back: int = 0,
         default: str = "cc-pvtz",
-        add_atoms: list[str] = ['H'],
-        ls: list[str] = ['s', 'p', 'd', 'f'],
+        add_atoms: list[str] = ["H"],
+        ls: list[str] = ["s", "p", "d", "f"],
     ) -> InternalBasis:
         """Gets the basis from this record with additional terms
 
@@ -80,8 +80,8 @@ class OptRecord(Result):
         """Returns number of non-hydrogen atoms"""
         counts = self.get_counts()
         n = sum(counts.values())
-        if 'H' in counts:
-            n -= counts['H']
+        if "H" in counts:
+            n -= counts["H"]
         return n
 
     def as_dict(self) -> dict[str, Any]:
@@ -106,5 +106,5 @@ class OptRecord(Result):
         instance.functional_groups = d.get("functional_groups", [])
         instance.species = d.get("species", [])
         coords = d.get("coords", [])
-        instance.coords = np.array([c['data'] for c in coords])
+        instance.coords = np.array([c["data"] for c in coords])
         return instance

@@ -59,7 +59,10 @@ class Molecule(MSONable):
         return nel
 
     def add_atom(
-        self, element: str = 'H', coord: list[float] = [0.0, 0.0, 0.0], dummy: bool = False
+        self,
+        element: str = "H",
+        coord: list[float] = [0.0, 0.0, 0.0],
+        dummy: bool = False,
     ):
         """Adds an atom to the molecule
 
@@ -125,7 +128,7 @@ class Molecule(MSONable):
         instance = cls(name=name, charge=charge, mult=mult)
         try:
             # Read in xyz file
-            with open(filename, 'r') as f:
+            with open(filename, "r") as f:
                 lines = f.readlines()
             # parse
             # first line should be natoms
@@ -292,7 +295,7 @@ def build_diatomic(mol_str: str, charge: int = 0, mult: int = 1) -> Molecule:
     """
     molecule = Molecule(name=mol_str + "_Diatomic", charge=charge, mult=mult)
     # parse the mol string, form "Atom1Atom2,Separation(ang)"
-    parts = mol_str.split(',')
+    parts = mol_str.split(",")
     chars = list(parts[0])
     rval = float(parts[1])
     nchars = len(chars)
@@ -301,13 +304,13 @@ def build_diatomic(mol_str: str, charge: int = 0, mult: int = 1) -> Molecule:
     if chars[0].isupper():
         if nchars == 2:
             # either something like NO or N2
-            if chars[1] == '2':
+            if chars[1] == "2":
                 atom1 = atom2 = chars[0]
             elif chars[1].isupper():
                 atom1 = chars[0]
                 atom2 = chars[1]
         elif nchars == 3:
-            if chars[2] == '2':
+            if chars[2] == "2":
                 # eg Ne2
                 atom1 = atom2 = "".join(chars[:2])
             elif chars[1].isupper():

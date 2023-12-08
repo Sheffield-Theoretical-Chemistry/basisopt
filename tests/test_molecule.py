@@ -28,11 +28,11 @@ def test_add_atom():
 
     m.add_atom()
     assert m.natoms() == 1
-    assert 'H' in m._atom_names
+    assert "H" in m._atom_names
 
-    m.add_atom(element='O', coord=[1.5, 0.0, 0.0])
+    m.add_atom(element="O", coord=[1.5, 0.0, 0.0])
     assert m.natoms() == 2
-    assert 'O' in m._atom_names
+    assert "O" in m._atom_names
     assert almost_equal(m.distance(0, 1), 1.5)
 
 
@@ -64,11 +64,11 @@ def test_from_xyz():
 
     # test unique_atoms
     unique_atoms = m.unique_atoms()
-    assert 'H' in unique_atoms
-    assert 'C' in unique_atoms
-    assert 'N' in unique_atoms
-    assert 'O' in unique_atoms
-    assert 'S' not in unique_atoms
+    assert "H" in unique_atoms
+    assert "C" in unique_atoms
+    assert "N" in unique_atoms
+    assert "O" in unique_atoms
+    assert "S" not in unique_atoms
 
     # test distance
     assert almost_equal(m.distance(0, 5), 3.3795237480990497)
@@ -102,7 +102,7 @@ def test_set_dummy_atoms():
 
 def test_set_ecps():
     m = Molecule.from_xyz("tests/data/caffeine.xyz")
-    m.set_ecps({'O': 'SBKJC-ECP', 'I': 'def2-QZVP'})
+    m.set_ecps({"O": "SBKJC-ECP", "I": "def2-QZVP"})
     assert len(m.ecps) == 1
 
 
