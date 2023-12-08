@@ -4,7 +4,7 @@ on: [pull_request, push]
 jobs:
   code-quality:
     strategy:
-      fail-fast: false
+      fail-fast: True
       matrix:
         python-version: ['3.10']
         os: [ubuntu-latest]
