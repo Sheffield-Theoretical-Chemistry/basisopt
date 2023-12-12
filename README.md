@@ -12,7 +12,6 @@ You can alternatively create a fresh conda env or pyenv and in the top directory
 
 	 pip install -e .
 
-However, if you intend to submit a PR for your change, please test building with `poetry` first. 
 
 ## Contributing
 
