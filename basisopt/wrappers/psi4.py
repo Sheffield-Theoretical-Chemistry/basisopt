@@ -92,9 +92,7 @@ class Psi4Wrapper(Wrapper):
         self.psi4_mol.set_molecular_charge(m.charge)
         self.psi4_mol.set_multiplicity(m.multiplicity)
 
-        options = {
-            k: v for k, v in self._globals.items() if k not in self._restricted_options
-        }
+        options = {k: v for k, v in self._globals.items() if k not in self._restricted_options}
         for k, v in params.items():
             if k not in self._restricted_options:
                 options[k] = v
@@ -161,9 +159,7 @@ class Psi4Wrapper(Wrapper):
 
     @available
     def dipole(self, mol, tmp="", **params):
-        results = self._get_properties(
-            mol, name="dipole", properties=["dipole"], tmp=tmp, **params
-        )
+        results = self._get_properties(mol, name="dipole", properties=["dipole"], tmp=tmp, **params)
         return results["dipole"]
 
     @available

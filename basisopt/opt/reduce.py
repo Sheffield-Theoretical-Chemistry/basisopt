@@ -163,13 +163,9 @@ class ReduceStrategy(Strategy):
             self.last_objective = objective
 
             # determine which exponents are removable
-            possible_changes = [
-                (n - m) > 0 for n, m in zip(self.nexps, self.shell_mins)
-            ]
+            possible_changes = [(n - m) > 0 for n, m in zip(self.nexps, self.shell_mins)]
 
-            carry_on = (self.delta_objective < self.target) and (
-                True in possible_changes
-            )
+            carry_on = (self.delta_objective < self.target) and (True in possible_changes)
             if carry_on:
                 at = AtomicBasis(name=element)
                 if self.basis_type in ["jfit", "jkfit"]:
@@ -229,9 +225,7 @@ class ReduceStrategy(Strategy):
                 self._step += 1
         else:
             if self.delta_objective > self.target:
-                bo_logger.info(
-                    "Change in objective over target, reverting to basis from last step"
-                )
+                bo_logger.info("Change in objective over target, reverting to basis from last step")
                 basis[element] = self.saved_basis[element]
             else:
                 bo_logger.info("Reached minimum basis size")

@@ -138,9 +138,7 @@ class PropertyTest(Test):
         else:
             raise PropertyNotAvailable(name)
 
-    def calculate(
-        self, method: str, basis: InternalBasis, params: dict[str, Any] = {}
-    ) -> Any:
+    def calculate(self, method: str, basis: InternalBasis, params: dict[str, Any] = {}) -> Any:
         """Calculates the test value
 
         Arguments:
@@ -156,9 +154,7 @@ class PropertyTest(Test):
         # run calculation
         self.molecule.basis = basis
         self.molecule.method = method
-        success = api.run_calculation(
-            evaluate=self.eval_type, mol=self.molecule, params=params
-        )
+        success = api.run_calculation(evaluate=self.eval_type, mol=self.molecule, params=params)
         if success != 0:
             raise FailedCalculation
 

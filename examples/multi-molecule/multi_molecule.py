@@ -8,9 +8,7 @@ bo.set_tmp_dir("/home/me/scr/")
 
 mb = MolecularBasis(name="double")
 list_of_mols = ["water", "methane", "methanol", "formaldehyde", "oxygen"]
-mol_objs = [
-    bo.molecule.Molecule.from_xyz(mol + ".xyz", name=mol) for mol in list_of_mols
-]
+mol_objs = [bo.molecule.Molecule.from_xyz(mol + ".xyz", name=mol) for mol in list_of_mols]
 mb = MolecularBasis(name="double", molecules=mol_objs)
 
 params = {
@@ -40,9 +38,7 @@ while e_diff > conv_crit:
     mb.optimize()
     e_opt.append(strategy.last_objective)
     e_diff = abs(strategy.last_objective - e_opt[counter])
-    bo_logger.info(
-        "Objective function difference from previous iteration: %f\n", e_diff
-    )
+    bo_logger.info("Objective function difference from previous iteration: %f\n", e_diff)
     counter += 1
 
 filename = "opt_basis.txt"

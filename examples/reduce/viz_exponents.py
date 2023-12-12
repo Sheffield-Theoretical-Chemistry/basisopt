@@ -12,9 +12,7 @@ start_basis = bo.fetch_basis(basis_name, ["Ne"])
 start_basis["partridge"] = start_basis["ne"]
 start_basis["optimized"] = ne.get_basis()["ne"]
 
-fig, ax = plot_exponents(
-    start_basis, atoms=["partridge", "optimized"], split_by_shell=True
-)
+fig, ax = plot_exponents(start_basis, atoms=["partridge", "optimized"], split_by_shell=True)
 ax[0].set_title("Partridge Uncontracted 3")
 ax[1].set_title("(10s5p) optimized")
 plt.savefig("basis_plot.png")

@@ -178,9 +178,7 @@ class OrcaWrapper(Wrapper):
         run_cmd = f"{self._path}/{program} {prefix}.inp > {prefix}.out"
         subprocess.run(run_cmd, shell=True, check=True)
 
-    def _read_property_file(
-        self, prefix: str, search_strings: list[str]
-    ) -> dict[str, Any]:
+    def _read_property_file(self, prefix: str, search_strings: list[str]) -> dict[str, Any]:
         """Reads in desired results from the orca [name]_property.txt file.
 
         Arguments:
@@ -355,9 +353,7 @@ class OrcaWrapper(Wrapper):
         search_string = self._density_prefix(mol.method)
         if not search_string:
             search_string = "scf"
-        search_string = (
-            search_string.upper() + "_Electric_Properties:Total Dipole moment"
-        )
+        search_string = search_string.upper() + "_Electric_Properties:Total Dipole moment"
         return self._property_calc(mol, search_string, True, tmp, **params)
 
     @available
@@ -367,9 +363,7 @@ class OrcaWrapper(Wrapper):
         search_string = self._density_prefix(mol.method)
         if not search_string:
             search_string = "scf"
-        search_string = (
-            search_string.upper() + "_Electric_Properties:Total quadrupole moment"
-        )
+        search_string = search_string.upper() + "_Electric_Properties:Total quadrupole moment"
         return self._property_calc(mol, search_string, True, tmp, **params)
 
     @available
@@ -379,7 +373,5 @@ class OrcaWrapper(Wrapper):
         search_string = self._density_prefix(mol.method)
         if not search_string:
             search_string = "scf"
-        search_string = (
-            search_string.upper() + "_Electric_Properties:Isotropic polarizability"
-        )
+        search_string = search_string.upper() + "_Electric_Properties:Isotropic polarizability"
         return self._property_calc(mol, search_string, True, tmp, **params)

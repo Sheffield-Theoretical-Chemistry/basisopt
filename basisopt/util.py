@@ -71,9 +71,7 @@ def fit_poly(
     # Find the true minimum by interpolation, if possible
     xmin = min(xshift) - 0.1
     xmax = max(xshift) + 0.1
-    crit_points = [
-        x.real for x in p.deriv().r if np.abs(x.imag) < 1e-8 and xmin < x.real < xmax
-    ]
+    crit_points = [x.real for x in p.deriv().r if np.abs(x.imag) < 1e-8 and xmin < x.real < xmax]
     if len(crit_points) == 0:
         bo_logger.warning("Minimum not found in polynomial fit")
         # Set outputs to default values

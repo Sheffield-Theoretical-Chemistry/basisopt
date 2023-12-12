@@ -137,9 +137,7 @@ class JKFitBasis(Basis):
             self._molecule.jkbasis = starting_basis
         self._done_setup = True
 
-    def optimize(
-        self, algorithm: str = "Nelder-Mead", params: dict[str, Any] = {}
-    ) -> OptResult:
+    def optimize(self, algorithm: str = "Nelder-Mead", params: dict[str, Any] = {}) -> OptResult:
         """Runs the basis optimization
 
         Arguments:
@@ -196,9 +194,7 @@ def jkfit_collection(
     results = []
     guess = starting_guess
     for basis, config in basis_pairs:
-        new_jk = JKFitBasis(
-            name=element, charge=charge, mult=mult, mol=mol, jonly=jonly
-        )
+        new_jk = JKFitBasis(name=element, charge=charge, mult=mult, mol=mol, jonly=jonly)
         new_jk.setup(basis, guess=guess, config=config, method=method, params=params)
         _ = new_jk.optimize(algorithm=algorithm, params=opt_params)
         results.append(new_jk.copy())

@@ -41,9 +41,7 @@ def make_internal_shell(shell: dict[str, Any]) -> Shell:
     new_shell = Shell()
     new_shell.l = data.INV_AM_DICT[shell["angular_momentum"][0]]
     new_shell.exps = np.array([float(x) for x in shell["exponents"]])
-    new_shell.coefs = [
-        np.array([float(c) for c in arr]) for arr in shell["coefficients"]
-    ]
+    new_shell.coefs = [np.array([float(c) for c in arr]) for arr in shell["coefficients"]]
     return new_shell
 
 

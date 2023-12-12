@@ -25,9 +25,7 @@ def uncontract_shell(shell: Shell):
         shell.coefs.append(c)
 
 
-def uncontract(
-    basis: InternalBasis, elements: Optional[list[str]] = None
-) -> InternalBasis:
+def uncontract(basis: InternalBasis, elements: Optional[list[str]] = None) -> InternalBasis:
     """Uncontracts all shells in a basis for the elements specified
     (does not overwrite the old basis).
 
@@ -115,9 +113,7 @@ def well_temper_expansion(params: WTParams) -> list[Shell]:
     for ix, (c, x, g, d, n) in enumerate(params):
         new_shell = Shell()
         new_shell.l = data.INV_AM_DICT[ix]
-        new_shell.exps = np.array(
-            [c * (x**p) * (1.0 + g * ((p + 1) / n) ** d) for p in range(n)]
-        )
+        new_shell.exps = np.array([c * (x**p) * (1.0 + g * ((p + 1) / n) ** d) for p in range(n)])
         uncontract_shell(new_shell)
         el_basis.append(new_shell)
     return el_basis
@@ -188,22 +184,16 @@ class Basis(MSONable):
         if t is None:
             bo_logger.warning("No test with name %s", name)
         else:
-            t.result = t.calculate(
-                self._molecule.method, self._molecule.basis, params=params
-            )
+            t.result = t.calculate(self._molecule.method, self._molecule.basis, params=params)
             bo_logger.info("Test %s: %s", name, t.result)
 
     def run_all_tests(self, params: dict[str, Any] = {}):
         """Runs all the tests in basis, printing results"""
         for t in self._tests:
-            t.result = t.calculate(
-                self._molecule.method, self._molecule.basis, params=params
-            )
+            t.result = t.calculate(self._molecule.method, self._molecule.basis, params=params)
             bo_logger.info("Test %s: %s", t.name, t.result)
 
-    def optimize(
-        self, algorithm: str = "Nelder-Mead", params: dict[str, Any] = {}
-    ) -> dict:
+    def optimize(self, algorithm: str = "Nelder-Mead", params: dict[str, Any] = {}) -> dict:
         """All basis objects should implement an optimize method with this signature"""
         raise NotImplementedError
 

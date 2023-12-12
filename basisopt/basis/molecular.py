@@ -154,13 +154,9 @@ class MolecularBasis(Basis):
                 for m in self.molecules():
                     t.molecule = m
                     if str_basis:
-                        t.calculate_reference(
-                            m.method, basis_name=reference_basis, params=params
-                        )
+                        t.calculate_reference(m.method, basis_name=reference_basis, params=params)
                     else:
-                        t.calculate_reference(
-                            m.method, basis=reference_basis, params=params
-                        )
+                        t.calculate_reference(m.method, basis=reference_basis, params=params)
                     child.add_data(f"{m.name}_ref", t.reference)
 
             for m in self.molecules():
@@ -231,9 +227,7 @@ class MolecularBasis(Basis):
         self.basis = {k: v.get_basis()[k] for k, v in self._atomic_bases.items()}
         if reference is not None:
             if api.which_backend() == "Empty":
-                bo_logger.warning(
-                    "No backend currently set, can't compute reference value"
-                )
+                bo_logger.warning("No backend currently set, can't compute reference value")
             else:
                 ref_basis = fetch_basis(reference, self.unique_atoms())
                 for m in self.molecules():
@@ -245,9 +239,7 @@ class MolecularBasis(Basis):
                         reference,
                     )
                     m.basis = ref_basis
-                    success = api.run_calculation(
-                        evaluate=strategy.eval_type, mol=m, params=params
-                    )
+                    success = api.run_calculation(evaluate=strategy.eval_type, mol=m, params=params)
                     if success != 0:
                         bo_logger.warning("Reference calculation failed")
                         value = 0.0
@@ -281,8 +273,7 @@ class MolecularBasis(Basis):
         """
         if self._done_setup:
             opt_data = [
-                (k, algorithm, v.strategy, reg, params)
-                for k, v in self._atomic_bases.items()
+                (k, algorithm, v.strategy, reg, params) for k, v in self._atomic_bases.items()
             ]
             self.opt_results = collective_optimize(
                 self._molecules.values(),

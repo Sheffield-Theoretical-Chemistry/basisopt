@@ -111,9 +111,7 @@ class Wrapper:
         """Cleans up any temporary files"""
         pass
 
-    def run(
-        self, evaluate: str, molecule: Molecule, params: dict[str, Any], tmp: str = ""
-    ) -> int:
+    def run(self, evaluate: str, molecule: Molecule, params: dict[str, Any], tmp: str = "") -> int:
         """Runs a calculation with this backend
         MUST BE IMPLEMENTED IN ALL WRAPPERS
 
@@ -129,9 +127,7 @@ class Wrapper:
         method_str = f"{molecule.method}.{evaluate}".lower()
         try:
             if self.verify_method_string(method_str):
-                self._values[evaluate] = self._methods[evaluate](
-                    molecule, tmp=tmp, **params
-                )
+                self._values[evaluate] = self._methods[evaluate](molecule, tmp=tmp, **params)
                 return 0
             raise MethodNotAvailable(method_str)
         except KeyError as e:

@@ -123,9 +123,7 @@ def reduce_primitives(
     if not shells:
         shells = list(range(len(basis)))  # do all
     # first rank the primitives
-    errors, ranks = rank_primitives(
-        atomic, shells=shells, eval_type=eval_type, params=params
-    )
+    errors, ranks = rank_primitives(atomic, shells=shells, eval_type=eval_type, params=params)
 
     # now reduce
     for s, e, r in zip(shells, errors, ranks):

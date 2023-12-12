@@ -37,6 +37,4 @@ def contour3d(
     ]
     f = gto.compute(X, Y, Z, i=ix, m=m)
     bo_logger.debug("Contour min: %12.6f, max: %12.6f", np.min(f), np.max(f))
-    return mlab.contour3d(
-        X, Y, Z, f, contours=contours, colormap="cool", transparent=True
-    )
+    return mlab.contour3d(X, Y, Z, f, contours=contours, colormap="cool", transparent=True)

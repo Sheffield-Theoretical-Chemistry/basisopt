@@ -36,9 +36,7 @@ def log_normal_guess(atomic, params={"mean": 0.0, "sigma": 1.0}):
     for k, v in config.items():
         shell = Shell()
         shell.l = k
-        shell.exps = np.random.lognormal(
-            mean=params["mean"], sigma=params["sigma"], size=v
-        )
+        shell.exps = np.random.lognormal(mean=params["mean"], sigma=params["sigma"], size=v)
         shell.exps = fix_ratio(shell.exps)
         uncontract_shell(shell)
         basis.append(shell)
