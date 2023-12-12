@@ -1,7 +1,7 @@
 import logging
 import os
 from typing import Any, Callable
-
+from datetime import datetime
 import colorlog
 
 from basisopt.exceptions import FailedCalculation
@@ -9,15 +9,16 @@ from basisopt.molecule import Molecule
 from basisopt.wrappers.dummy import DummyWrapper
 from basisopt.wrappers.wrapper import Wrapper
 
-bo_logger = logging.getLogger("basisopt")
+bo_logger = logging.getLogger('basisopt')
 
 try:
+    _PARALLEL = True
     import dask
-
     from basisopt.parallelise import distribute
 
-    _PARALLEL = True
+
 except ImportError:
+    bo_logger.error('DASK Import Error')
     _PARALLEL = False
 
 _BACKENDS = {}
@@ -46,7 +47,7 @@ def register_backend(func: Callable[[str, str], None]) -> Callable[[str, str], N
     return func
 
 
-def set_backend(name: str, path: str = ""):
+def set_backend(name: str, path: str = "", verbose=True):
     """Sets the global backend for basisopt calculations
 
     Arguments:
@@ -54,11 +55,17 @@ def set_backend(name: str, path: str = ""):
          path (str): absolute path to the program executable
     """
     try:
-        func = _BACKENDS[name.lower()]
-        if _CURRENT_BACKEND._name != "Dummy":
-            bo_logger.warning("Overwriting previous backend")
-        func(path)
-        bo_logger.info("Backend set to %s", _CURRENT_BACKEND._name)
+        if verbose:
+            func = _BACKENDS[name.lower()]
+            if _CURRENT_BACKEND._name != "Dummy":
+                bo_logger.warning("Overwriting previous backend")
+            func(path)
+            bo_logger.info("Backend set to %s", _CURRENT_BACKEND._name)
+        else:
+            func = _BACKENDS[name.lower()]
+            if _CURRENT_BACKEND._name != "Dummy":
+                bo_logger.warning("Overwriting previous backend")
+            func(path)
     except KeyError:
         bo_logger.error("%s is not a registered backend for basisopt", name)
 
@@ -70,7 +77,7 @@ def get_backend() -> Wrapper:
     return _CURRENT_BACKEND
 
 
-def set_tmp_dir(path: str):
+def set_tmp_dir(path: str, verbose=True):
     """Sets the working directory for all backend calculations,
     creating the directory if it doesn't already exist.
 
@@ -83,7 +90,8 @@ def set_tmp_dir(path: str):
         bo_logger.info("Created directory at %s", path)
         os.mkdir(path)
     _TMP_DIR = path
-    bo_logger.info("Scratch directory set to %s", _TMP_DIR)
+    if verbose:
+        bo_logger.info("Scratch directory set to %s", _TMP_DIR)
 
 
 def get_tmp_dir() -> str:
@@ -104,9 +112,9 @@ def set_logger(level: int = logging.INFO, filename: str = None):
     """Initialises Python logging, formatting it nicely,
     and optionally printing to a file.
     """
-    log_format = "%(asctime)s - " "%(funcName)s - " "%(levelname)s - " "%(message)s"
-    bold_seq = "\033[1m"
-    colorlog_format = f"{bold_seq} " "%(log_color)s " f"{log_format}"
+    log_format = '%(asctime)s - ' '%(funcName)s - ' '%(levelname)s - ' '%(message)s'
+    bold_seq = '\033[1m'
+    colorlog_format = f'{bold_seq} ' '%(log_color)s ' f'{log_format}'
     colorlog.basicConfig(format=colorlog_format)
     bo_logger.setLevel(level)
 
@@ -162,7 +170,7 @@ def molpro(path: str):
 
 
 def run_calculation(
-    evaluate: str = "energy", mol: Molecule = None, params: dict[Any, Any] = {}
+    evaluate: str = 'energy', mol: Molecule = None, params: dict[Any, Any] = {}
 ) -> int:
     """Interface to the wrapper used to run a calculation.
 
@@ -180,7 +188,7 @@ def run_calculation(
 
 
 def _one_job(
-    mol: Molecule, evaluate: str = "energy", params: dict[Any, Any] = {}
+    mol: Molecule, evaluate: str = 'energy', params: dict[Any, Any] = {}
 ) -> tuple[str, Any]:
     """Internal helper to run a single job in a distributed array"""
     success = _CURRENT_BACKEND.run(evaluate, mol, params, tmp=_TMP_DIR)
@@ -192,10 +200,11 @@ def _one_job(
 
 
 def run_all(
-    evaluate: str = "energy",
+    evaluate: str = 'energy',
     mols: list[Molecule] = [],
     params: dict[Any, Any] = {},
     parallel: bool = False,
+    count = None,
 ) -> dict[str, Any]:
     """Runs calculations over a set of molecules, optionally in parallel
 
@@ -212,7 +221,7 @@ def run_all(
     if parallel and _PARALLEL:
         kwargs = {"evaluate": evaluate, "params": params}
         with dask.config.set({"multiprocessing.context": "fork"}):
-            tmp_results = distribute(3, _one_job, mols, **kwargs)
+            tmp_results = distribute(2, _one_job, mols, count=count, **kwargs)
         for n, v in tmp_results:
             results[n] = v
     else:

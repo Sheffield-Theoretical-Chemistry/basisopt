@@ -13,5 +13,6 @@ setup(
         'basis-set-exchange',
         'mendeleev',
         'matplotlib',
+        'dask[complete]',
     ],
 )

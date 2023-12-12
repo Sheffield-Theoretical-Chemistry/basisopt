@@ -24,7 +24,9 @@ The following major changes have been made relative to Robert's original version
 
 - Support for a Molpro backend using pymolpro.
 - Adds the ability to use/optimise well-tempered expansions of exponents.
-
+- Fixes issue with multiplicities not setting correctly for ground state atoms.
+- Added multiplcities upto Z=30
+- Modified DASK to improve stability
 
 ## Documentation
 
