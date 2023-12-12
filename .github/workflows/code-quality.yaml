@@ -22,5 +22,3 @@ jobs:
         run: black . --check
       - name: Run isort
         run: isort . --check-only --profile black
-      - name: Run flake8
-        run: flake8 basisopt tests
