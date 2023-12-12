@@ -8,15 +8,7 @@ The library is pip installable:
 
 	pip install basisopt
 
-To install a development version instead, clone this repo locally, change to the folder, and use `poetry`. This will cleanly create a virtual environment for the project, that will ensure any changes are publishable. 
-
-	poetry install -v 
-
-You can then start an interactive shell or run a script using 
-
-	poetry run [python3 or script.py]
-
-This is local to the directory, and will not make BasisOpt available elsewhere. You can alternatively create a fresh conda env or pyenv and in the top directory run
+You can alternatively create a fresh conda env or pyenv and in the top directory run
 
 	 pip install -e .
 
