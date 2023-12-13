@@ -1,7 +1,8 @@
 import logging
 import os
-from typing import Any, Callable
 from datetime import datetime
+from typing import Any, Callable
+
 import colorlog
 
 from basisopt.exceptions import FailedCalculation
@@ -14,6 +15,7 @@ bo_logger = logging.getLogger('basisopt')
 try:
     _PARALLEL = True
     import dask
+
     from basisopt.parallelise import distribute
 
 
@@ -204,7 +206,7 @@ def run_all(
     mols: list[Molecule] = [],
     params: dict[Any, Any] = {},
     parallel: bool = False,
-    count = None,
+    count=None,
 ) -> dict[str, Any]:
     """Runs calculations over a set of molecules, optionally in parallel
 

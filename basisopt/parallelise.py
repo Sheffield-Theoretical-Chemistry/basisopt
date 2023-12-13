@@ -1,16 +1,18 @@
-from typing import Any, Callable, List
 import logging
+from typing import Any, Callable, List
+
 from . import api
 from .util import bo_logger
 
-
 if api._PARALLEL:
-    from distributed import Client, LocalCluster, wait, WorkerPlugin
     import dask
+    from distributed import Client, LocalCluster, WorkerPlugin, wait
 else:
     bo_logger.warning("Dask not installed, parallelisation not available")
 
 from itertools import chain
+
+
 def chunk(x: list[Any], n_chunks: int) -> list[list[Any]]:
     """Chunks an array into roughly equal-sized subarrays
 
@@ -34,17 +36,19 @@ def chunk(x: list[Any], n_chunks: int) -> list[list[Any]]:
         ctr += chunk_list[i]
     return new_x
 
+
 class InitializeBackend(WorkerPlugin):
     def __init__(self, backend):
         self.backend = backend
 
     def setup(self, worker=None):
         import basisopt as bo
-        bo.set_backend(self.backend,verbose=False)
-        bo.set_tmp_dir('./scr/',verbose=False)
 
-def distribute(n_proc: int, func: Callable[[list[Any]], dict], x: list[Any], **kwargs
-) -> list[Any]:
+        bo.set_backend(self.backend, verbose=False)
+        bo.set_tmp_dir('./scr/', verbose=False)
+
+
+def distribute(n_proc: int, func: Callable[[list[Any]], dict], x: list[Any], **kwargs) -> list[Any]:
     """Distributes a function over a desired no. of procs
     using the distributed library.
 
@@ -89,5 +93,4 @@ def distribute(n_proc: int, func: Callable[[list[Any]], dict], x: list[Any], **k
     # Close the client and cluster
     client.close()
     cluster.close()
-    #print(all_results[0])
     return all_results
