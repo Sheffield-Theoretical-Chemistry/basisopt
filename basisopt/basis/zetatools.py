@@ -148,10 +148,10 @@ def nz(el: MDElement, n: int) -> Configuration:
          a config dictionary
     """
     config = enum_shells(el.ec.conf)
-    if el.symbol == 'H':
-        valence_conf = {(1, 's'): 1}
-    elif el.symbol == 'He':
-        valence_conf = {(1, 's'): 2}
+    if el.symbol == "H":
+        valence_conf = {(1, "s"): 1}
+    elif el.symbol == "He":
+        valence_conf = {(1, "s"): 2}
     else:
         valence_conf = el.ec.get_valence().conf
     valence = enum_shells(valence_conf)

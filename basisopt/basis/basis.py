@@ -9,7 +9,6 @@ from scipy.special import legendre
 from basisopt import data
 from basisopt.containers import InternalBasis, Result, Shell
 from basisopt.data import ETParams, LegParams, WTParams
-
 from basisopt.testing import Test
 from basisopt.util import bo_logger, dict_decode
 
@@ -68,6 +67,7 @@ def even_temper_expansion(params: ETParams) -> list[Shell]:
         el_basis.append(new_shell)
     return el_basis
 
+
 def legendre_expansion(params: LegParams) -> list[Shell]:
     """Forms a basis for an element from Petersson's Legendre expansion
 
@@ -96,6 +96,7 @@ def legendre_expansion(params: LegParams) -> list[Shell]:
         uncontract_shell(new_shell)
         el_basis.append(new_shell)
     return el_basis
+
 
 def well_temper_expansion(params: WTParams) -> list[Shell]:
     """Forms a basis for an element from well tempered expansion parameters
@@ -150,14 +151,14 @@ class Basis(MSONable):
 
     def save(self, filename: str):
         """Pickles the Basis object into a binary file"""
-        with open(filename, 'wb') as f:
+        with open(filename, "wb") as f:
             pickle.dump(self, f)
             f.close()
         bo_logger.info("Dumped object of type %s to %s", type(self), filename)
 
     def load(self, filename: str) -> object:
         """Loads and returns a Basis object from a binary file pickle"""
-        with open(filename, 'rb') as f:
+        with open(filename, "rb") as f:
             pkl_data = pickle.load(f)
             f.close()
         bo_logger.info("Loaded object of type %s from %s", type(pkl_data), filename)
@@ -192,7 +193,7 @@ class Basis(MSONable):
             t.result = t.calculate(self._molecule.method, self._molecule.basis, params=params)
             bo_logger.info("Test %s: %s", t.name, t.result)
 
-    def optimize(self, algorithm: str = 'Nelder-Mead', params: dict[str, Any] = {}) -> dict:
+    def optimize(self, algorithm: str = "Nelder-Mead", params: dict[str, Any] = {}) -> dict:
         """All basis objects should implement an optimize method with this signature"""
         raise NotImplementedError
 

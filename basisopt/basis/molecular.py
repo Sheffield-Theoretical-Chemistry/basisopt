@@ -37,7 +37,7 @@ class MolecularBasis(Basis):
          _done_setup (bool): if True, setup has been called
     """
 
-    def __init__(self, name: str = 'Empty', molecules: list[Molecule] = []):
+    def __init__(self, name: str = "Empty", molecules: list[Molecule] = []):
         super().__init__()
         self.name = name
         self.basis = {}
@@ -50,7 +50,7 @@ class MolecularBasis(Basis):
 
     def save(self, filename: str):
         """Pickles the MolecularBasis object into a binary file"""
-        with open(filename, 'wb') as f:
+        with open(filename, "wb") as f:
             pickle.dump(self, f)
             f.close()
         bo_logger.info("Dumped object of type %s to %s", type(self), filename)
@@ -197,10 +197,10 @@ class MolecularBasis(Basis):
 
     def setup(
         self,
-        method: str = 'ccsd(t)',
-        quality: str = 'dz',
+        method: str = "ccsd(t)",
+        quality: str = "dz",
         strategy: Strategy = Strategy(),
-        reference: str = 'cc-pvqz',
+        reference: str = "cc-pvqz",
         params: dict[str, Any] = {},
     ):
         """Sets up the basis ready for optimization by creating AtomicBasis objects for each unique
@@ -221,12 +221,12 @@ class MolecularBasis(Basis):
                 method=method,
                 quality=quality,
                 strategy=strategy,
-                reference=('dummy', 0.0),
+                reference=("dummy", 0.0),
                 params=params,
             )
         self.basis = {k: v.get_basis()[k] for k, v in self._atomic_bases.items()}
         if reference is not None:
-            if api.which_backend() == 'Empty':
+            if api.which_backend() == "Empty":
                 bo_logger.warning("No backend currently set, can't compute reference value")
             else:
                 ref_basis = fetch_basis(reference, self.unique_atoms())
@@ -253,7 +253,7 @@ class MolecularBasis(Basis):
 
     def optimize(
         self,
-        algorithm: str = 'Nelder-Mead',
+        algorithm: str = "Nelder-Mead",
         params: dict[str, Any] = {},
         reg: Callable[[np.ndarray], float] = lambda x: 0,
         npass: int = 1,

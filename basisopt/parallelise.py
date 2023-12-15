@@ -1,12 +1,16 @@
-from typing import Any, Callable
+import logging
+from typing import Any, Callable, List
 
 from . import api
 from .util import bo_logger
 
 if api._PARALLEL:
-    from distributed import Client, LocalCluster, wait
+    import dask
+    from distributed import Client, LocalCluster, WorkerPlugin, wait
 else:
     bo_logger.warning("Dask not installed, parallelisation not available")
+
+from itertools import chain
 
 
 def chunk(x: list[Any], n_chunks: int) -> list[list[Any]]:
@@ -33,9 +37,18 @@ def chunk(x: list[Any], n_chunks: int) -> list[list[Any]]:
     return new_x
 
 
-def distribute(
-    n_proc: int, func: Callable[[list[Any], dict], Any], x: list[Any], **kwargs
-) -> list[Any]:
+class InitializeBackend(WorkerPlugin):
+    def __init__(self, backend):
+        self.backend = backend
+
+    def setup(self, worker=None):
+        import basisopt as bo
+
+        bo.set_backend(self.backend, verbose=False)
+        bo.set_tmp_dir('./scr/', verbose=False)
+
+
+def distribute(n_proc: int, func: Callable[[list[Any]], dict], x: list[Any], **kwargs) -> list[Any]:
     """Distributes a function over a desired no. of procs
     using the distributed library.
 
@@ -47,20 +60,37 @@ def distribute(
     Returns:
          a list of results ordered by process ID
     """
+
+    # Create cluster and client once
+
+    dask.config.set({"global-config": "./dask.yaml"})
+    cluster = LocalCluster(n_workers=n_proc, processes=True, silence_logs=logging.ERROR)
+    client = Client(cluster)
+
+    # Register the worker plugin to set the backend
+    plugin = InitializeBackend('psi4')
+    client.register_worker_plugin(plugin)
+
+    # Split data into chunks
+    x = list(x)
     n_chunks = len(x) // n_proc
     if len(x) % n_proc > 0:
         n_chunks += 1
     new_x = chunk(x, n_chunks)
 
     all_results = []
-    for i in range(n_chunks):
-        cluster = LocalCluster(n_workers=len(new_x[i]), processes=True)
-        client = Client(cluster)
-        ens = client.map(func, new_x[i], **kwargs)
-        wait(ens)
-        results = [e.result() for e in ens]
-        all_results.append(results)
-        client.close()
-        cluster.close()
+    for chunk_i in new_x:
+        # Submit tasks
+        futures = client.map(func, chunk_i, **kwargs)
 
-    return [item for sublist in all_results for item in sublist]
+        # Wait for completion
+        wait(futures)
+
+        # Retrieve results
+        results = client.gather(futures)
+        all_results.extend(results)
+
+    # Close the client and cluster
+    client.close()
+    cluster.close()
+    return all_results

@@ -5,7 +5,7 @@ import numpy as np
 from monty.json import MSONable
 
 from .containers import basis_to_dict, dict_to_basis
-from .data import atomic_number
+from .data import GROUNDSTATE_MULTIPLICITIES, atomic_number
 from .exceptions import InvalidDiatomic
 from .util import bo_logger, dict_decode
 
@@ -35,7 +35,7 @@ class Molecule(MSONable):
          _references (dict): dictionary of reference values for results
     """
 
-    def __init__(self, name: str = "Untitled", charge: int = 0, mult: int = 1):
+    def __init__(self, name: str = "Untitled", charge: int = 0, mult: int = None):
         self.name = name
         self.charge = charge
         self.multiplicity = mult
@@ -59,7 +59,10 @@ class Molecule(MSONable):
         return nel
 
     def add_atom(
-        self, element: str = 'H', coord: list[float] = [0.0, 0.0, 0.0], dummy: bool = False
+        self,
+        element: str = "H",
+        coord: list[float] = [0.0, 0.0, 0.0],
+        dummy: bool = False,
     ):
         """Adds an atom to the molecule
 
@@ -68,6 +71,10 @@ class Molecule(MSONable):
              coord (list): [x,y,z] coords in Angstrom
              dummy (bool): if True, the atom is marked as a dummy atom
         """
+        if self.multiplicity:
+            self.multiplicity = self.multiplicity
+        else:
+            self.multiplicity = getattr(GROUNDSTATE_MULTIPLICITIES, element).value
         self._coords.append(np.array(coord))
         self._atom_names.append(element)
         if dummy:
@@ -121,7 +128,7 @@ class Molecule(MSONable):
         instance = cls(name=name, charge=charge, mult=mult)
         try:
             # Read in xyz file
-            with open(filename, 'r') as f:
+            with open(filename, "r") as f:
                 lines = f.readlines()
             # parse
             # first line should be natoms
@@ -288,7 +295,7 @@ def build_diatomic(mol_str: str, charge: int = 0, mult: int = 1) -> Molecule:
     """
     molecule = Molecule(name=mol_str + "_Diatomic", charge=charge, mult=mult)
     # parse the mol string, form "Atom1Atom2,Separation(ang)"
-    parts = mol_str.split(',')
+    parts = mol_str.split(",")
     chars = list(parts[0])
     rval = float(parts[1])
     nchars = len(chars)
@@ -297,13 +304,13 @@ def build_diatomic(mol_str: str, charge: int = 0, mult: int = 1) -> Molecule:
     if chars[0].isupper():
         if nchars == 2:
             # either something like NO or N2
-            if chars[1] == '2':
+            if chars[1] == "2":
                 atom1 = atom2 = chars[0]
             elif chars[1].isupper():
                 atom1 = chars[0]
                 atom2 = chars[1]
         elif nchars == 3:
-            if chars[2] == '2':
+            if chars[2] == "2":
                 # eg Ne2
                 atom1 = atom2 = "".join(chars[:2])
             elif chars[1].isupper():

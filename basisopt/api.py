@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime
 from typing import Any, Callable
 
 import colorlog
@@ -12,12 +13,14 @@ from basisopt.wrappers.wrapper import Wrapper
 bo_logger = logging.getLogger('basisopt')
 
 try:
+    _PARALLEL = True
     import dask
 
     from basisopt.parallelise import distribute
 
-    _PARALLEL = True
+
 except ImportError:
+    bo_logger.error('DASK Import Error')
     _PARALLEL = False
 
 _BACKENDS = {}
@@ -46,7 +49,7 @@ def register_backend(func: Callable[[str, str], None]) -> Callable[[str, str], N
     return func
 
 
-def set_backend(name: str, path: str = ""):
+def set_backend(name: str, path: str = "", verbose=True):
     """Sets the global backend for basisopt calculations
 
     Arguments:
@@ -54,11 +57,17 @@ def set_backend(name: str, path: str = ""):
          path (str): absolute path to the program executable
     """
     try:
-        func = _BACKENDS[name.lower()]
-        if _CURRENT_BACKEND._name != "Dummy":
-            bo_logger.warning("Overwriting previous backend")
-        func(path)
-        bo_logger.info("Backend set to %s", _CURRENT_BACKEND._name)
+        if verbose:
+            func = _BACKENDS[name.lower()]
+            if _CURRENT_BACKEND._name != "Dummy":
+                bo_logger.warning("Overwriting previous backend")
+            func(path)
+            bo_logger.info("Backend set to %s", _CURRENT_BACKEND._name)
+        else:
+            func = _BACKENDS[name.lower()]
+            if _CURRENT_BACKEND._name != "Dummy":
+                bo_logger.warning("Overwriting previous backend")
+            func(path)
     except KeyError:
         bo_logger.error("%s is not a registered backend for basisopt", name)
 
@@ -70,7 +79,7 @@ def get_backend() -> Wrapper:
     return _CURRENT_BACKEND
 
 
-def set_tmp_dir(path: str):
+def set_tmp_dir(path: str, verbose=True):
     """Sets the working directory for all backend calculations,
     creating the directory if it doesn't already exist.
 
@@ -83,7 +92,8 @@ def set_tmp_dir(path: str):
         bo_logger.info("Created directory at %s", path)
         os.mkdir(path)
     _TMP_DIR = path
-    bo_logger.info("Scratch directory set to %s", _TMP_DIR)
+    if verbose:
+        bo_logger.info("Scratch directory set to %s", _TMP_DIR)
 
 
 def get_tmp_dir() -> str:
@@ -196,6 +206,7 @@ def run_all(
     mols: list[Molecule] = [],
     params: dict[Any, Any] = {},
     parallel: bool = False,
+    count=None,
 ) -> dict[str, Any]:
     """Runs calculations over a set of molecules, optionally in parallel
 
@@ -212,7 +223,7 @@ def run_all(
     if parallel and _PARALLEL:
         kwargs = {"evaluate": evaluate, "params": params}
         with dask.config.set({"multiprocessing.context": "fork"}):
-            tmp_results = distribute(3, _one_job, mols, **kwargs)
+            tmp_results = distribute(2, _one_job, mols, count=count, **kwargs)
         for n, v in tmp_results:
             results[n] = v
     else:

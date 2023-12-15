@@ -47,19 +47,19 @@ def plot_objective(
     ax.set_xlabel("Optimization step")
     ax.set_ylabel("Objective value")
 
-    if hasattr(basis, 'opt_results'):
+    if hasattr(basis, "opt_results"):
         steps = {}
         values = {}
         results = basis.opt_results
         for k, v in results.items():
-            if 'atomicopt' in k:
+            if "atomicopt" in k:
                 key = basis._symbol
-                steps[key], values[key] = extract_steps(results, key='fun')
+                steps[key], values[key] = extract_steps(results, key="fun")
                 break
-            steps[k], values[k] = extract_steps(v, key='fun')
+            steps[k], values[k] = extract_steps(v, key="fun")
 
         for k, v in steps.items():
-            ax.plot(x_transform(v), y_transform(values[k]), 'x', ms=8, label=k)
+            ax.plot(x_transform(v), y_transform(values[k]), "x", ms=8, label=k)
         if (len(steps)) > 1:
             ax.legend()
     else:
@@ -109,7 +109,7 @@ def plot_exponents(
             else:
                 flat_bases = flat_basis
         colors = [f"C{i}" for i in range(len(flat_bases))]
-        ax.eventplot(flat_bases, orientation='vertical', linelengths=0.5, colors=colors)
+        ax.eventplot(flat_bases, orientation="vertical", linelengths=0.5, colors=colors)
 
         if split_by_shell:
             ax.set_xticks(list(range(len(flat_bases))))

@@ -15,8 +15,8 @@ from basisopt.util import bo_logger
 def rank_primitives(
     atomic: AtomicBasis,
     shells: Optional[list[int]] = None,
-    eval_type: str = 'energy',
-    basis_type: str = 'orbital',
+    eval_type: str = "energy",
+    basis_type: str = "orbital",
     params={},
 ) -> tuple[list[np.ndarray], list[np.ndarray]]:
     """Systematically eliminates exponents from shells in an AtomicBasis
@@ -42,9 +42,9 @@ def rank_primitives(
          FailedCalculation
     """
     mol = copy.copy(atomic._molecule)
-    if basis_type == 'jfit':
+    if basis_type == "jfit":
         basis = mol.jbasis[atomic._symbol]
-    elif basis_type == 'jkfit':
+    elif basis_type == "jkfit":
         basis = mol.jkbasis[atomic._symbol]
     else:
         basis = mol.basis[atomic._symbol]
@@ -57,7 +57,7 @@ def rank_primitives(
         raise FailedCalculation
     reference = api.get_backend().get_value(eval_type)
     # prefix result  as being for ranking
-    atomic._molecule.add_reference('rank_' + eval_type, reference)
+    atomic._molecule.add_reference("rank_" + eval_type, reference)
 
     errors = []
     ranks = []
@@ -96,7 +96,7 @@ def reduce_primitives(
     atomic: AtomicBasis,
     thresh: float = 1e-4,
     shells: Optional[list[int]] = None,
-    eval_type: str = 'energy',
+    eval_type: str = "energy",
     params: dict[str, Any] = {},
 ) -> tuple[InternalBasis, Any]:
     """Rank the primitive functions in an atomic basis, and remove those that contribute
@@ -148,6 +148,6 @@ def reduce_primitives(
     if success != 0:
         raise FailedCalculation
     result = api.get_backend().get_value(eval_type)
-    delta = result - atomic._molecule.get_reference('rank_' + eval_type)
+    delta = result - atomic._molecule.get_reference("rank_" + eval_type)
 
     return mol.basis, delta

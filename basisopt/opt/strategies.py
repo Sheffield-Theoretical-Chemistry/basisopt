@@ -52,13 +52,13 @@ class Strategy(MSONable):
         _step (int): tracks what step of optimization we're on
     """
 
-    def __init__(self, eval_type: str = 'energy', pre: Preconditioner = make_positive):
-        self.name = 'Default'
-        self._eval_type = ''
+    def __init__(self, eval_type: str = "energy", pre: Preconditioner = make_positive):
+        self.name = "Default"
+        self._eval_type = ""
         self.eval_type = eval_type
         self.params = {}
         self.guess = bse_guess
-        self.guess_params = {'name': 'cc-pvdz'}
+        self.guess_params = {"name": "cc-pvdz"}
         self._step = -1
         self.pre = pre
         self.pre.params = {}
@@ -66,7 +66,7 @@ class Strategy(MSONable):
         self.delta_objective = 0
         self.first_run = True
 
-        self.basis_type = 'orbital'
+        self.basis_type = "orbital"
         self.orbital_basis = None
 
         # currently fixed, to be expanded later
@@ -155,14 +155,14 @@ class Strategy(MSONable):
             "basis_type": self.basis_type,
         }
         if self.orbital_basis:
-            d['orbital_basis'] = basis_to_dict(self.orbital_basis)
+            d["orbital_basis"] = basis_to_dict(self.orbital_basis)
         return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> object:
         """Creates a Strategy from MSONable dictionary"""
         d = dict_decode(d)
-        eval_type = d.get("eval_type", 'energy')
+        eval_type = d.get("eval_type", "energy")
         instance = cls(eval_type=eval_type)
         instance.name = d.get("name", "Default")
         instance.params = d.get("params", {})

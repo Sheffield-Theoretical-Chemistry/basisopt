@@ -8,14 +8,14 @@ from tests.data.utils import almost_equal
 
 def test_default_shell():
     new_shell = boc.Shell()
-    assert new_shell.l == 's'
+    assert new_shell.l == "s"
     assert len(new_shell.coefs) == 0
     assert new_shell.exps.size == 0
 
 
 def test_shell_compute():
     hbas = shell_data.get_vdz_internal()
-    for ix, s in enumerate(hbas['h']):
+    for ix, s in enumerate(hbas["h"]):
         for c, v in shell_data._compute_values:
             value = s.compute(*c)
             assert almost_equal(value, v[ix], thresh=1e-10)
@@ -24,10 +24,10 @@ def test_shell_compute():
 def test_basis_dict():
     hbas = shell_data.get_vdz_internal()
     d = boc.basis_to_dict(hbas)
-    assert 'h' in d
+    assert "h" in d
     b = boc.dict_to_basis(d)
-    assert 'h' in b
-    for s, s_ in zip(hbas['h'], b['h']):
+    assert "h" in b
+    for s, s_ in zip(hbas["h"], b["h"]):
         assert s.exps.size == s_.exps.size
 
 
@@ -39,8 +39,8 @@ def test_default_result():
 
 
 def test_add_get_data():
-    r = boc.Result(name='Test')
-    assert r.name == 'Test'
+    r = boc.Result(name="Test")
+    assert r.name == "Test"
     r.add_data("Is_Banana", True)
     assert r.get_data("Is_Banana")
     r.add_data("Is_Banana", False)
@@ -56,12 +56,12 @@ def build_frame():
     r1 = boc.Result()
     r1.add_data("Is_Banana", True)
     r1.add_data("Is_Banana", False)
-    r2 = boc.Result(name='Child1')
+    r2 = boc.Result(name="Child1")
     r2.add_data("Is_Banana", False)
     r2.add_data("Size", 10.1)
-    r3 = boc.Result(name='Child2')
+    r3 = boc.Result(name="Child2")
     r3.add_data("Surname", "Flump")
-    r4 = boc.Result(name='Grandchild')
+    r4 = boc.Result(name="Grandchild")
     r4.add_data("Size", 4.3)
     r4.add_data("Is_Banana", True)
     r1.add_child(r2)
@@ -98,8 +98,8 @@ def test_search_result():
 
     results = r1.search("Is_Banana")
     assert len(results) == 4
-    assert not results['Child1_Is_Banana1']
-    assert results['Grandchild_Is_Banana1']
+    assert not results["Child1_Is_Banana1"]
+    assert results["Grandchild_Is_Banana1"]
 
     results = r3.search("Is_Banana")
     assert len(results) == 0
@@ -117,7 +117,7 @@ def test_search_result():
 
 def test_load_result():
     r = boc.Result().load("tests/data/result_test.bin")
-    assert r.name == 'Parent'
+    assert r.name == "Parent"
     assert len(r._children) == 2
     assert r.get_data("age") == 32
     assert r.get_data("age", step_back=1) == 24

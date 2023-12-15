@@ -204,15 +204,19 @@ class DunhamTest(Test):
         for r in rvals:
             self.molecule._coords[0] = np.array([0.0, 0.0, -0.5 * r])
             self.molecule._coords[1] = np.array([0.0, 0.0, 0.5 * r])
-            success = api.run_calculation(evaluate='energy', mol=self.molecule, params=params)
+            success = api.run_calculation(evaluate="energy", mol=self.molecule, params=params)
             if success != 0:
                 raise FailedCalculation
-            energies.append(wrapper.get_value('energy'))
+            energies.append(wrapper.get_value("energy"))
 
         # perform the analysis
         energies = np.array(energies)
         self.poly, self.shift, results = dunham(
-            energies, rvals, self.reduced_mass(), poly_order=self.poly_order, Emax=self.Emax
+            energies,
+            rvals,
+            self.reduced_mass(),
+            poly_order=self.poly_order,
+            Emax=self.Emax,
         )
 
         # store results

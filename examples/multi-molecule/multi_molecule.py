@@ -3,26 +3,26 @@ from basisopt.basis.molecular import MolecularBasis
 from basisopt.opt.strategies import Strategy
 from basisopt.util import bo_logger
 
-bo.set_backend('psi4')
-bo.set_tmp_dir('/home/me/scr/')
+bo.set_backend("psi4")
+bo.set_tmp_dir("/home/me/scr/")
 
 mb = MolecularBasis(name="double")
-list_of_mols = ['water', 'methane', 'methanol', 'formaldehyde', 'oxygen']
-mol_objs = [bo.molecule.Molecule.from_xyz(mol + '.xyz', name=mol) for mol in list_of_mols]
+list_of_mols = ["water", "methane", "methanol", "formaldehyde", "oxygen"]
+mol_objs = [bo.molecule.Molecule.from_xyz(mol + ".xyz", name=mol) for mol in list_of_mols]
 mb = MolecularBasis(name="double", molecules=mol_objs)
 
 params = {
-    'functional': "wb97x-d",
-    'scf_type': "pk",
-    'dft_spherical_points': "974",
-    'dft_radial_points': "175",
-    'dft_pruning_scheme': "none",
+    "functional": "wb97x-d",
+    "scf_type": "pk",
+    "dft_spherical_points": "974",
+    "dft_radial_points": "175",
+    "dft_pruning_scheme": "none",
 }
 
 strategy = Strategy()
 strategy.params = params
-strategy.guess_params = {'name': 'def2-svp'}
-mb.setup(method='dft', strategy=strategy, params=params, reference='def2-qzvp')
+strategy.guess_params = {"name": "def2-svp"}
+mb.setup(method="dft", strategy=strategy, params=params, reference="def2-qzvp")
 basis = mb.get_basis()
 basis = bo.basis.uncontract(basis)
 
@@ -44,5 +44,5 @@ while e_diff > conv_crit:
 filename = "opt_basis.txt"
 bo_logger.info("Writing optimized basis to %s", filename)
 f = open(filename, "x")
-f.write(bo.bse_wrapper.internal_basis_converter(mb.get_basis(), fmt='molpro'))
+f.write(bo.bse_wrapper.internal_basis_converter(mb.get_basis(), fmt="molpro"))
 f.close()

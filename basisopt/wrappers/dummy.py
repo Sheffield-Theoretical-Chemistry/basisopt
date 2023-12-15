@@ -23,10 +23,10 @@ def _uniform(x, a=1.0):
 
 """Available dummy methods"""
 _method_lookup = {
-    'linear': _linear,
-    'exp': _exp,
-    'quadratic': _quadratic,
-    'uniform': _uniform,
+    "linear": _linear,
+    "exp": _exp,
+    "quadratic": _quadratic,
+    "uniform": _uniform,
 }
 
 
@@ -40,12 +40,12 @@ class DummyWrapper(Wrapper):
     """
 
     def __init__(self):
-        Wrapper.__init__(self, name='Dummy')
+        Wrapper.__init__(self, name="Dummy")
         self._method_strings = {
-            'linear': ['energy', 'dipole', 'quadrupole', 'polarizability'],
-            'exp': ['energy', 'dipole'],
-            'quadratic': ['energy'],
-            'uniform': ['energy', 'dipole', 'quadrupole'],
+            "linear": ["energy", "dipole", "quadrupole", "polarizability"],
+            "exp": ["energy", "dipole"],
+            "quadratic": ["energy"],
+            "uniform": ["energy", "dipole", "quadrupole"],
         }
         self._memory_set = False
         self._value = 0

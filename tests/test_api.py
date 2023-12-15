@@ -43,7 +43,7 @@ def test_get_set_tmp_dir():
 
 
 def test_set_logger():
-    logger = logging.getLogger('basisopt')
+    logger = logging.getLogger("basisopt")
     assert logger.getEffectiveLevel() == logging.INFO
 
     api.set_logger(level=logging.WARNING)

@@ -8,19 +8,10 @@ The library is pip installable:
 
 	pip install basisopt
 
-To install a development version instead, clone this repo locally, change to the folder, and use `poetry`. This will cleanly create a virtual environment for the project, that will ensure any changes are publishable. 
-
-	poetry install -v 
-
-You can then start an interactive shell or run a script using 
-
-	poetry run [python3 or script.py]
-
-This is local to the directory, and will not make BasisOpt available elsewhere. You can alternatively create a fresh conda env or pyenv and in the top directory run
+You can alternatively create a fresh conda env or pyenv and in the top directory run
 
 	 pip install -e .
 
-However, if you intend to submit a PR for your change, please test building with `poetry` first. 
 
 ## Contributing
 
@@ -32,7 +23,9 @@ The following major changes have been made relative to Robert's original version
 
 - Support for a Molpro backend using pymolpro.
 - Adds the ability to use/optimise well-tempered expansions of exponents.
-
+- Fixes issue with multiplicities not setting correctly for ground state atoms.
+- Added multiplcities upto Z=30
+- Modified DASK to improve stability
 
 ## Documentation
 

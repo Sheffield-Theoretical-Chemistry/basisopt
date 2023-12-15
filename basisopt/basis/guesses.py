@@ -24,7 +24,7 @@ def null_guess(atomic, params={}):
     return []
 
 
-def log_normal_guess(atomic, params={'mean': 0.0, 'sigma': 1.0}):
+def log_normal_guess(atomic, params={"mean": 0.0, "sigma": 1.0}):
     """Generates exponents randomly from a log-normal distribution
 
     Params:
@@ -36,20 +36,20 @@ def log_normal_guess(atomic, params={'mean': 0.0, 'sigma': 1.0}):
     for k, v in config.items():
         shell = Shell()
         shell.l = k
-        shell.exps = np.random.lognormal(mean=params['mean'], sigma=params['sigma'], size=v)
+        shell.exps = np.random.lognormal(mean=params["mean"], sigma=params["sigma"], size=v)
         shell.exps = fix_ratio(shell.exps)
         uncontract_shell(shell)
         basis.append(shell)
     return basis
 
 
-def bse_guess(atomic, params={'name': 'cc-pvdz'}):
+def bse_guess(atomic, params={"name": "cc-pvdz"}):
     """Takes guess from an existing basis on the BSE
 
     Params:
          name (str): name of desired basis set
     """
-    basis = fetch_basis(params['name'], [atomic._symbol])
+    basis = fetch_basis(params["name"], [atomic._symbol])
     return basis[atomic._symbol]
 
 

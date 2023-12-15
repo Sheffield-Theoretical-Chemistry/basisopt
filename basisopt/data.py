@@ -1,4 +1,5 @@
 # data
+from enum import Enum
 from functools import cache
 
 import numpy as np
@@ -19,7 +20,18 @@ def atomic_number(element: str) -> int:
     return el.atomic_number
 
 
-AM_DICT = {'s': 0, 'p': 1, 'd': 2, 'f': 3, 'g': 4, 'h': 5, 'i': 6, 'j': 7, 'k': 8, 'l': 9}
+AM_DICT = {
+    "s": 0,
+    "p": 1,
+    "d": 2,
+    "f": 3,
+    "g": 4,
+    "h": 5,
+    "i": 6,
+    "j": 7,
+    "k": 8,
+    "l": 9,
+}
 """Dictionary converting letter-value angular momenta to l quantum number"""
 
 INV_AM_DICT = dict((v, k) for k, v in AM_DICT.items())
@@ -51,7 +63,46 @@ _LEGENDRE_DATA = {}
 LegParams = list[tuple[tuple, int]]
 
 
-def get_even_temper_params(atom: str = 'H', accuracy: float = 1e-5) -> ETParams:
+class GROUNDSTATE_MULTIPLICITIES(Enum):
+    H = 2
+    He = 1
+    Li = 2
+    Be = 1
+    B = 2
+    C = 3
+    N = 4
+    O = 3
+    F = 2
+    Ne = 1
+    Na = 2
+    Mg = 1
+    Al = 2
+    Si = 3
+    P = 4
+    S = 3
+    Cl = 2
+    Ar = 1
+    K = 2
+    Ca = 1
+    Sc = 2
+    Ti = 3
+    V = 4
+    Cr = 7
+    Mn = 6
+    Fe = 5
+    Co = 4
+    Ni = 3
+    Cu = 2
+    Zn = 1
+    Ga = 2
+    Ge = 3
+    As = 4
+    Se = 3
+    Br = 2
+    Kr = 1
+
+
+def get_even_temper_params(atom: str = "H", accuracy: float = 1e-5) -> ETParams:
     """Searches for the relevant even tempered expansion
     from _EVEN_TEMPERED_DATA
     """
@@ -63,7 +114,8 @@ def get_even_temper_params(atom: str = 'H', accuracy: float = 1e-5) -> ETParams:
     else:
         return []
 
-def get_legendre_params(atom: str = 'H', accuracy: float = 1e-5) -> LegParams:
+
+def get_legendre_params(atom: str = "H", accuracy: float = 1e-5) -> LegParams:
     """Searches for the relevant Legendre polynomial-based expansion
     from _LEGENDRE_DATA
     """
@@ -75,7 +127,8 @@ def get_legendre_params(atom: str = 'H', accuracy: float = 1e-5) -> LegParams:
     else:
         return []
 
-def get_well_temper_params(atom: str = 'H', accuracy: float = 1e-5) -> WTParams:
+
+def get_well_temper_params(atom: str = "H", accuracy: float = 1e-5) -> WTParams:
     """Searches for the relevant well tempered expansion
     from _WELL_TEMPERED_DATA
     """

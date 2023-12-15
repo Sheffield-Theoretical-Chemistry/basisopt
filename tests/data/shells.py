@@ -25,16 +25,16 @@ _compute_values = [
 
 def get_vdz_internal():
     s_shell = Shell()
-    s_shell.l = 's'
+    s_shell.l = "s"
     s_shell.exps = np.array(_h_vdz_exps_s)
     s_shell.coefs = [np.array(c) for c in _h_vdz_coefs_s]
 
     p_shell = Shell()
-    p_shell.l = 'p'
+    p_shell.l = "p"
     p_shell.exps = np.array(_h_vdz_exps_p)
     p_shell.coefs = [np.array(c) for c in _h_vdz_coefs_p]
 
-    return {'h': [s_shell, p_shell]}
+    return {"h": [s_shell, p_shell]}
 
 
 def shells_are_equal(s1, s2):

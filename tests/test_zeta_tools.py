@@ -2,64 +2,64 @@ from mendeleev import element
 
 import basisopt.basis.zetatools as zt
 
-econf_1 = {(1, 's'): 2, (2, 's'): 2, (2, 'p'): 4}
+econf_1 = {(1, "s"): 2, (2, "s"): 2, (2, "p"): 4}
 
 econf_2 = {
-    (1, 's'): 2,
-    (2, 's'): 2,
-    (2, 'p'): 6,
-    (3, 's'): 2,
-    (3, 'p'): 6,
-    (4, 's'): 2,
-    (3, 'd'): 10,
-    (4, 'p'): 6,
-    (5, 's'): 2,
-    (4, 'd'): 10,
-    (5, 'p'): 6,
-    (4, 'f'): 14,
-    (5, 'd'): 10,
-    (6, 's'): 2,
+    (1, "s"): 2,
+    (2, "s"): 2,
+    (2, "p"): 6,
+    (3, "s"): 2,
+    (3, "p"): 6,
+    (4, "s"): 2,
+    (3, "d"): 10,
+    (4, "p"): 6,
+    (5, "s"): 2,
+    (4, "d"): 10,
+    (5, "p"): 6,
+    (4, "f"): 14,
+    (5, "d"): 10,
+    (6, "s"): 2,
 }
 
 conf_1 = {
-    's': 4,
-    'p': 3,
-    'd': 2,
+    "s": 4,
+    "p": 3,
+    "d": 2,
 }
 
-conf_2 = {'s': 5, 'p': 4, 'd': 3, 'f': 2, 'g': 1, 'h': 1}
+conf_2 = {"s": 5, "p": 4, "d": 3, "f": 2, "g": 1, "h": 1}
 
 
 def test_register_quality():
     assert len(zt.QUALITIES) > 0
-    assert 'minimal' in zt.QUALITIES
-    assert 'dzpp' in zt.QUALITIES
+    assert "minimal" in zt.QUALITIES
+    assert "dzpp" in zt.QUALITIES
 
 
 def test_get_next_l():
-    ams = ['s']
+    ams = ["s"]
     next_l = zt.get_next_l(ams)
-    assert next_l == 'p'
+    assert next_l == "p"
 
-    ams = ['s', 'p', 's', 'd', 'p']
+    ams = ["s", "p", "s", "d", "p"]
     next_l = zt.get_next_l(ams)
-    assert next_l == 'f'
+    assert next_l == "f"
 
-    ams = ['g', 'f', 'd', 's']
+    ams = ["g", "f", "d", "s"]
     next_l = zt.get_next_l(ams)
-    assert next_l == 'h'
+    assert next_l == "h"
 
 
 def test_enum_shells():
     new_conf = zt.enum_shells(econf_1)
-    assert new_conf['s'] == 2
-    assert new_conf['p'] == 1
+    assert new_conf["s"] == 2
+    assert new_conf["p"] == 1
 
     new_conf = zt.enum_shells(econf_2)
-    assert new_conf['s'] == 6
-    assert new_conf['p'] == 4
-    assert new_conf['d'] == 3
-    assert new_conf['f'] == 1
+    assert new_conf["s"] == 6
+    assert new_conf["p"] == 4
+    assert new_conf["d"] == 3
+    assert new_conf["f"] == 1
 
 
 def test_config_to_str():
@@ -80,18 +80,18 @@ def test_compare():
 
 
 def test_nz():
-    o = element('O')
+    o = element("O")
     conf = zt.nz(o, 2)
-    assert conf['s'] == 3
-    assert conf['p'] == 2
-    assert 'd' not in conf
+    assert conf["s"] == 3
+    assert conf["p"] == 2
+    assert "d" not in conf
 
 
 def test_add_np():
     new_conf = zt.add_np(conf_1, 2)
-    assert 'f' in new_conf
-    assert 'g' in new_conf
-    assert 'h' not in new_conf
+    assert "f" in new_conf
+    assert "g" in new_conf
+    assert "h" not in new_conf
 
     new_conf = zt.add_np(conf_2, 1)
-    assert 'i' in new_conf
+    assert "i" in new_conf

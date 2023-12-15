@@ -51,8 +51,8 @@ class ReduceStrategy(Strategy):
     def __init__(
         self,
         starting_basis: InternalBasis,
-        eval_type: str = 'energy',
-        method: str = 'scf',
+        eval_type: str = "energy",
+        method: str = "scf",
         target: float = 1e-5,
         shell_mins: list[int] = [],
         max_l: int = -1,
@@ -60,7 +60,7 @@ class ReduceStrategy(Strategy):
         params: dict[str, Any] = {},
     ):
         super().__init__(eval_type=eval_type, pre=make_positive)
-        self.name = 'Reduce'
+        self.name = "Reduce"
         self.full_basis = starting_basis
         self.saved_basis = None
         self.shells = []
@@ -104,8 +104,8 @@ class ReduceStrategy(Strategy):
         saved_basis = dict_to_basis(d.get("saved_basis", {}))
         instance = cls(
             full_basis,
-            eval_type=d.get("eval_type", 'energy'),
-            method=d.get("method", 'scf'),
+            eval_type=d.get("eval_type", "energy"),
+            method=d.get("method", "scf"),
             target=d.get("target", 1e-5),
             shell_mins=d.get("shell_mins", []),
             max_l=d.get("max_l", -1),
@@ -168,7 +168,7 @@ class ReduceStrategy(Strategy):
             carry_on = (self.delta_objective < self.target) and (True in possible_changes)
             if carry_on:
                 at = AtomicBasis(name=element)
-                if self.basis_type in ['jfit', 'jkfit']:
+                if self.basis_type in ["jfit", "jkfit"]:
                     # need to set up the calculation differently
                     # including setting the orbital basis
                     at._molecule = build_diatomic(f"{element.title()}H,1.5")

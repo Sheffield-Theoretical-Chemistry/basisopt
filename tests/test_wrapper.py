@@ -10,11 +10,11 @@ from tests.data.utils import almost_equal
 
 def test_empty_wrappers():
     w = Wrapper()
-    assert w._name == 'Empty'
+    assert w._name == "Empty"
     assert len(w._methods.keys()) > 0
 
     dw = DummyWrapper()
-    assert dw._name == 'Dummy'
+    assert dw._name == "Dummy"
     assert len(dw._methods.keys()) > 0
 
 
@@ -28,7 +28,7 @@ def test_add_global():
 def test_get_value():
     w = Wrapper()
     assert w.get_value("energy") is None
-    w._values['energy'] = 1
+    w._values["energy"] = 1
     assert w.get_value("energy") == 1
 
 
