@@ -210,7 +210,7 @@ class Molecule(MSONable):
     def get_legendre_params(self, element: str = None):
         """Returns the legendre coefficients from the basis set where available.
         By default returns all elements in the basis set unless specified.
-        
+
 
         Parameters
         ----------
