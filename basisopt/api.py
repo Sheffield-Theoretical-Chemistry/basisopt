@@ -43,8 +43,8 @@ def set_parallel(value: bool = True, number_cores: int = 2):
                 _PARALLEL = False
                 bo_logger.warning(f"Could not initialize Ray: {str(e)}")
         else:
-            _PARALLEL = True  # Ray is already initialized
-            ray.shutdown()  # Optional: restart Ray to configure with new number of cores
+            _PARALLEL = True
+            ray.shutdown()  # Restart Ray to configure with new number of cores
             ray.init(ignore_reinit_error=True, num_cpus=num_cores)
     else:
         if ray.is_initialized():
