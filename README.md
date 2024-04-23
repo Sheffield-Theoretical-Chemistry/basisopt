@@ -4,14 +4,9 @@ BasisOpt is a python library for the optimization of molecular Gaussian basis se
 
 ## Installation
 
-The library is pip installable:
+Create a fresh conda env or pyenv and in the top directory run
 
-	pip install basisopt
-
-You can alternatively create a fresh conda env or pyenv and in the top directory run
-
-	 pip install -e .
-
+	 pip install .
 
 ## Contributing
 
@@ -24,8 +19,8 @@ The following major changes have been made relative to Robert's original version
 - Support for a Molpro backend using pymolpro.
 - Adds the ability to use/optimise well-tempered expansions of exponents.
 - Fixes issue with multiplicities not setting correctly for ground state atoms.
-- Added multiplcities upto Z=30
-- Modified DASK to improve stability
+- Added multiplicities upto Z=30
+- Replaced DASK with ray for improved performance and stability
 
 ## Documentation
 
