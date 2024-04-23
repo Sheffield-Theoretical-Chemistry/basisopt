@@ -18,6 +18,7 @@ monty = "^2022.9.9"
 basis-set-exchange = "^0.9"
 mendeleev = "0.9"
 matplotlib = {version = "^3.7.1", optional = true}
+ray
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.2.2"
