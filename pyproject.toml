@@ -19,10 +19,11 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 keywords = ["quantum", "chemistry", "optimization", "basis sets"]
-project_urls = {
-    "Documentation": "https://example.com/project-docs",
-    "Source Code": "https://github.com/Sheffield-Theoretical-Chemistry/basisflow"
-}
+
+[project.urls]
+Documentation = "https://example.com/project-docs"
+Source = "https://github.com/Sheffield-Theoretical-Chemistry/basisflow"
+
 
 [options]
 python_requires = ">=3.9,<3.11"
