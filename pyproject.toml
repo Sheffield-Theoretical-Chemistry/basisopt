@@ -5,23 +5,24 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "basisopt"
 version = "1.1.0"
-license = { text = "MIT"}
+license = { text = "MIT" }
 description = "Automatic basis set optimization for quantum chemistry"
-long_description = "file: README.md"
-long_description_content_type = "text/markdown"
-author = "Robert Shaw, Grant Hill, Shaun Donnelly"
-author_email = "robertshaw383@gmail.com, grant.hill@sheffield.ac.uk, s.t.donnelly@sheffield.ac.uk"
+readme = "README.md"
+authors = [
+    { name = "Robert Shaw", email = "robertshaw383@gmail.com" },
+    { name = "Grant Hill", email = "grant.hill@sheffield.ac.uk" },
+    { name = "Shaun Donnelly", email = "s.t.donnelly@sheffield.ac.uk" }
+]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-
-[project_urls]
-"Documentation" = "https://example.com/project-docs"
-"Source Code" = "https://github.com/Sheffield-Theoretical-Chemistry/basisflow"
-
 keywords = ["quantum", "chemistry", "optimization", "basis sets"]
+project_urls = {
+    "Documentation": "https://example.com/project-docs",
+    "Source Code": "https://github.com/Sheffield-Theoretical-Chemistry/basisflow"
+}
 
 [options]
 python_requires = ">=3.9,<3.11"
@@ -33,7 +34,7 @@ install_requires = [
     "monty>=2022.9.9",
     "basis-set-exchange>=0.9",
     "mendeleev>=0.9",
-    "matplotlib>=3.7.1; extra == 'plot'",
+    "matplotlib>=3.7.1",
     "ray>=2.11.0"
 ]
 
@@ -64,4 +65,3 @@ per-file-ignores = [
 max-line-length = 100
 docstring_style = "google"
 strictness = "long"
-
