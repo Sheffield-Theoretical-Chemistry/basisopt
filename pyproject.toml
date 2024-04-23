@@ -24,7 +24,6 @@ keywords = ["quantum", "chemistry", "optimization", "basis sets"]
 Documentation = "https://example.com/project-docs"
 Source = "https://github.com/Sheffield-Theoretical-Chemistry/basisflow"
 
-
 [options]
 python_requires = ">=3.9,<3.12"
 install_requires = [
