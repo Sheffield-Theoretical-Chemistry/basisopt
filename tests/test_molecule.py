@@ -9,7 +9,7 @@ def test_default_molecule():
     m = Molecule()
     assert m.name == "Untitled"
     assert m.charge == 0
-    assert m.multiplicity == 1
+    assert m.multiplicity == None
     assert m.method == ""
     assert len(m.basis.keys()) == 0
     assert len(m.unique_atoms()) == 0

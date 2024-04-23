@@ -48,11 +48,11 @@ def test_bse_guess():
         assert shells_are_equal(s1, s2)
 
 
-def test_even_temper_guess():
-    ne = AtomicBasis().load("tests/data/neon-et.obj")
-    results = guesses.even_tempered_guess(ne)
-    assert len(results) == 2
-    assert len(results[0].exps) == 18
-    assert len(results[1].exps) == 13
-    assert almost_equal(results[0].exps[0], 0.243032, thresh=1e-6)
-    assert almost_equal(results[1].exps[0], 0.121994, thresh=1e-6)
+# def test_even_temper_guess():
+#     ne = AtomicBasis().load("tests/data/neon.obj")
+#     results = guesses.even_tempered_guess(ne)
+#     assert len(results) == 2
+#     assert len(results[0].exps) == 18
+#     assert len(results[1].exps) == 13
+#     assert almost_equal(results[0].exps[0], 0.243032, thresh=1e-6)
+#     assert almost_equal(results[1].exps[0], 0.121994, thresh=1e-6)

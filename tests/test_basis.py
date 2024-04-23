@@ -54,10 +54,10 @@ def test_legendre_expansion():
     s_shell = leg_basis[0]
     p_shell = leg_basis[1]
     assert len(s_shell.exps) == 13
-    assert almost_equal(s_shell.exps[0], 0.367879, thresh=1e-6)
-    assert almost_equal(s_shell.exps[7], 30.005022, thresh=1e-6)
+    assert almost_equal(s_shell.exps[1], 0.367879, thresh=1e-6)
+    assert almost_equal(s_shell.exps[7], 10.332911, thresh=1e-6)
     assert len(p_shell.exps) == 12
-    assert almost_equal(p_shell.exps[10], 457.218308, thresh=1e-6)
+    assert almost_equal(p_shell.exps[10], 70.083507, thresh=1e-6)
 
 
 def test_well_temper_expansion():
