@@ -120,6 +120,7 @@ def optimize(
 
 OptData = tuple[str, str, Strategy, Regulariser, dict[str, Any]]
 
+
 def minimizer(
     molecule: Molecule,
     element: Optional[str] = None,
@@ -173,6 +174,7 @@ def minimizer(
     # Initialise and run optimization
     strategy.initialise(basis, element)
     return _atomic_opt(basis, element, algorithm, strategy, opt_params, objective)
+
 
 def collective_optimize(
     molecules: list[Molecule],

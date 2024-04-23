@@ -67,6 +67,7 @@ class LegendrePairsHybrid(Strategy):
         shells (list): list of ([A_vals], n) parameter tuples
         shell_done (list): list of flags for whether shell is finished (0) or not (1)
         target (float): threshold for optimization delta
+        max_n_a (int): Maximum number of legendre values to pass as a
         n (int): number of primitives in shell expansion
         l (int): angular momentum shell to do
     """
@@ -87,7 +88,7 @@ class LegendrePairsHybrid(Strategy):
         self.target = target
         self.guess = null_guess
         self.guess_params = {}
-        self.strat_params = {}
+        self.params = {}
         self.max_n = max_n
         self.max_n_a = max_n_a
         self.l = l
@@ -96,7 +97,6 @@ class LegendrePairsHybrid(Strategy):
         self.force_pass = False
         self._just_added = False
         self.initialised = None
-        # self.initialised = [False,]*len(self.basis.keys())
 
     def as_dict(self) -> dict[str, Any]:
         """Returns MSONable dictionary of object"""
@@ -183,6 +183,7 @@ class LegendrePairsHybrid(Strategy):
         self.delta_objective = 0.0
         self.first_run = True
         if not self.initialised[element]:
+            # TODO: Make it so that a custom n can be set here
             try:
                 self._INITIAL_Guess = self.guess_params['initial_guess']
             except:
@@ -194,7 +195,7 @@ class LegendrePairsHybrid(Strategy):
                         self._INITIAL_Guess.append(
                             [
                                 (
-                                    np.array([1.0 if i % 2 == 0 else -1.0 for i in range(2)]),
+                                    np.array([2.0 if i % 2 == 0 else -2.0 for i in range(2)]),
                                     len(shell.exps),
                                 )
                             ]
@@ -220,6 +221,10 @@ class LegendrePairsHybrid(Strategy):
         self.last_objective = objective
         carry_on = True
         (A_vals, n) = self.shells[self._step][0]
+        if type(self.max_n_a) == tuple or type(self.max_n_a) == list:
+            max_n_a = self.max_n_a[self._step]
+        else:
+            max_n_a = self.max_n_a
         if n < self.n_exp_cutoff:
             if self.first_run:
                 self.first_run = False
@@ -234,7 +239,7 @@ class LegendrePairsHybrid(Strategy):
             if self.first_run:
                 self.first_run = False
                 return carry_on
-            if len(A_vals) < self.max_n_a[self._step] and len(A_vals) != n:
+            if len(A_vals) < max_n_a and len(A_vals) != n:
                 if not self._just_added:
                     A_vals = np.append(A_vals, np.array([A_vals[-2:] / 10]))
                     self.shells[self._step][0] = (A_vals, n)
@@ -242,7 +247,7 @@ class LegendrePairsHybrid(Strategy):
                 elif self._just_added:
                     self.shells[self._step][0] = (A_vals, n)
                     self._just_added = False
-            elif len(A_vals) == self.max_n_a[self._step] and self._just_added == True:
+            elif len(A_vals) == max_n_a and self._just_added == True:
                 self.shells[self._step][0] = (A_vals, n)
                 self._just_added = False
             else:

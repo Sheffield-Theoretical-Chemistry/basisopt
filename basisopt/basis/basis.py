@@ -68,7 +68,7 @@ def even_temper_expansion(params: ETParams) -> list[Shell]:
     return el_basis
 
 
-def legendre_expansion(params: LegParams) -> list[Shell]:
+def legendre_expansion(params: LegParams, l=0) -> list[Shell]:
     """Forms a basis for an element from Petersson's Legendre expansion
 
     Arguments:
@@ -85,14 +85,19 @@ def legendre_expansion(params: LegParams) -> list[Shell]:
     el_basis = []
     for ix, (A_vals, n) in enumerate(params):
         new_shell = Shell()
-        new_shell.l = data.INV_AM_DICT[ix]
+        if l:
+            new_shell.l = data.INV_AM_DICT[l]
+        else:
+            new_shell.l = data.INV_AM_DICT[ix]
         exponents = []
+
         for j in range(n):
             ln_a = 0e1
             for k in range(len(A_vals)):
-                ln_a += A_vals[k] * legendre(k)((((2 * (j + 1)) - 2) / (n - 1)) - 1)
+                ln_a += A_vals[k] * legendre(k)((((2 * j) - 2) / (n)) - 1)
             exponents.append(np.exp(ln_a))
         new_shell.exps = np.array(exponents)
+        new_shell.leg_params = (np.array(A_vals), n)
         uncontract_shell(new_shell)
         el_basis.append(new_shell)
     return el_basis
