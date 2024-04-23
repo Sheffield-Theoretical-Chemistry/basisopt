@@ -52,23 +52,6 @@ def set_parallel(value: bool = True, number_cores: int = 2):
         _PARALLEL = False
 
 
-# def set_parallel(value: bool = True, number_cores: int = 2):
-#     """Turns parallelism on/off"""
-#     global _PARALLEL
-#     global num_cores
-#     num_cores = number_cores
-#     if value:
-#         try:
-#             import dask
-
-#             _PARALLEL = True
-#         except ImportError:
-#             _PARALLEL = False
-#             bo_logger.warning("Could not import dask, parallelism turned off")
-#     else:
-#         _PARALLEL = False
-
-
 def register_backend(func: Callable[[str, str], None]) -> Callable[[str, str], None]:
     """Registers a function to set the backend for basisopt"""
     _BACKENDS[func.__name__] = func
@@ -226,38 +209,6 @@ def _one_job(
     value = _CURRENT_BACKEND.get_value(evaluate)
     _CURRENT_BACKEND.clean()
     return mol.name, value
-
-
-# def run_all(
-#     evaluate: str = 'energy',
-#     mols: list[Molecule] = [],
-#     params: dict[Any, Any] = {},
-#     parallel: bool = False,
-#     count=None,
-# ) -> dict[str, Any]:
-#     """Runs calculations over a set of molecules, optionally in parallel
-
-#     Arguments:
-#          evaluate (str): the property to evaluate
-#          mols (list): a list of Molecule objects to run
-#          params (dict): parameters for backend
-#          parallel (bool): if True, will try to run distributed
-
-#     Returns:
-#          a dictionary  of the form {molecule name: value}
-#     """
-#     results = {}
-#     if parallel and _PARALLEL:
-#         kwargs = {"evaluate": evaluate, "params": params}
-#         with dask.config.set({"multiprocessing.context": "fork"}):
-#             tmp_results = distribute(num_cores, _one_job, mols, **kwargs)
-#         for n, v in tmp_results:
-#             results[n] = v
-#     else:
-#         for m in mols:
-#             name, value = _one_job(m, evaluate=evaluate, params=params)
-#             results[name] = value
-#     return results
 
 
 @ray.remote

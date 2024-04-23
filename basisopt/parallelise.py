@@ -6,7 +6,6 @@ import ray
 from . import api
 from .util import bo_logger
 
-# Initialize Ray only once at the appropriate location in your application
 if not ray.is_initialized():
     ray.init(ignore_reinit_error=True)
 
