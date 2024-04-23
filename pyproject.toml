@@ -2,9 +2,9 @@
 requires = ["setuptools>=40.6.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
+[project]
 name = "basisopt"
-version = "1.0.1"
+version = "1.1.0"
 license = "MIT"
 description = "Automatic basis set optimization for quantum chemistry"
 long_description = "file: README.md"
@@ -16,6 +16,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+
 [project_urls]
 "Documentation" = "https://example.com/project-docs"
 "Source Code" = "https://github.com/Sheffield-Theoretical-Chemistry/basisflow"
