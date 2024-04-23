@@ -17,8 +17,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 [project_urls]
-"Documentation": "https://example.com/project-docs"
-"Source Code": "https://github.com/Sheffield-Theoretical-Chemistry/basisflow"
+"Documentation" = "https://example.com/project-docs"
+"Source Code" = "https://github.com/Sheffield-Theoretical-Chemistry/basisflow"
 
 keywords = ["quantum", "chemistry", "optimization", "basis sets"]
 
