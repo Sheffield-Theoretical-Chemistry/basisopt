@@ -182,6 +182,7 @@ def collective_optimize(
     opt_data: list[OptData] = [],
     npass: int = 3,
     parallel: bool = False,
+    ray_params: dict = None,
 ) -> OptCollection:
     """General purpose optimizer for a collection of atomic bases
 
@@ -225,6 +226,7 @@ def collective_optimize(
                     mols=molecules,
                     params=strategy.params,
                     parallel=parallel,
+                    ray_params=ray_params,
                 )
                 for mol in molecules:
                     value = results[mol.name]

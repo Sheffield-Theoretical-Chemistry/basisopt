@@ -212,10 +212,13 @@ def _one_job(
 
 
 @ray.remote
-def run_one_job(molecule, evaluate, params):
+def run_one_job(molecule, evaluate, params, ray_params = None):
     """Remote function to process each molecule using the backend."""
-    set_backend('psi4', verbose=False)  # Set the backend for each remote task
-    set_tmp_dir('./temp_directory', verbose=False)  # Set temporary directory if needed
+    set_backend(ray_params['backend'], verbose=False)
+    if ray_params:
+        set_tmp_dir(ray_params['tmp_dir'], verbose=False)
+    else:
+        set_tmp_dir('./tmp/', verbose=False)
     try:
         name, value = _one_job(molecule, evaluate=evaluate, params=params)
         return name, value
@@ -230,6 +233,7 @@ def run_all(
     params: dict = {},
     parallel: bool = False,
     count=None,
+    ray_params=None,
 ) -> dict:
     """Runs calculations over a set of molecules, optionally in parallel
 
@@ -250,7 +254,7 @@ def run_all(
             ray.init(ignore_reinit_error=True, num_cpus=num_cores)
 
         # Submit jobs to Ray
-        futures = [run_one_job.remote(m, evaluate, params) for m in mols]
+        futures = [run_one_job.remote(m, evaluate, params, ray_params) for m in mols]
         tmp_results = ray.get(futures)
 
         # Collect results
@@ -260,8 +264,11 @@ def run_all(
     else:
         # Sequential processing
         for m in mols:
-            set_backend('psi4', verbose=False)  # Set the backend for each job in sequential mode
-            set_tmp_dir('./temp_directory', verbose=False)  # Set temporary directory if needed
+            set_backend(ray_params['backend'], verbose=False)
+            if ray_params:
+                set_tmp_dir(ray_params['tmp_dir'], verbose=False)
+            else:
+                set_tmp_dir('./tmp/', verbose=False)
             try:
                 name, value = _one_job(m, evaluate=evaluate, params=params)
                 results[name] = value

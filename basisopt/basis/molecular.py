@@ -258,6 +258,7 @@ class MolecularBasis(Basis):
         reg: Callable[[np.ndarray], float] = lambda x: 0,
         npass: int = 1,
         parallel: bool = False,
+        ray_params: dict = None
     ) -> OptCollection:
         """Calls collective optimize to optimize all the atomic basis sets in this basis
 
@@ -281,6 +282,7 @@ class MolecularBasis(Basis):
                 opt_data=opt_data,
                 npass=npass,
                 parallel=parallel,
+                ray_params=ray_params,
             )
         else:
             bo_logger.error("Please call setup first")
