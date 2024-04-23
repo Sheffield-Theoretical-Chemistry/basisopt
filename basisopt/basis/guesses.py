@@ -1,11 +1,11 @@
 # ways of generating guesses for exponents
 # NEEDS GREATLY EXPANDING
+import basis_set_exchange as bse
 import numpy as np
 
 from basisopt import data
-from basisopt.bse_wrapper import fetch_basis, bse_to_internal
+from basisopt.bse_wrapper import bse_to_internal, fetch_basis
 from basisopt.containers import Shell
-import basis_set_exchange as bse
 
 from .basis import (
     even_temper_expansion,
@@ -94,8 +94,11 @@ def load_guess(atomic, params):
     """
     Loads a basis set from a file
     """
-    basis = bse_to_internal(bse.read_formatted_basis_file(params['filepath'][0], basis_fmt=params['filepath'][1]))
+    basis = bse_to_internal(
+        bse.read_formatted_basis_file(params['filepath'][0], basis_fmt=params['filepath'][1])
+    )
     return basis[atomic._symbol]
+
 
 def bse_guess(atomic, params={'name': 'cc-pvdz'}):
     """Takes guess from an existing basis on the BSE

@@ -1,5 +1,6 @@
 import logging
 from typing import Any, Callable, List
+
 import ray
 
 from . import api
@@ -10,6 +11,7 @@ if not ray.is_initialized():
     ray.init(ignore_reinit_error=True)
 
 from itertools import chain
+
 
 def chunk(x: list[Any], n_chunks: int) -> list[list[Any]]:
     """Chunks an array into roughly equal-sized subarrays."""
@@ -25,13 +27,16 @@ def chunk(x: list[Any], n_chunks: int) -> list[list[Any]]:
         ctr += chunk_list[i]
     return new_x
 
+
 @ray.remote
 def process_data(func: Callable[[list[Any]], dict], data_chunk: list[Any], **kwargs):
     """Remote function to process data using the given function."""
     import basisopt as bo
+
     bo.set_backend('psi4', verbose=False)
     bo.set_tmp_dir('./group_ani_tmp/legendrePairs/mol_group/', verbose=False)
     return func(data_chunk, **kwargs)
+
 
 def distribute(n_proc: int, func: Callable[[list[Any]], dict], x: list[Any], **kwargs) -> list[Any]:
     """Distributes a function over a desired number of processors using Ray."""

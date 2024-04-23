@@ -5,8 +5,6 @@ from typing import Any, Callable
 
 import colorlog
 
-
-
 from basisopt.exceptions import FailedCalculation
 from basisopt.molecule import Molecule
 from basisopt.wrappers.dummy import DummyWrapper
@@ -19,7 +17,7 @@ try:
     num_cores = 2
     import ray
 
-    #from basisopt.parallelise import distribute
+    # from basisopt.parallelise import distribute
 
 
 except ImportError:
@@ -29,8 +27,6 @@ except ImportError:
 _BACKENDS = {}
 _CURRENT_BACKEND = DummyWrapper()
 _TMP_DIR = "."
-
-
 
 
 def set_parallel(value: bool = True, number_cores: int = 2):
@@ -54,6 +50,7 @@ def set_parallel(value: bool = True, number_cores: int = 2):
         if ray.is_initialized():
             ray.shutdown()
         _PARALLEL = False
+
 
 # def set_parallel(value: bool = True, number_cores: int = 2):
 #     """Turns parallelism on/off"""
@@ -262,6 +259,7 @@ def _one_job(
 #             results[name] = value
 #     return results
 
+
 @ray.remote
 def run_one_job(molecule, evaluate, params):
     """Remote function to process each molecule using the backend."""
@@ -273,6 +271,7 @@ def run_one_job(molecule, evaluate, params):
     except FailedCalculation:
         bo_logger.error(f"Calculation failed for molecule: {molecule.name}")
         return molecule.name, None
+
 
 def run_all(
     evaluate: str = 'energy',
@@ -298,7 +297,7 @@ def run_all(
         # Ensure Ray is initialized
         if not ray.is_initialized():
             ray.init(ignore_reinit_error=True, num_cpus=num_cores)
-        
+
         # Submit jobs to Ray
         futures = [run_one_job.remote(m, evaluate, params) for m in mols]
         tmp_results = ray.get(futures)
@@ -310,8 +309,8 @@ def run_all(
     else:
         # Sequential processing
         for m in mols:
-            set_backend('psi4',verbose=False)  # Set the backend for each job in sequential mode
-            set_tmp_dir('./temp_directory',verbose=False)  # Set temporary directory if needed
+            set_backend('psi4', verbose=False)  # Set the backend for each job in sequential mode
+            set_tmp_dir('./temp_directory', verbose=False)  # Set temporary directory if needed
             try:
                 name, value = _one_job(m, evaluate=evaluate, params=params)
                 results[name] = value
