@@ -212,7 +212,7 @@ def _one_job(
 
 
 @ray.remote
-def run_one_job(molecule, evaluate, params, ray_params = None):
+def run_one_job(molecule, evaluate, params, ray_params=None):
     """Remote function to process each molecule using the backend."""
     set_backend(ray_params['backend'], verbose=False)
     if ray_params:

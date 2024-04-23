@@ -258,7 +258,7 @@ class MolecularBasis(Basis):
         reg: Callable[[np.ndarray], float] = lambda x: 0,
         npass: int = 1,
         parallel: bool = False,
-        ray_params: dict = None
+        ray_params: dict = None,
     ) -> OptCollection:
         """Calls collective optimize to optimize all the atomic basis sets in this basis
 
