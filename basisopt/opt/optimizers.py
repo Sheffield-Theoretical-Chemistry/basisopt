@@ -244,6 +244,7 @@ def collective_optimize(
         bo_logger.info("Collective objective: %f", total)
     return results
 
+
 def collective_minimize(
     molecules: list[Molecule],
     basis: InternalBasis,
@@ -300,7 +301,7 @@ def collective_minimize(
                     value = results[mol.name]
                     name = strategy.eval_type + "_" + el.title()
                     mol.add_result(name, value)
-                    result = value/mol.nelectrons()
+                    result = value / mol.nelectrons()
                     local_total += result
                 return local_total + reg(x)
 

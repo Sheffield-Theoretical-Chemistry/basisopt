@@ -174,7 +174,7 @@ class LegendrePairsHybrid(Strategy):
         # print(basis[element][self._step].exps)
 
     def initialise(self, basis: InternalBasis, element: str):
-        #el = md_element(element.title())
+        # el = md_element(element.title())
         self._step = 0
         if not self.initialised:
             self.initialised = {element: False for element, _ in basis.items()}

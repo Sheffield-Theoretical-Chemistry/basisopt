@@ -210,13 +210,16 @@ def _one_job(
     _CURRENT_BACKEND.clean()
     return mol.name, value
 
+
 def _apply_additional_params(ray_params):
     """Apply additional parameters based on the backend."""
     if ray_params and ray_params.get('backend') == 'psi4':
         num_threads = ray_params.get('threads_per_job')
         if num_threads:
             import psi4
+
             psi4.core.set_num_threads(num_threads)
+
 
 @ray.remote
 def _run_one_job(molecule, evaluate, params, ray_params=None):
@@ -225,7 +228,9 @@ def _run_one_job(molecule, evaluate, params, ray_params=None):
         set_backend(ray_params['backend'], verbose=False)
         _apply_additional_params(ray_params)
     except TypeError:
-        bo_logger.error('No backend set for Ray. Please pass a dictionary with the "backend" key assigned to a valid backend. The ray parameters should be passed into the optimization through the ray_params argument.')
+        bo_logger.error(
+            'No backend set for Ray. Please pass a dictionary with the "backend" key assigned to a valid backend. The ray parameters should be passed into the optimization through the ray_params argument.'
+        )
     if ray_params:
         set_tmp_dir(ray_params['tmp_dir'], verbose=False)
     else:
