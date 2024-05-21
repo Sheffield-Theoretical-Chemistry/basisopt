@@ -243,3 +243,71 @@ def collective_optimize(
             ctr += 1
         bo_logger.info("Collective objective: %f", total)
     return results
+
+def collective_minimize(
+    molecules: list[Molecule],
+    basis: InternalBasis,
+    opt_data: list[OptData] = [],
+    npass: int = 3,
+    parallel: bool = False,
+    ray_params: dict = None,
+) -> OptCollection:
+    """General purpose optimizer for a collection of atomic bases
+
+     Arguments:
+          molecules (list): list of Molecule objects to be included in objective
+          basis: internal basis dictionary, will be used for all molecules
+          opt_data (list): list of tuples, with one tuple for each atomic basis to be
+              optimized, (element, algorithm, strategy, regularizer, opt_params) - see the
+              signature of _atomic_opt or optimize
+          npass (int): number of passes to do, i.e. it will optimize each atomic basis
+              listed in opt_data in order, then loop back and iterate npass times
+          parallel (bool): if True, will try to run Molecule calcs in parallel
+
+    Returns:
+          dictionary of dictionaries of scipy.optimize results for each step,
+          corresponding to tuple in opt_data
+
+    Raises:
+          FailedCalculation
+    """
+    results = {}
+    for i in range(npass):
+        bo_logger.info("Collective pass %d", i + 1)
+        total = 0.0
+
+        # loop over elements in opt_data, and collect objective into total
+        ctr = 1
+        for el, alg, strategy, reg, params in opt_data:
+
+            def objective(x):
+                """Set exponents, compute objective for every molecule in set
+                Regularisation only applied once at end
+                """
+                strategy.set_active(x, basis, el)
+                local_total = 0.0
+                for mol in molecules:
+                    mol.basis = basis
+
+                results = api.run_all(
+                    evaluate=strategy.eval_type,
+                    mols=molecules,
+                    params=strategy.params,
+                    parallel=parallel,
+                    ray_params=ray_params,
+                )
+                for mol in molecules:
+                    value = results[mol.name]
+                    name = strategy.eval_type + "_" + el.title()
+                    mol.add_result(name, value)
+                    result = value/mol.nelectrons()
+                    local_total += result
+                return local_total + reg(x)
+
+            strategy.initialise(basis, el)
+            res = _atomic_opt(basis, el, alg, strategy, params, objective)
+            total += strategy.last_objective
+            results[f"pass{i}_opt{ctr}"] = res
+            ctr += 1
+        bo_logger.info("Collective objective: %f", total)
+    return results

@@ -21,7 +21,7 @@ try:
 
 
 except ImportError:
-    bo_logger.error('DASK Import Error')
+    bo_logger.error('RAY Import Error')
     _PARALLEL = False
 
 _BACKENDS = {}
@@ -210,11 +210,22 @@ def _one_job(
     _CURRENT_BACKEND.clean()
     return mol.name, value
 
+def _apply_additional_params(ray_params):
+    """Apply additional parameters based on the backend."""
+    if ray_params and ray_params.get('backend') == 'psi4':
+        num_threads = ray_params.get('threads_per_job')
+        if num_threads:
+            import psi4
+            psi4.core.set_num_threads(num_threads)
 
 @ray.remote
-def run_one_job(molecule, evaluate, params, ray_params=None):
+def _run_one_job(molecule, evaluate, params, ray_params=None):
     """Remote function to process each molecule using the backend."""
-    set_backend(ray_params['backend'], verbose=False)
+    try:
+        set_backend(ray_params['backend'], verbose=False)
+        _apply_additional_params(ray_params)
+    except TypeError:
+        bo_logger.error('No backend set for Ray. Please pass a dictionary with the "backend" key assigned to a valid backend. The ray parameters should be passed into the optimization through the ray_params argument.')
     if ray_params:
         set_tmp_dir(ray_params['tmp_dir'], verbose=False)
     else:
@@ -254,7 +265,7 @@ def run_all(
             ray.init(ignore_reinit_error=True, num_cpus=num_cores)
 
         # Submit jobs to Ray
-        futures = [run_one_job.remote(m, evaluate, params, ray_params) for m in mols]
+        futures = [_run_one_job.remote(m, evaluate, params, ray_params) for m in mols]
         tmp_results = ray.get(futures)
 
         # Collect results
