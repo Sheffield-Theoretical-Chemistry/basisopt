@@ -27,10 +27,12 @@ The following major changes have been made relative to Robert's original version
 - Added multiplcities upto Z=30
 - Replaced DASK with Ray for distributed computing tasks
 - Added the LegendreHybrid strategy for optimising basis sets with a legendre expansion
+- Added a set of pre-optimised Legendre expansion coefficients
 - Added a contraction strategy for contracting basis sets
 - Added a native basis set converter
 - Support for atom specific basis sets for Psi4
-- 
+- Added an option to build an atom specific basis set when setting one into a molecule
+- Added a minimisation routine to BasisOpt in addition to optimise.
 
 ## Documentation
 
