@@ -4,7 +4,7 @@ import numpy as np
 from monty.json import MSONable
 
 from basisopt import api
-from basisopt.basis.guesses import bse_guess
+
 from basisopt.containers import InternalBasis, basis_to_dict
 from basisopt.exceptions import PropertyNotAvailable
 from basisopt.util import bo_logger, dict_decode
@@ -57,7 +57,7 @@ class Strategy(MSONable):
         self._eval_type = ""
         self.eval_type = eval_type
         self.params = {}
-        self.guess = bse_guess
+        self.guess = None
         self.guess_params = {"name": "cc-pvdz"}
         self._step = -1
         self.pre = pre

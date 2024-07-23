@@ -14,7 +14,7 @@ from basisopt.containers import (
 )
 from basisopt.exceptions import DataNotFound, EmptyBasis
 from basisopt.molecule import Molecule
-from basisopt.opt.optimizers import collective_optimize
+from basisopt.opt.optimizers import collective_minimize, collective_optimize
 from basisopt.opt.strategies import Strategy
 from basisopt.util import bo_logger
 
@@ -258,6 +258,7 @@ class MolecularBasis(Basis):
         reg: Callable[[np.ndarray], float] = lambda x: 0,
         npass: int = 1,
         parallel: bool = False,
+        ray_params: dict = None,
     ) -> OptCollection:
         """Calls collective optimize to optimize all the atomic basis sets in this basis
 
@@ -281,6 +282,45 @@ class MolecularBasis(Basis):
                 opt_data=opt_data,
                 npass=npass,
                 parallel=parallel,
+                ray_params=ray_params,
+            )
+        else:
+            bo_logger.error("Please call setup first")
+            self.opt_results = None
+        return self.opt_results
+
+    def minimization(
+        self,
+        algorithm: str = "Nelder-Mead",
+        params: dict[str, Any] = {},
+        reg: Callable[[np.ndarray], float] = lambda x: 0,
+        npass: int = 1,
+        parallel: bool = False,
+        ray_params: dict = None,
+    ) -> OptCollection:
+        """Calls collective optimize to optimize all the atomic basis sets in this basis
+
+        Arguments:
+             algorithm (str): name of scipy.optimize algorithm to use
+             params (dict): parameters to pass to scipy.optimize
+             reg (callable): regularization to use
+             npass (int): number of optimization passes to do
+             parallel (bool): if True, molecular calculations will be distributed in parallel
+
+         Returns:
+             dictionary of scipy.optimize result objects, indexed by atom
+        """
+        if self._done_setup:
+            opt_data = [
+                (k, algorithm, v.strategy, reg, params) for k, v in self._atomic_bases.items()
+            ]
+            self.opt_results = collective_minimize(
+                self._molecules.values(),
+                self.basis,
+                opt_data=opt_data,
+                npass=npass,
+                parallel=parallel,
+                ray_params=ray_params,
             )
         else:
             bo_logger.error("Please call setup first")

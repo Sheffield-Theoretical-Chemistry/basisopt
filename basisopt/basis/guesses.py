@@ -1,13 +1,16 @@
 # ways of generating guesses for exponents
 # NEEDS GREATLY EXPANDING
+import basis_set_exchange as bse
 import numpy as np
 
-from basisopt.bse_wrapper import fetch_basis
+from basisopt import data
+from basisopt.bse_wrapper import bse_to_internal, fetch_basis
 from basisopt.containers import Shell
 
 from .basis import (
     even_temper_expansion,
     fix_ratio,
+    legendre_expansion,
     uncontract_shell,
     well_temper_expansion,
 )
@@ -24,7 +27,7 @@ def null_guess(atomic, params={}):
     return []
 
 
-def log_normal_guess(atomic, params={"mean": 0.0, "sigma": 1.0}):
+def log_normal_guess(atomic, params={'mean': 0.0, 'sigma': 1.0}):
     """Generates exponents randomly from a log-normal distribution
 
     Params:
@@ -36,21 +39,116 @@ def log_normal_guess(atomic, params={"mean": 0.0, "sigma": 1.0}):
     for k, v in config.items():
         shell = Shell()
         shell.l = k
-        shell.exps = np.random.lognormal(mean=params["mean"], sigma=params["sigma"], size=v)
+        shell.exps = np.random.lognormal(mean=params['mean'], sigma=params['sigma'], size=v)
         shell.exps = fix_ratio(shell.exps)
         uncontract_shell(shell)
         basis.append(shell)
     return basis
 
 
-def bse_guess(atomic, params={"name": "cc-pvdz"}):
+def legendre_guess(atomic, params=None):
+    if not params:
+        _INITIAL_GUESS = ((3.5, 5.0, 0.8, 0.3, 0.1, 0.1), 6)
+        l_list = [l for (n, l) in atomic.element.ec.conf.keys()]
+        max_l = len(set(l_list))
+        shells = [_INITIAL_GUESS] * max_l
+        return legendre_expansion(shells)
+    else:
+        if 'exponents' in params:
+            shells = []
+            A_vals = data.get_legendre_params(atom=atomic._symbol.title())
+            shells = list(zip(A_vals, params['exponents']))
+            return legendre_expansion(shells)
+        elif 'name' in params:
+            ref_basis = fetch_basis(params['name'], atomic._symbol)
+            lengths = [len(shell.exps) for shell in ref_basis[atomic._symbol]]
+            database_values = data.get_legendre_params(atom=atomic._symbol.title())
+            for i, shell in enumerate(database_values):
+                shell = list(shell)
+                if len(shell[0]) >= lengths[i]:
+                    shell = tuple(list(shell[0])[: lengths[i]])
+                shell = lengths[i]
+                database_values[i] = tuple(shell)
+
+            return legendre_expansion(database_values)
+        elif 'initial_guess' in params:
+            return legendre_expansion(params['initial_guess'])
+        else:
+            _INITIAL_GUESS = ((3.5, 5.0, 0.8, 0.3, 0.1, 0.1), 6)
+            l_list = [l for (n, l) in atomic.element.ec.conf.keys()]
+            max_l = len(set(l_list))
+            shells = [_INITIAL_GUESS] * max_l
+            for i, shell in enumerate(_INITIAL_GUESS):
+                shell = list(shell)
+                if len(shell[0]) >= lengths[i]:
+                    shell[0] = tuple(list(shell[0])[: lengths[i]])
+                shell[1] = lengths[i]
+                _INITIAL_GUESS[i] = tuple(shell)
+            return legendre_expansion(database_values)
+
+
+def load_guess(atomic, params):
+    """
+    Loads a basis set from a file
+    """
+    basis = bse_to_internal(
+        bse.read_formatted_basis_file(params['filepath'][0], basis_fmt=params['filepath'][1])
+    )
+    return basis[atomic._symbol]
+
+
+def bse_guess(atomic, params={'name': 'cc-pvdz'}):
     """Takes guess from an existing basis on the BSE
 
     Params:
          name (str): name of desired basis set
     """
-    basis = fetch_basis(params["name"], [atomic._symbol])
+    basis = fetch_basis(params['name'], [atomic._symbol])
     return basis[atomic._symbol]
+
+
+def even_tempered_guess(atomic, params):
+    if not params:
+        leg_params = data.get_legendre_params(atom=atomic._symbol.title())
+        if leg_params:
+            _INITIAL_GUESS = leg_params
+            shells = leg_params
+        else:
+            _INITIAL_GUESS = ((3.5, 5.0, 0.8, 0.3, 0.1, 0.1), 6)
+            l_list = [l for (n, l) in atomic.element.ec.conf.keys()]
+            max_l = len(set(l_list))
+            shells = [_INITIAL_GUESS] * max_l
+        return legendre_expansion(shells)
+    elif 'initial_guess' in params:
+        return legendre_expansion(params['initial_guess'])
+    elif 'name' in params.keys():
+        l_list = [l for (n, l) in atomic.element.ec.conf.keys()]
+        ref_basis = fetch_basis(params['name'], atomic._symbol)
+        max_l = len(set(l_list))
+        lengths = [len(shell.exps) for shell in ref_basis[atomic._symbol]]
+        try:
+            database_values = data.get_legendre_params(atom=atomic._symbol.title())
+            for i, shell in enumerate(database_values):
+                shell = list(shell)
+                if len(shell[0]) >= lengths[i]:
+                    shell[0] = tuple(list(shell[0])[: lengths[i]])
+                shell[1] = lengths[i]
+                database_values[i] = tuple(shell)
+
+        except:
+            _INITIAL_GUESS = ((3.5, 5.0, 0.8, 0.3, 0.1, 0.1), 6)
+            shells = [_INITIAL_GUESS] * max_l
+            for i, shell in enumerate(_INITIAL_GUESS):
+                shell = list(shell)
+                if len(shell[0]) >= lengths[i]:
+                    shell[0] = tuple(list(shell[0])[: lengths[i]])
+                shell[1] = lengths[i]
+                _INITIAL_GUESS[i] = tuple(shell)
+        return legendre_expansion(database_values)
+    else:
+        _INITIAL_GUESS = params
+        shells = [_INITIAL_GUESS]
+        return legendre_expansion(shells)
 
 
 def even_tempered_guess(atomic, params={}):
@@ -60,8 +158,8 @@ def even_tempered_guess(atomic, params={}):
          see signature for AtomicBasis.set_even_tempered
     """
     if atomic.et_params is None:
-        atomic.set_even_tempered(**params)
-    return even_temper_expansion(atomic.et_params)
+        atomic.set_even_tempered(params)
+    return even_temper_expansion(params)
 
 
 def well_tempered_guess(atomic, params={}):

@@ -5,3 +5,7 @@ pandas>=1.5.3,<2.0.0
 monty>=2022.9.9,<2023.0.0
 basis-set-exchange>=0.9,<1.0.0
 mendeleev==0.9
+ray
+pytest
+pytest-cov
+codecov

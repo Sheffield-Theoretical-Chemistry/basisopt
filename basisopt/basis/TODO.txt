@@ -2,4 +2,5 @@
 	- MP2FitBasis 
 	- OptRIBasis
 	- MidbondBasis (* branch basisdev)
-+ Improve methods for generating guesses
++ Improve methods for generating guesses (Use the Legendre as a basis for creating a series of exponents)
++ Contraction strategy?

@@ -1,3 +1,8 @@
 # flake8: noqa
-from .optimizers import collective_optimize, optimize
-from .strategies import Strategy
+from .optimizers import (
+    optimize,
+    contraction_optimize,
+    collective_minimize,
+    collective_optimize,
+    minimizer,
+)

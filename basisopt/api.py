@@ -14,13 +14,14 @@ bo_logger = logging.getLogger('basisopt')
 
 try:
     _PARALLEL = True
-    import dask
+    num_cores = 2
+    import ray
 
-    from basisopt.parallelise import distribute
+    # from basisopt.parallelise import distribute
 
 
 except ImportError:
-    bo_logger.error('DASK Import Error')
+    bo_logger.error('RAY Import Error')
     _PARALLEL = False
 
 _BACKENDS = {}
@@ -28,18 +29,26 @@ _CURRENT_BACKEND = DummyWrapper()
 _TMP_DIR = "."
 
 
-def set_parallel(value: bool = True):
-    """Turns parallelism on/off"""
+def set_parallel(value: bool = True, number_cores: int = 2):
+    """Turns parallelism on/off using Ray."""
     global _PARALLEL
+    global num_cores
+    num_cores = number_cores
     if value:
-        try:
-            import dask
-
+        if not ray.is_initialized():
+            try:
+                ray.init(ignore_reinit_error=True, num_cpus=num_cores)
+                _PARALLEL = True
+            except Exception as e:
+                _PARALLEL = False
+                bo_logger.warning(f"Could not initialize Ray: {str(e)}")
+        else:
             _PARALLEL = True
-        except ImportError:
-            _PARALLEL = False
-            bo_logger.warning("Could not import dask, parallelism turned off")
+            ray.shutdown()  # Restart Ray to configure with new number of cores
+            ray.init(ignore_reinit_error=True, num_cpus=num_cores)
     else:
+        if ray.is_initialized():
+            ray.shutdown()
         _PARALLEL = False
 
 
@@ -66,7 +75,8 @@ def set_backend(name: str, path: str = "", verbose=True):
         else:
             func = _BACKENDS[name.lower()]
             if _CURRENT_BACKEND._name != "Dummy":
-                bo_logger.warning("Overwriting previous backend")
+                if verbose:
+                    bo_logger.warning("Overwriting previous backend")
             func(path)
     except KeyError:
         bo_logger.error("%s is not a registered backend for basisopt", name)
@@ -90,7 +100,7 @@ def set_tmp_dir(path: str, verbose=True):
     # check if dir exists, and create if not
     if not os.path.isdir(path):
         bo_logger.info("Created directory at %s", path)
-        os.mkdir(path)
+        os.makedirs(path, exist_ok=True)
     _TMP_DIR = path
     if verbose:
         bo_logger.info("Scratch directory set to %s", _TMP_DIR)
@@ -201,33 +211,85 @@ def _one_job(
     return mol.name, value
 
 
+def _apply_additional_params(ray_params):
+    """Apply additional parameters based on the backend."""
+    if ray_params and ray_params.get('backend') == 'psi4':
+        num_threads = ray_params.get('threads_per_job')
+        if num_threads:
+            import psi4
+
+            psi4.core.set_num_threads(num_threads)
+
+
+@ray.remote
+def _run_one_job(molecule, evaluate, params, ray_params=None):
+    """Remote function to process each molecule using the backend."""
+    try:
+        set_backend(ray_params['backend'], verbose=False)
+        _apply_additional_params(ray_params)
+    except TypeError:
+        bo_logger.error(
+            'No backend set for Ray. Please pass a dictionary with the "backend" key assigned to a valid backend. The ray parameters should be passed into the optimization through the ray_params argument.'
+        )
+    if ray_params:
+        set_tmp_dir(ray_params['tmp_dir'], verbose=False)
+    else:
+        set_tmp_dir('./tmp/', verbose=False)
+    try:
+        name, value = _one_job(molecule, evaluate=evaluate, params=params)
+        return name, value
+    except FailedCalculation:
+        bo_logger.error(f"Calculation failed for molecule: {molecule.name}")
+        return molecule.name, None
+
+
 def run_all(
     evaluate: str = 'energy',
-    mols: list[Molecule] = [],
-    params: dict[Any, Any] = {},
+    mols: list = [],
+    params: dict = {},
     parallel: bool = False,
     count=None,
-) -> dict[str, Any]:
+    ray_params=None,
+) -> dict:
     """Runs calculations over a set of molecules, optionally in parallel
 
     Arguments:
-         evaluate (str): the property to evaluate
-         mols (list): a list of Molecule objects to run
-         params (dict): parameters for backend
-         parallel (bool): if True, will try to run distributed
+        evaluate (str): the property to evaluate
+        mols (list): a list of Molecule objects to run
+        params (dict): parameters for backend
+        parallel (bool): if True, will try to run distributed
 
     Returns:
-         a dictionary  of the form {molecule name: value}
+        a dictionary of the form {molecule name: value}
     """
     results = {}
+
     if parallel and _PARALLEL:
-        kwargs = {"evaluate": evaluate, "params": params}
-        with dask.config.set({"multiprocessing.context": "fork"}):
-            tmp_results = distribute(2, _one_job, mols, count=count, **kwargs)
-        for n, v in tmp_results:
-            results[n] = v
+        # Ensure Ray is initialized
+        if not ray.is_initialized():
+            ray.init(ignore_reinit_error=True, num_cpus=num_cores)
+
+        # Submit jobs to Ray
+        futures = [_run_one_job.remote(m, evaluate, params, ray_params) for m in mols]
+        tmp_results = ray.get(futures)
+
+        # Collect results
+        for name, value in tmp_results:
+            if value is not None:
+                results[name] = value
     else:
+        # Sequential processing
         for m in mols:
-            name, value = _one_job(m, evaluate=evaluate, params=params)
-            results[name] = value
+            set_backend(ray_params['backend'], verbose=False)
+            if ray_params:
+                set_tmp_dir(ray_params['tmp_dir'], verbose=False)
+            else:
+                set_tmp_dir('./tmp/', verbose=False)
+            try:
+                name, value = _one_job(m, evaluate=evaluate, params=params)
+                results[name] = value
+            except FailedCalculation:
+                bo_logger.error(f"Calculation failed for molecule: {m.name}")
+                results[m.name] = None
+
     return results

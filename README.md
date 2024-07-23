@@ -25,7 +25,12 @@ The following major changes have been made relative to Robert's original version
 - Adds the ability to use/optimise well-tempered expansions of exponents.
 - Fixes issue with multiplicities not setting correctly for ground state atoms.
 - Added multiplcities upto Z=30
-- Modified DASK to improve stability
+- Replaced DASK with Ray for distributed computing tasks
+- Added the LegendreHybrid strategy for optimising basis sets with a legendre expansion
+- Added a contraction strategy for contracting basis sets
+- Added a native basis set converter
+- Support for atom specific basis sets for Psi4
+- 
 
 ## Documentation
 

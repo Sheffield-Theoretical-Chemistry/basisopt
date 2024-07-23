@@ -26,6 +26,7 @@ class Shell(MSONable):
         self.l = "s"
         self.exps = np.array([])
         self.coefs = []
+        self.leg_params = ()
 
     def as_dict(self) -> dict[str, Any]:
         """Converts Shell to MSONable dictionary

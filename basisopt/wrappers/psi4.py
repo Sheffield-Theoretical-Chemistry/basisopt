@@ -8,6 +8,7 @@ from basisopt.bse_wrapper import fetch_ecp, internal_basis_converter
 from basisopt.exceptions import EmptyCalculation, PropertyNotAvailable
 from basisopt.molecule import Molecule
 from basisopt.wrappers.wrapper import Wrapper, available
+from basisopt.basis_set_converters import convert_internal_to_basis_str
 
 
 class Psi4Wrapper(Wrapper):
@@ -105,14 +106,14 @@ class Psi4Wrapper(Wrapper):
         psi4.set_options(options)
 
         # set basis
-        g94_basis = internal_basis_converter(m.basis, fmt="psi4")
+        psi4_basis = convert_internal_to_basis_str(m.basis, fmt="psi4")
         # add any ecp bases
         ecp_string = "\n"
         for atom, name in m.ecps.items():
             ecp = fetch_ecp(name, [atom])
             lines = write_formatted_basis_str(ecp, fmt="psi4").split("\n")
             ecp_string += "\n".join(lines[4:])
-        psi4.basis_helper(g94_basis + ecp_string)
+        psi4.basis_helper(psi4_basis + ecp_string)
 
     def clean(self):
         """Cleans up calculation"""
