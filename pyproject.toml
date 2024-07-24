@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "basisopt"
-version = "1.1.0"
+version = "1.2.0"
 license = { text = "MIT" }
 description = "Automatic basis set optimization for quantum chemistry"
 readme = "README.md"
