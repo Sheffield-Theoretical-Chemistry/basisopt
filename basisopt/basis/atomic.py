@@ -12,7 +12,6 @@ from basisopt.exceptions import ElementNotSet
 from basisopt.molecule import Molecule
 from basisopt.opt.eventemper import EvenTemperedStrategy
 from basisopt.opt.legendre import LegendreStrategy
-#from basisopt.opt.optimizers import optimize
 from basisopt.opt.strategies import Strategy
 from basisopt.opt.welltemper import WellTemperedStrategy
 from basisopt.util import bo_logger

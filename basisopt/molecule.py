@@ -1,4 +1,5 @@
 # molecule
+from copy import deepcopy
 from typing import Any
 
 import numpy as np
@@ -8,7 +9,6 @@ from .containers import basis_to_dict, dict_to_basis
 from .data import GROUNDSTATE_MULTIPLICITIES, atomic_number
 from .exceptions import InvalidDiatomic
 from .util import bo_logger, dict_decode
-from copy import deepcopy
 
 
 class Molecule(MSONable):
@@ -66,14 +66,15 @@ class Molecule(MSONable):
                 system_basis[atom.lower()] = deepcopy(basis[atom.lower()])
             except KeyError:
                 el = ''.join(filter(str.isalpha, atom))
-                bo_logger.info(f"Centre {atom} not found in basis set. Using {el} basis as default.")
+                bo_logger.info(
+                    f"Centre {atom} not found in basis set. Using {el} basis as default."
+                )
                 system_basis[atom.lower()] = deepcopy(basis[el.lower()])
         return system_basis
-            
-    
+
     def set_basis(self, basis: dict[str, list], system_specific: bool = False):
         """Sets the basis set for the molecule
-        
+
         Args:
              basis: a dictionary of element to basis set
              system_specific: if True, the basis set is converted to a system-specific basis set
@@ -82,11 +83,13 @@ class Molecule(MSONable):
             self.basis = basis
         else:
             if not self._atom_names:
-                raise ValueError("No atoms added to molecule. To use system-specific basis, add atoms first.")
+                raise ValueError(
+                    "No atoms added to molecule. To use system-specific basis, add atoms first."
+                )
             else:
                 system_basis = self._convert_basis_to_system_specific(basis)
                 self.basis = system_basis
-        
+
     def nelectrons(self) -> int:
         """Returns the number of electrons in the molecule, not accounting for any ECPs"""
         unique = self.unique_atoms()

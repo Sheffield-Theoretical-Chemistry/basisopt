@@ -4,11 +4,11 @@ from typing import Any
 import psi4
 from basis_set_exchange.writers import write_formatted_basis_str
 
+from basisopt.basis_set_converters import convert_internal_to_basis_str
 from basisopt.bse_wrapper import fetch_ecp, internal_basis_converter
 from basisopt.exceptions import EmptyCalculation, PropertyNotAvailable
 from basisopt.molecule import Molecule
 from basisopt.wrappers.wrapper import Wrapper, available
-from basisopt.basis_set_converters import convert_internal_to_basis_str
 
 
 class Psi4Wrapper(Wrapper):

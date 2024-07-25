@@ -4,7 +4,6 @@ import numpy as np
 from monty.json import MSONable
 
 from basisopt import api
-
 from basisopt.containers import InternalBasis, basis_to_dict
 from basisopt.exceptions import PropertyNotAvailable
 from basisopt.util import bo_logger, dict_decode

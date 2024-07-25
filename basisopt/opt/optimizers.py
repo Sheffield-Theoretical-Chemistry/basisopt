@@ -10,8 +10,8 @@ from basisopt.molecule import Molecule
 from basisopt.util import bo_logger
 
 from .contraction import ContractionStrategy
-from .strategies import Strategy
 from .regularisers import Regulariser
+from .strategies import Strategy
 
 
 def _atomic_opt(
