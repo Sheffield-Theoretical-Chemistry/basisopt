@@ -8,7 +8,7 @@ from basisopt import bo_logger
 #from basisopt.basis.guesses import null_guess
 from basisopt.containers import InternalBasis
 
-from basisopt.basis.basis import contract_basis, contract_function, legendre_expansion
+#from basisopt.basis.basis import contract_basis, contract_function, legendre_expansion
 from .preconditioners import unit
 from .strategies import Strategy
 

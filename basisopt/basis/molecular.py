@@ -14,7 +14,7 @@ from basisopt.containers import (
 )
 from basisopt.exceptions import DataNotFound, EmptyBasis
 from basisopt.molecule import Molecule
-from basisopt.opt.optimizers import collective_minimize, collective_optimize
+from basisopt.opt import collective_minimize, collective_optimize
 from basisopt.opt.strategies import Strategy
 from basisopt.util import bo_logger
 

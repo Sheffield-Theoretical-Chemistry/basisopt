@@ -9,8 +9,8 @@ from basisopt.exceptions import FailedCalculation
 from basisopt.molecule import Molecule
 from basisopt.util import bo_logger
 
-from basisopt.opt.contraction import ContractionStrategy
-from basisopt.opt.strategies import Strategy
+from .contraction import ContractionStrategy
+from .strategies import Strategy
 from .regularisers import Regulariser
 
 
@@ -169,7 +169,6 @@ def minimizer(
         if success != 0:
             raise FailedCalculation
         molecule.add_result(strategy.eval_type, wrapper.get_value(strategy.eval_type))
-        result = molecule.get_delta(strategy.eval_type)
         return wrapper.get_value(strategy.eval_type)
 
     # Initialise and run optimization
