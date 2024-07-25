@@ -101,20 +101,25 @@ def _atomic_opt_auto(
         if len(guess) > 0:
             res = minimize(objective, guess, method=algorithm, **opt_params)
             objective_value = res.fun
+            dE_CBS = objective_value - ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
             info_str = "\n" + "\n".join(
                 [
                     f"Parameters: {res.x}",
                     f"Objective: {objective_value}",
                     f"Delta: {objective_value - strategy.last_objective}",
-                    "Difference to atomic CBS limit: "+ format_with_prefix(abs(objective_value - ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]),'E\u2095'),
+                    "Difference to atomic CBS limit: "+ format_with_prefix(dE_CBS,'E\u2095'),
                 ]
             )
             results[f"atomicopt{ctr}"] = res
-            results[f"atomicopt{ctr}"]['dE_CBS'] = abs(objective_value - ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number])
+            results[f"atomicopt{ctr}"]['dE_CBS'] = dE_CBS
             ctr += 1
         else:
             info_str = "Skipping empty shell"
         bo_logger.info(info_str)
+    else:
+        bo_logger.info("Optimization finished")
+        bo_logger.info("Final objective value: %f", objective_value)
+        bo_logger.info("Difference to atomic CBS limit: "+ format_with_prefix(abs(objective_value - ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]),'E\u2095'))
     return results
 
 

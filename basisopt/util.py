@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 from monty.json import MontyDecoder, MontyEncoder, MSONable
 
+
 bo_logger = logging.getLogger("basisopt")  # internal logging object
 
 
@@ -88,7 +89,8 @@ def fit_poly(
     return p, xref, re, pt
 
 
-def format_with_prefix(value: float, unit: str) -> str:
+def format_with_prefix(value: float, unit: str, dp: int = 3) -> str:
+    """ Utility function for converting a float to scientific notation with units"""
     prefixes = [
         (1e24, 'Y'), (1e21, 'Z'), (1e18, 'E'), (1e15, 'P'), (1e12, 'T'),
         (1e9, 'G'), (1e6, 'M'), (1e3, 'k'), (1, ''),
@@ -96,10 +98,13 @@ def format_with_prefix(value: float, unit: str) -> str:
         (1e-15, 'f'), (1e-18, 'a'), (1e-21, 'z'), (1e-24, 'y')
     ]
     
+    # Create the format string dynamically based on the number of decimal places
+    format_string = f"{{:.{dp}f}}"
+
     for factor, prefix in prefixes:
         if abs(value) >= factor:
             formatted_value = value / factor
-            return f"{formatted_value:.3f} {prefix}{unit}"
+            return format_string.format(formatted_value) + f" {prefix}{unit}"
     
     # Handle very small numbers that do not fit any prefix
-    return f"{value:.3f} {unit}"
+    return format_string.format(value) + f" {unit}"

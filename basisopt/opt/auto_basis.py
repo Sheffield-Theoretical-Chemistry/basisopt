@@ -111,6 +111,7 @@ class AutoBasisDFT(Strategy):
         self.last_objective = 0
         self.delta_objective = 0
         self.first_run = [True] * len(basis[element])
+        self.init_run = True
         self.just_added = [False] * len(basis[element])
 
     def get_active(self, basis: InternalBasis, element: str) -> np.ndarray:
@@ -157,17 +158,21 @@ class AutoBasisDFT(Strategy):
 
         objective_diff = np.abs(objective - element_cbs_limit)
 
-        if self.first_run[self._step]:
+        if self.init_run:
             if self._step == -1:
                 self._step = 0
+                return True
             else:
                 self._step += 1
-            self.first_run[self._step] = False
-            return True
+                if self._step+1 == len(basis[element]):
+                    self.init_run = False
+                    self._step = 0
+                else:
+                    return True
         
         if objective_diff < self.target:
-            return False
-        
+                return False
+            
         x = self.get_active(basis, element)
         last_func, penult_func = x[-1], x[-2]
         ratio = last_func / penult_func
@@ -177,4 +182,5 @@ class AutoBasisDFT(Strategy):
         self._step += 1
         if self._step == len(basis[element]):
             self._step = 0
+            
         return True
