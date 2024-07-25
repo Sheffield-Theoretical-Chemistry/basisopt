@@ -86,3 +86,20 @@ def fit_poly(
     # Return fitted polynomial, x-shift, equilibrium bond length,
     # and Taylor series coefficients
     return p, xref, re, pt
+
+
+def format_with_prefix(value: float, unit: str) -> str:
+    prefixes = [
+        (1e24, 'Y'), (1e21, 'Z'), (1e18, 'E'), (1e15, 'P'), (1e12, 'T'),
+        (1e9, 'G'), (1e6, 'M'), (1e3, 'k'), (1, ''),
+        (1e-3, 'm'), (1e-6, 'µ'), (1e-9, 'n'), (1e-12, 'p'),
+        (1e-15, 'f'), (1e-18, 'a'), (1e-21, 'z'), (1e-24, 'y')
+    ]
+    
+    for factor, prefix in prefixes:
+        if abs(value) >= factor:
+            formatted_value = value / factor
+            return f"{formatted_value:.3f} {prefix}{unit}"
+    
+    # Handle very small numbers that do not fit any prefix
+    return f"{value:.3f} {unit}"

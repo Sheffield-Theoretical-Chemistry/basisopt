@@ -5,4 +5,5 @@ from .optimizers import (
     collective_minimize,
     collective_optimize,
     minimizer,
+    atom_auto,
 )
