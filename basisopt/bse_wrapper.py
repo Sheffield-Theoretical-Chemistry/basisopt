@@ -162,9 +162,7 @@ def export_auto_basis_to_json(mol, strategy):
     elements = mol._atom_names
     export_basis = internal_to_bse(mol.basis)
     export_basis['description'] = description_string(mol, strategy)
-    basis_name = (
-        f"ab_dft_{''.join(elements)}_{format_with_prefix(strategy.target,'Eh',0).replace(' ', '')}"
-    )
+    basis_name = f"ab_dft_{''.join(elements)}_{strategy.name}_{format_with_prefix(strategy.target,'Eh',0).replace(' ', '')}"
     bse.fileio.write_json_basis(f'./{basis_name}.json', export_basis)
 
 

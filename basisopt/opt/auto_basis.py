@@ -233,7 +233,7 @@ class AutoBasisDFTLegendre(Strategy):
         n_coefs: Optional[tuple] = None,
     ):
         super().__init__(eval_type=eval_type, pre=unit)
-        self.name = 'LegendrePairsHybrid'
+        self.name = 'AutoBasisDFTLegendre'
         self.shell = []
         self.shell_done = []
         self.target = target
