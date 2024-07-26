@@ -1,7 +1,7 @@
 # wrappers for BasisSetExchange functionality
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 import basis_set_exchange as bse
 import numpy as np
@@ -157,13 +157,16 @@ def fetch_ecp(name: str, elements: list[str]) -> BSEBasis:
     return basis
 
 
-def export_auto_basis_to_json(mol, strategy):
+def export_auto_basis_to_json(mol, strategy, filepath: Optional = None):
     """Exports a basis set from a molecule to a BSE json file"""
     elements = mol._atom_names
     export_basis = internal_to_bse(mol.basis)
     export_basis['description'] = description_string(mol, strategy)
-    basis_name = f"ab_dft_{''.join(elements)}_{strategy.name}_{format_with_prefix(strategy.target,'Eh',0).replace(' ', '')}"
-    bse.fileio.write_json_basis(f'./{basis_name}.json', export_basis)
+    if filepath:
+        bse.fileio.write_json_basis(filepath, export_basis)
+    else:
+        basis_name = f"ab_dft_{''.join(elements)}_{strategy.name}_{format_with_prefix(strategy.target,'Eh',0).replace(' ', '')}"
+        bse.fileio.write_json_basis(f'./{basis_name}.json', export_basis)
 
 
 def description_string(mol, strategy) -> str:
