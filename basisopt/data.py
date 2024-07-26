@@ -554,13 +554,34 @@ _ATOMIC_HF_ENERGIES = {
     118: -46324.3558151,
 }
 
+_ATOMIC_LEGENDRE_COEFFS = {
+    'O': [
+        [
+            1.614709e00,
+            -5.148965e00,
+            5.235046e-02,
+            -1.726141e-01,
+            1.476052e-01,
+            1.898161e-02,
+        ],  # cc-pVDZ
+        [
+            -0.97793704,
+            1.77658338,
+            -0.27137494,
+            0.02623075,
+            0.0351218,
+            -0.06996131,
+        ],  # 3 functions initial guess
+    ]
+}
+
 """
 CBS Limit of atomic DFT/BHHLYP energies in Hartree.
 Extrapolated from pc-3 and pc-4 basis sets reduced to only s and p functions.
 Extrapolated using a Martin's HF extrapolation scheme replacing L with n in pc-n.
 Ref: doi.org/10.1007/s00214-005-0028-6
 """
-ATOMIC_DFT_CBS = {
+_ATOMIC_DFT_CBS = {
     1: -0.49878277,
     5: -24.65319931,
     6: -37.84767024,

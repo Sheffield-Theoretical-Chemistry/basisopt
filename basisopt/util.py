@@ -6,7 +6,6 @@ from typing import Any
 import numpy as np
 from monty.json import MontyDecoder, MontyEncoder, MSONable
 
-
 bo_logger = logging.getLogger("basisopt")  # internal logging object
 
 
@@ -90,14 +89,27 @@ def fit_poly(
 
 
 def format_with_prefix(value: float, unit: str, dp: int = 3) -> str:
-    """ Utility function for converting a float to scientific notation with units"""
+    """Utility function for converting a float to scientific notation with units"""
     prefixes = [
-        (1e24, 'Y'), (1e21, 'Z'), (1e18, 'E'), (1e15, 'P'), (1e12, 'T'),
-        (1e9, 'G'), (1e6, 'M'), (1e3, 'k'), (1, ''),
-        (1e-3, 'm'), (1e-6, 'µ'), (1e-9, 'n'), (1e-12, 'p'),
-        (1e-15, 'f'), (1e-18, 'a'), (1e-21, 'z'), (1e-24, 'y')
+        (1e24, 'Y'),
+        (1e21, 'Z'),
+        (1e18, 'E'),
+        (1e15, 'P'),
+        (1e12, 'T'),
+        (1e9, 'G'),
+        (1e6, 'M'),
+        (1e3, 'k'),
+        (1, ''),
+        (1e-3, 'm'),
+        (1e-6, 'µ'),
+        (1e-9, 'n'),
+        (1e-12, 'p'),
+        (1e-15, 'f'),
+        (1e-18, 'a'),
+        (1e-21, 'z'),
+        (1e-24, 'y'),
     ]
-    
+
     # Create the format string dynamically based on the number of decimal places
     format_string = f"{{:.{dp}f}}"
 
@@ -105,6 +117,6 @@ def format_with_prefix(value: float, unit: str, dp: int = 3) -> str:
         if abs(value) >= factor:
             formatted_value = value / factor
             return format_string.format(formatted_value) + f" {prefix}{unit}"
-    
+
     # Handle very small numbers that do not fit any prefix
     return format_string.format(value) + f" {unit}"

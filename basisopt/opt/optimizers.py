@@ -1,15 +1,15 @@
 from typing import Any, Callable, Optional
 
 import numpy as np
-from scipy.optimize import minimize
 from mendeleev import element as md_element
+from scipy.optimize import minimize
 
 from basisopt import api
 from basisopt.containers import InternalBasis, OptCollection, OptResult
+from basisopt.data import _ATOMIC_DFT_CBS
 from basisopt.exceptions import FailedCalculation
 from basisopt.molecule import Molecule
 from basisopt.util import bo_logger, format_with_prefix
-from basisopt.data import ATOMIC_DFT_CBS
 
 from .contraction import ContractionStrategy
 from .regularisers import Regulariser
@@ -101,13 +101,15 @@ def _atomic_opt_auto(
         if len(guess) > 0:
             res = minimize(objective, guess, method=algorithm, **opt_params)
             objective_value = res.fun
-            dE_CBS = objective_value - ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
+            dE_CBS = (
+                objective_value - _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
+            )
             info_str = "\n" + "\n".join(
                 [
                     f"Parameters: {res.x}",
                     f"Objective: {objective_value}",
                     f"Delta: {objective_value - strategy.last_objective}",
-                    "Difference to atomic CBS limit: "+ format_with_prefix(dE_CBS,'E\u2095'),
+                    "Difference to atomic CBS limit: " + format_with_prefix(dE_CBS, 'E\u2095'),
                 ]
             )
             results[f"atomicopt{ctr}"] = res
@@ -119,7 +121,16 @@ def _atomic_opt_auto(
     else:
         bo_logger.info("Optimization finished")
         bo_logger.info("Final objective value: %f", objective_value)
-        bo_logger.info("Difference to atomic CBS limit: "+ format_with_prefix(abs(objective_value - ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]),'E\u2095'))
+        bo_logger.info(
+            "Difference to atomic CBS limit: "
+            + format_with_prefix(
+                abs(
+                    objective_value
+                    - _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
+                ),
+                'E\u2095',
+            )
+        )
     return results
 
 
@@ -284,7 +295,7 @@ def atom_auto(
         molecule.add_result(strategy.eval_type, wrapper.get_value(strategy.eval_type))
         current_delta = abs(
             wrapper.get_value(strategy.eval_type)
-            - ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
+            - _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
         )
         return wrapper.get_value(strategy.eval_type)
 

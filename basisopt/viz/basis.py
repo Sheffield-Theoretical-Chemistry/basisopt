@@ -229,9 +229,7 @@ def create_exponent_plot(
                 ** 2
             )
 
-        initial_guess = [
-            1 / 10**i if i % 2 == 0 else -1 / 10**i for i in range(polynomial_order)
-        ]
+        initial_guess = [1 / 10**i if i % 2 == 0 else -1 / 10**i for i in range(polynomial_order)]
 
         result = minimize(objective, initial_guess, method="Nelder-Mead")
 

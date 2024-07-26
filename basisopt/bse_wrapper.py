@@ -1,18 +1,17 @@
 # wrappers for BasisSetExchange functionality
 
+from datetime import datetime
 from typing import Any
 
 import basis_set_exchange as bse
 import numpy as np
 
 import basisopt as bo
-
 import basisopt.data as data
-from basisopt.containers import BSEBasis, InternalBasis, Shell
 from basisopt import get_backend
+from basisopt.containers import BSEBasis, InternalBasis, Shell
 from basisopt.util import format_with_prefix
 
-from datetime import datetime
 
 def make_bse_shell(shell: Shell) -> dict[str, Any]:
     """Converts an internal-format basis shell into a BSE-format shell
@@ -156,19 +155,21 @@ def fetch_ecp(name: str, elements: list[str]) -> BSEBasis:
         if "electron_shells" in elbas:
             del elbas["electron_shells"]
     return basis
-    
+
 
 def export_auto_basis_to_json(mol, strategy):
     """Exports a basis set from a molecule to a BSE json file"""
     elements = mol._atom_names
     export_basis = internal_to_bse(mol.basis)
     export_basis['description'] = description_string(mol, strategy)
-    basis_name = f"ab_dft_{''.join(elements)}_{format_with_prefix(strategy.target,'Eh',0).replace(' ', '')}"
+    basis_name = (
+        f"ab_dft_{''.join(elements)}_{format_with_prefix(strategy.target,'Eh',0).replace(' ', '')}"
+    )
     bse.fileio.write_json_basis(f'./{basis_name}.json', export_basis)
-    
+
 
 def description_string(mol, strategy) -> str:
-    """ Function to create a description string for a basis set"""
+    """Function to create a description string for a basis set"""
     wrapper = get_backend()
     creation_string = f"Created using BasisOpt {bo.__version__}"
     date = str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))

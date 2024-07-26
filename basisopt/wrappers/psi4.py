@@ -40,7 +40,7 @@ class Psi4Wrapper(Wrapper):
         self._restricted_options = ["functional"]
         self.psi4_mol = None
         self.version = str(psi4.__version__)
-    
+
     def convert_molecule(self, m: Molecule) -> psi4.core.Molecule:
         """Convert an internal Molecule object
         to a Psi4 Molecule object
