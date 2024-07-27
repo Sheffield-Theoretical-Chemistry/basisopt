@@ -723,12 +723,6 @@ class AutoBasisReduceStrategy(Strategy):
                 if self._step == len(basis[element]):
                     self._step = 0
 
-            # if self._just_removed[self._step]:
-            #     self._just_removed[self._step] = False
-            #     self._step += 1
-            #     if self._step == len(basis[element]):
-            #         self._step = 0
-
             errors, ranks, energies, dE_DFT_CBS_INITIAL = rank_mol_basis_dft_cbs(
                 molecule,
                 element,
@@ -754,23 +748,5 @@ class AutoBasisReduceStrategy(Strategy):
         self.last_objective = objective
         if sum(self.shells_done) == 0:
             return False
-
-        # if self._just_removed[self._step]:
-        #     self._just_removed[self._step] = False
-        #     self._step += 1
-        #     if self._step == len(basis[element]):
-        #         self._step = 0
-
-        # old_exps = self.get_active(basis, element).copy()
-
-        # self._just_removed[self._step] = True
-        # if errors[self._step][ranks[self._step][0]] > self.target:
-        #     self.set_active(old_exps, basis, element)
-        #     uncontract_shell(basis[element][self._step])
-        #     self.shells_done[self._step] = 0
-        #     if self._step == len(basis[element]):
-        #         self._step = 0
-        #     return sum(self.shells_done) != 0
-        # self.n_exps_removed[self._step] += 1
 
         return sum(self.shells_done) != 0
