@@ -671,6 +671,8 @@ class AutoBasisReduceStrategy(Strategy):
         self.init_run = True
         self._just_removed = [False] * len(basis[element])
         self.original_shells = [copy.deepcopy(shell) for shell in basis[element]]
+        self.original_size = [len(shell.exps) for shell in basis[element]]
+        self.n_exps_removed = [0] * len(basis[element])
 
     def get_active(self, basis: InternalBasis, element: str) -> np.ndarray:
         """Arguments:
@@ -714,47 +716,61 @@ class AutoBasisReduceStrategy(Strategy):
         Returns:
             True if there is a next step, False if strategy is finished
         """
-        errors, ranks, energies, dE_DFT_CBS_INITIAL = rank_mol_basis_dft_cbs(
-            molecule,
-            element,
-            self.eval_type,
-            backend_params,
-        )
-        el = md_element(element.capitalize()).atomic_number
-        element_cbs_limit = _ATOMIC_DFT_CBS[el]
-        while self.shells_done[self._step] == 0:
-            self._step += 1
-            if self._step == len(basis[element]):
-                self._step = 0
-        if sum(self.shells_done) == 0:
-            return False
 
-        el = md_element(element.capitalize()).atomic_number
+        while sum(self.shells_done) != 0:
+            if self.shells_done[self._step] == 0:
+                self._step += 1
+                if self._step == len(basis[element]):
+                    self._step = 0
 
-        objective_diff = np.abs(objective - element_cbs_limit)
+            # if self._just_removed[self._step]:
+            #     self._just_removed[self._step] = False
+            #     self._step += 1
+            #     if self._step == len(basis[element]):
+            #         self._step = 0
 
-        if self._just_removed[self._step]:
-            self._just_removed[self._step] = False
-            self._step += 1
-            if self._step == len(basis[element]):
-                self._step = 0
+            errors, ranks, energies, dE_DFT_CBS_INITIAL = rank_mol_basis_dft_cbs(
+                molecule,
+                element,
+                self.eval_type,
+                backend_params,
+            )
 
-        old_exps = self.get_active(basis, element).copy()
-        new_exps = np.delete(basis[element][self._step].exps, ranks[self._step][0])
-        self.set_active(new_exps, basis, element)
-        uncontract_shell(basis[element][self._step])
+            el = md_element(element.capitalize()).atomic_number
+            if errors[self._step][ranks[self._step][0]] > self.target:
+                self.shells_done[self._step] = 0
+                self._step += 1
+                if self._step == len(basis[element]):
+                    self._step = 0
+            else:
+                new_exps = np.delete(basis[element][self._step].exps, ranks[self._step][0])
+                self.set_active(new_exps, basis, element)
+                uncontract_shell(basis[element][self._step])
+                self._just_removed[self._step] = True
+                self.n_exps_removed[self._step] += 1
+                return sum(self.shells_done) != 0
 
         self.delta_objective = np.abs(objective - self.last_objective)
         self.last_objective = objective
+        if sum(self.shells_done) == 0:
+            return False
 
-        self._just_removed[self._step] = True
-        if errors[self._step][0] > self.target:
-            self.set_active(old_exps, basis, element)
-            uncontract_shell(basis[element][self._step])
-            self.shells_done[self._step] = 0
-            self._step += 1
-            if self._step == len(basis[element]):
-                self._step = 0
-            return sum(self.shells_done) != 0
+        # if self._just_removed[self._step]:
+        #     self._just_removed[self._step] = False
+        #     self._step += 1
+        #     if self._step == len(basis[element]):
+        #         self._step = 0
+
+        # old_exps = self.get_active(basis, element).copy()
+
+        # self._just_removed[self._step] = True
+        # if errors[self._step][ranks[self._step][0]] > self.target:
+        #     self.set_active(old_exps, basis, element)
+        #     uncontract_shell(basis[element][self._step])
+        #     self.shells_done[self._step] = 0
+        #     if self._step == len(basis[element]):
+        #         self._step = 0
+        #     return sum(self.shells_done) != 0
+        # self.n_exps_removed[self._step] += 1
 
         return sum(self.shells_done) != 0

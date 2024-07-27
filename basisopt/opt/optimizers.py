@@ -6,7 +6,7 @@ from scipy.optimize import minimize
 
 from basisopt import api
 from basisopt.containers import InternalBasis, OptCollection, OptResult
-from basisopt.data import _ATOMIC_DFT_CBS
+from basisopt.data import _ATOMIC_DFT_CBS, INV_AM_DICT
 from basisopt.exceptions import FailedCalculation
 from basisopt.molecule import Molecule
 from basisopt.util import bo_logger, format_with_prefix
@@ -330,7 +330,8 @@ def _atomic_opt_auto_reduce(
     bo_logger.info("Algorithm: %s, Strategy: %s", algorithm, strategy.name)
     objective_value = objective(strategy.get_active(basis, element))
     bo_logger.info("Initial objective value: %f", objective_value)
-
+    init_dE_CBS = objective_value - _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
+    bo_logger.info("Initial difference to CBS: " + format_with_prefix(init_dE_CBS, 'E\u2095'))
     # Keep going until strategy says stop
     results = {}
     ctr = 1
@@ -361,7 +362,7 @@ def _atomic_opt_auto_reduce(
         bo_logger.info("Optimization finished")
         bo_logger.info("Final objective value: %f", objective_value)
         bo_logger.info(
-            "Difference to atomic CBS limit: "
+            "Final difference to atomic CBS limit: "
             + format_with_prefix(
                 abs(
                     objective_value
@@ -370,6 +371,22 @@ def _atomic_opt_auto_reduce(
                 'E\u2095',
             )
         )
+        n_exp_removed = ''.join(
+            [f'{r_exp}{INV_AM_DICT[idx]}' for idx, r_exp in enumerate(strategy.n_exps_removed)]
+        )
+        original_config = ''.join(
+            [f'{exp}{INV_AM_DICT[idx]}' for idx, exp in enumerate(strategy.original_size)]
+        )
+        new_config = ''.join(
+            [
+                f'{o_exp-r_exp}{INV_AM_DICT[idx]}'
+                for idx, (o_exp, r_exp) in enumerate(
+                    zip(strategy.original_size, strategy.n_exps_removed)
+                )
+            ]
+        )
+        bo_logger.info(f"Number of exponents removed: {n_exp_removed}")
+        bo_logger.info(f"Basis reduced from {original_config} to {new_config}")
     return results
 
 

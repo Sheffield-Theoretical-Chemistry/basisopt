@@ -278,6 +278,7 @@ def rank_mol_basis_dft_cbs(
         err = np.zeros(n)
 
         # remove each exponent one at a time
+        ens = []
         for i in range(n):
             shell.exps[:i] = exps[:i]
             shell.exps[i:] = exps[i + 1 :]
@@ -285,11 +286,12 @@ def rank_mol_basis_dft_cbs(
             if success != 0:
                 raise FailedCalculation
             value = api.get_backend().get_value(eval_type)
-            energies.append(value)
+            ens.append(value)
             err[i] = np.abs(value - DFT_CBS)
 
         errors.append(err)
         ranks.append(np.argsort(err))
+        energies.append(ens)
         # reset shell to original
         shell.exps = exps
         shell.coefs = coefs
