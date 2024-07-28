@@ -184,6 +184,10 @@ Method: {method}
 
 Parameters:
 {parameters}
-Energy: {mol.get_result('energy'):.9f} Hartree
+Energy: {mol.get_result('energy'):.9f} Hartree\n
     """
+    elements = mol._atom_names
+    leg_params = [[shell.leg_params[0] for shell in mol.basis[element]] for element in elements]
+    if leg_params:
+        outstr += f"Legendre parameters: {leg_params}\n"
     return outstr
