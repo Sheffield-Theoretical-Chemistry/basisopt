@@ -184,7 +184,9 @@ Method: {method}
 
 Parameters:
 {parameters}
-Energy: {mol.get_result('energy'):.9f} Hartree\n
+CBS limit: {format_with_prefix(strategy.cbs_limit, 'Eₕ')}
+Energy: {mol.get_result('energy'):.9f} Hartree
+Difference to CBS limit: {format_with_prefix(mol.get_result('energy')-strategy.cbs_limit, 'Eₕ')}\n
     """
     leg_params = {}
     for element in mol.basis:
