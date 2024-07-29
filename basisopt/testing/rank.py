@@ -9,7 +9,6 @@ from basisopt import api
 from basisopt.basis import uncontract_shell
 from basisopt.basis.atomic import AtomicBasis
 from basisopt.containers import InternalBasis
-from basisopt.data import _ATOMIC_DFT_CBS
 from basisopt.exceptions import FailedCalculation
 from basisopt.molecule import Molecule
 from basisopt.util import bo_logger

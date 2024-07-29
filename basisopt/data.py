@@ -561,16 +561,11 @@ _ATOMIC_LEGENDRE_COEFFS = {
             -5.148965e00,
             5.235046e-02,
             -1.726141e-01,
-            1.476052e-01,
-            1.898161e-02,
         ],  # cc-pVDZ
         [
             -0.97793704,
             1.77658338,
             -0.27137494,
-            0.02623075,
-            0.0351218,
-            -0.06996131,
         ],  # 3 functions initial guess
     ]
 }
@@ -581,18 +576,3 @@ Extrapolated from pc-3 and pc-4 basis sets reduced to only s and p functions.
 Extrapolated using a Martin's HF extrapolation scheme replacing L with n in pc-n.
 Ref: doi.org/10.1007/s00214-005-0028-6
 """
-_ATOMIC_DFT_CBS = {
-    1: -0.49878277,
-    5: -24.65319931,
-    6: -37.84767024,
-    7: -54.59315586,
-    8: -75.07811683,
-    9: -99.74686707,
-    10: -128.94842380,
-    13: -242.37470539,
-    14: -289.38449683,
-    15: -341.27895416,
-    16: -398.12997185,
-    17: -460.16648214,
-    18: -527.55625785,
-}

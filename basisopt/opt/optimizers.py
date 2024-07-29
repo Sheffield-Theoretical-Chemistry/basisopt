@@ -6,7 +6,7 @@ from scipy.optimize import minimize
 
 from basisopt import api
 from basisopt.containers import InternalBasis, OptCollection, OptResult
-from basisopt.data import _ATOMIC_DFT_CBS, INV_AM_DICT
+from basisopt.data import INV_AM_DICT
 from basisopt.exceptions import FailedCalculation
 from basisopt.molecule import Molecule
 from basisopt.util import bo_logger, format_with_prefix, get_composition

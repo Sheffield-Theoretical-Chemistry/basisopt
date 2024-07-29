@@ -6,7 +6,7 @@ from mendeleev import element as md_element
 
 from basisopt.basis.basis import legendre_expansion, uncontract_shell
 from basisopt.containers import InternalBasis
-from basisopt.data import _ATOMIC_DFT_CBS, _ATOMIC_LEGENDRE_COEFFS
+from basisopt.data import _ATOMIC_LEGENDRE_COEFFS
 from basisopt.molecule import Molecule
 from basisopt.testing.rank import rank_mol_basis_cbs
 from basisopt.util import bo_logger
@@ -15,7 +15,7 @@ from .preconditioners import make_positive, unit
 from .strategies import Strategy
 
 
-class AutoBasisDFT(Strategy):
+class AutoBasisFree(Strategy):
     """
 
     Algorithm:
@@ -154,7 +154,7 @@ class AutoBasisDFT(Strategy):
         """
         el = md_element(element.capitalize()).atomic_number
 
-        element_cbs_limit = _ATOMIC_DFT_CBS[el]
+        element_cbs_limit = self.cbs_limit
 
         self.delta_objective = np.abs(objective - self.last_objective)
         self.last_objective = objective
@@ -189,7 +189,7 @@ class AutoBasisDFT(Strategy):
         return True
 
 
-class AutoBasisDFTLegendre(Strategy):
+class AutoBasisLegendre(Strategy):
     """
 
     Algorithm:
