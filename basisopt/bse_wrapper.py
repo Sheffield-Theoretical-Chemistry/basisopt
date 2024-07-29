@@ -184,7 +184,7 @@ Method: {method}
 
 Parameters:
 {parameters}
-CBS limit: {format_with_prefix(strategy.cbs_limit, 'Eₕ')}
+CBS limit: {strategy.cbs_limit:.9f} Eₕ
 Energy: {mol.get_result('energy'):.9f} Hartree
 Difference to CBS limit: {format_with_prefix(mol.get_result('energy')-strategy.cbs_limit, 'Eₕ')}\n
     """
