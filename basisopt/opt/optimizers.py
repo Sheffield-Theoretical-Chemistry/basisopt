@@ -226,7 +226,7 @@ def _atomic_opt_auto(
             res = minimize(objective, guess, method=algorithm, **opt_params)
             objective_value = res.fun
             dE_CBS = objective_value - strategy.cbs_limit
-            info_str = "\n" + "\n".join(
+            info_str = "\n" + "\n\t".join(
                 [
                     f"Parameters: {res.x}",
                     f"Objective: {objective_value}",
@@ -243,17 +243,20 @@ def _atomic_opt_auto(
     else:
         bo_logger.info("Optimization finished")
         bo_logger.info("Final energy: %f", objective_value)
-        exps = '\n'.join(
+        exps = '\n\t'.join(
             [
                 f"{shell.l}" + ','.join([f"{exp:.6e}" for exp in shell.exps])
                 for shell in basis[element]
             ]
         )
         bo_logger.info(f"\nFinal exponents:\n{exps}")
-        final_leg = '\n'.join(
-            [f"{shell.l}: \n" + str(shell.leg_params[0].tolist()) for shell in basis[element]]
-        )
-        bo_logger.info(f"\nFinal Legendre params: {final_leg}")
+        try:
+            final_leg = '\n\t'.join(
+                [f"{shell.l}: \n" + str(shell.leg_params[0].tolist()) for shell in basis[element]]
+            )
+            bo_logger.info(f"\nFinal Legendre params: {final_leg}")
+        except:
+            pass
         bo_logger.info(
             "Difference to atomic CBS limit: "
             + format_with_prefix(
@@ -369,7 +372,7 @@ def _atomic_opt_auto_reduce(
             res = minimize(objective, guess, method=algorithm, **opt_params)
             objective_value = res.fun
             dE_CBS = objective_value - strategy.cbs_limit
-            info_str = "\n" + "\n".join(
+            info_str = "\n" + "\n\t".join(
                 [
                     f"Parameters: {res.x}",
                     f"Objective: {objective_value}",
@@ -386,7 +389,7 @@ def _atomic_opt_auto_reduce(
     else:
         bo_logger.info("Optimization finished")
         bo_logger.info("Final energy: %f", objective_value)
-        exps = '\n'.join(
+        exps = '\n\t'.join(
             [
                 f"{shell.l}" + ','.join([f"{exp:.6e}" for exp in shell.exps])
                 for shell in basis[element]
