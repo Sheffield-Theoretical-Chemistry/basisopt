@@ -61,7 +61,7 @@ class AutoBasisFree(Strategy):
         n_exp_cutoff: int = 6,
     ):
         super().__init__(eval_type=eval_type, pre=unit)
-        self.name = 'AutoBasisDFT'
+        self.name = 'AutoBasisFree'
         self.shell = []
         self.shell_done = []
         self.target = target
@@ -247,7 +247,7 @@ class AutoBasisLegendre(Strategy):
         n_coefs: Optional[tuple] = None,
     ):
         super().__init__(eval_type=eval_type, pre=unit)
-        self.name = 'AutoBasisDFTLegendre'
+        self.name = 'AutoBasisLegendre'
         self.shell = []
         self.shell_done = []
         self.target = target
