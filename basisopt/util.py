@@ -120,3 +120,12 @@ def format_with_prefix(value: float, unit: str, dp: int = 3) -> str:
 
     # Handle very small numbers that do not fit any prefix
     return format_string.format(value) + f" {unit}"
+
+
+def get_composition(basis, element):
+    prim_conf = ''.join([f"{len(shell.exps)}{shell.l}" for shell in basis[element]])
+    contracted_conf = ''.join([f"{len(shell.coefs)}{shell.l}" for shell in basis[element]])
+    if prim_conf != contracted_conf:
+        return prim_conf
+    else:
+        return f"({prim_conf}) -> ({contracted_conf})"

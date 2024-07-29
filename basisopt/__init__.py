@@ -4,5 +4,5 @@ from .bse_wrapper import fetch_basis
 from .molecule import Molecule
 from .util import read_json, write_json
 
-__version__ = "1.2.0"
+__version__ = "1.2.2"
 set_logger()

@@ -236,14 +236,19 @@ def rank_molecule_primitives(
     return errors, ranks
 
 
-def rank_mol_basis_dft_cbs(
-    mol: Molecule, element: str, eval_type: str = 'energy', backend_params: dict = {}
+def rank_mol_basis_cbs(
+    mol: Molecule,
+    element: str,
+    cbs_limit: float,
+    eval_type: str = 'energy',
+    backend_params: dict = {},
 ):
     """Rank the primitive functions in a basis.
 
     Args:
         mol (Molecule): Molecule containing basis set
         element (str): Element in basis to be ranked
+        cbs_limit (float): CBS limit for the molecule
         eval_type (str, optional): Molecule property to evaluate. Defaults to 'energy'.
         backend_params (dict, optional): Parameters to pass to the backend.
 
@@ -254,15 +259,14 @@ def rank_mol_basis_dft_cbs(
         errors (list): List of difference to the DFT CBS limit for each primitive function
         ranks (list): List of ranks for each primitive function
         energies (list): List of energies for each primitive function
-        dE_DFT_CBS_INITIAL (float): Initial difference to the DFT CBS limit
+        dE_CBS_INITIAL (float): Initial difference to the DFT CBS limit
     """
     element = element.lower()
     if api.run_calculation(evaluate=eval_type, mol=mol, params=backend_params) != 0:
         raise Exception('Failed calculation')
     new_mol = copy.deepcopy(mol)
     reference_energy = api.get_backend().get_value(eval_type)
-    DFT_CBS = _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
-    dE_DFT_CBS_INITIAL = reference_energy - DFT_CBS
+    dE_CBS_INITIAL = reference_energy - cbs_limit
     errors = []
     ranks = []
     energies = []
@@ -287,7 +291,7 @@ def rank_mol_basis_dft_cbs(
                 raise FailedCalculation
             value = api.get_backend().get_value(eval_type)
             ens.append(value)
-            err[i] = np.abs(value - DFT_CBS)
+            err[i] = np.abs(value - cbs_limit)
 
         errors.append(err)
         ranks.append(np.argsort(err))
@@ -296,4 +300,4 @@ def rank_mol_basis_dft_cbs(
         shell.exps = exps
         shell.coefs = coefs
 
-    return errors, ranks, energies, dE_DFT_CBS_INITIAL
+    return errors, ranks, energies, dE_CBS_INITIAL

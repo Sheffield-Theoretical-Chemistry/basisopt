@@ -9,7 +9,7 @@ from basisopt.containers import InternalBasis, OptCollection, OptResult
 from basisopt.data import _ATOMIC_DFT_CBS, INV_AM_DICT
 from basisopt.exceptions import FailedCalculation
 from basisopt.molecule import Molecule
-from basisopt.util import bo_logger, format_with_prefix
+from basisopt.util import bo_logger, format_with_prefix, get_composition
 
 from .contraction import ContractionStrategy
 from .regularisers import Regulariser
@@ -63,74 +63,6 @@ def _atomic_opt(
         else:
             info_str = "Skipping empty shell"
         bo_logger.info(info_str)
-    return results
-
-
-def _atomic_opt_auto(
-    basis: InternalBasis,
-    element: str,
-    algorithm: str,
-    strategy: Strategy,
-    opt_params: dict[str, Any],
-    objective: Callable[[np.ndarray], float],
-) -> OptResult:
-    """Helper function to run a strategy for a single atom
-
-    Arguments:
-         basis: internal basis dictionary
-         element: symbol of atom to be optimized
-         algorithm (str): optimization algorithm, see scipy.optimize for options
-         opt_params (dict): parameters to pass to scipy.optimize.minimize
-         objective (func): function to calculate objective, must have signature
-             func(x) where x is a 1D numpy array of floats
-
-     Returns:
-         a dictionary of scipy.optimize result objects for each step in the opt
-    """
-    bo_logger.info("Starting optimization of %s/%s", element, strategy.eval_type)
-    bo_logger.info("Algorithm: %s, Strategy: %s", algorithm, strategy.name)
-    objective_value = objective(strategy.get_active(basis, element))
-    bo_logger.info("Initial objective value: %f", objective_value)
-
-    # Keep going until strategy says stop
-    results = {}
-    ctr = 1
-    while strategy.next(basis, element, objective_value):
-        bo_logger.info("Doing step %d", strategy._step + 1)
-        guess = strategy.get_active(basis, element)
-        if len(guess) > 0:
-            res = minimize(objective, guess, method=algorithm, **opt_params)
-            objective_value = res.fun
-            dE_CBS = (
-                objective_value - _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
-            )
-            info_str = "\n" + "\n".join(
-                [
-                    f"Parameters: {res.x}",
-                    f"Objective: {objective_value}",
-                    f"Delta: {objective_value - strategy.last_objective}",
-                    "Difference to atomic CBS limit: " + format_with_prefix(dE_CBS, 'E\u2095'),
-                ]
-            )
-            results[f"atomicopt{ctr}"] = res
-            results[f"atomicopt{ctr}"]['dE_CBS'] = dE_CBS
-            ctr += 1
-        else:
-            info_str = "Skipping empty shell"
-        bo_logger.info(info_str)
-    else:
-        bo_logger.info("Optimization finished")
-        bo_logger.info("Final objective value: %f", objective_value)
-        bo_logger.info(
-            "Difference to atomic CBS limit: "
-            + format_with_prefix(
-                abs(
-                    objective_value
-                    - _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
-                ),
-                'E\u2095',
-            )
-        )
     return results
 
 
@@ -246,6 +178,96 @@ def minimizer(
     return _atomic_opt(basis, element, algorithm, strategy, opt_params, objective)
 
 
+def _atomic_opt_auto(
+    basis: InternalBasis,
+    element: str,
+    algorithm: str,
+    strategy: Strategy,
+    opt_params: dict[str, Any],
+    objective: Callable[[np.ndarray], float],
+) -> OptResult:
+    """Helper function to run a strategy for a single atom
+
+    Arguments:
+         basis: internal basis dictionary
+         element: symbol of atom to be optimized
+         algorithm (str): optimization algorithm, see scipy.optimize for options
+         opt_params (dict): parameters to pass to scipy.optimize.minimize
+         objective (func): function to calculate objective, must have signature
+             func(x) where x is a 1D numpy array of floats
+
+     Returns:
+         a dictionary of scipy.optimize result objects for each step in the opt
+    """
+    bo_logger.info("Starting optimization of %s/%s", element, strategy.eval_type)
+    bo_logger.info("Algorithm: %s, Strategy: %s", algorithm, strategy.name)
+    objective_value = objective(strategy.get_active(basis, element))
+    init_exps = '\n\t'.join(
+        [
+            f"{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
+            for shell in basis[element]
+        ]
+    )
+    bo_logger.info(f"\n\tInitial exponents:\n\t{init_exps}")
+    bo_logger.info(f"CBS Limit: {strategy.cbs_limit}")
+    bo_logger.info(
+        "Initial difference to CBS limit: "
+        + format_with_prefix(objective_value - strategy.cbs_limit, 'E\u2095')
+    )
+    bo_logger.info("Initial atomic energy: %f", objective_value)
+
+    # Keep going until strategy says stop
+    results = {}
+    ctr = 1
+    while strategy.next(basis, element, objective_value):
+        bo_logger.info("Doing step %d", strategy._step + 1)
+        guess = strategy.get_active(basis, element)
+        if len(guess) > 0:
+            res = minimize(objective, guess, method=algorithm, **opt_params)
+            objective_value = res.fun
+            # dE_CBS = (
+            #    objective_value - _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
+            # )
+            dE_CBS = objective_value - strategy.cbs_limit
+            info_str = "\n" + "\n".join(
+                [
+                    f"Parameters: {res.x}",
+                    f"Objective: {objective_value}",
+                    f"Delta: {objective_value - strategy.last_objective}",
+                    "Difference to atomic CBS limit: " + format_with_prefix(dE_CBS, 'E\u2095'),
+                ]
+            )
+            results[f"atomicopt{ctr}"] = res
+            results[f"atomicopt{ctr}"]['dE_CBS'] = dE_CBS
+            ctr += 1
+        else:
+            info_str = "Skipping empty shell"
+        bo_logger.info(info_str)
+    else:
+        bo_logger.info("Optimization finished")
+        bo_logger.info("Final energy: %f", objective_value)
+        exps = '\n'.join(
+            [
+                f"{shell.l}" + ','.join([f"{exp:.6e}" for exp in shell.exps])
+                for shell in basis[element]
+            ]
+        )
+        bo_logger.info(f"\nFinal exponents:\n{exps}")
+        final_leg = '\n'.join(
+            [f"{shell.l}: \n" + str(shell.leg_params[0].tolist()) for shell in basis[element]]
+        )
+        bo_logger.info(f"\nFinal Legendre params: {final_leg}")
+        bo_logger.info(
+            "Difference to atomic CBS limit: "
+            + format_with_prefix(
+                abs(objective_value - strategy.cbs_limit),
+                'E\u2095',
+            )
+        )
+        bo_logger.info(f"Basis composition: {get_composition(basis, element)}")
+    return results
+
+
 def atom_auto(
     molecule: Molecule,
     element: Optional[str] = None,
@@ -293,10 +315,6 @@ def atom_auto(
         if success != 0:
             raise FailedCalculation
         molecule.add_result(strategy.eval_type, wrapper.get_value(strategy.eval_type))
-        current_delta = abs(
-            wrapper.get_value(strategy.eval_type)
-            - _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
-        )
         return wrapper.get_value(strategy.eval_type)
 
     # Initialise and run optimization
@@ -326,12 +344,24 @@ def _atomic_opt_auto_reduce(
      Returns:
          a dictionary of scipy.optimize result objects for each step in the opt
     """
+
     bo_logger.info("Starting optimization of %s/%s", element, strategy.eval_type)
     bo_logger.info("Algorithm: %s, Strategy: %s", algorithm, strategy.name)
     objective_value = objective(strategy.get_active(basis, element))
-    bo_logger.info("Initial objective value: %f", objective_value)
-    init_dE_CBS = objective_value - _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
-    bo_logger.info("Initial difference to CBS: " + format_with_prefix(init_dE_CBS, 'E\u2095'))
+    init_exps = '\n\t'.join(
+        [
+            f"{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
+            for shell in basis[element]
+        ]
+    )
+    bo_logger.info(f"\n\tInitial exponents:\n\t{init_exps}")
+    bo_logger.info(f"CBS Limit: {strategy.cbs_limit}")
+    bo_logger.info("Initial atomic energy: %f", objective_value)
+    bo_logger.info(
+        "Initial difference to CBS limit: "
+        + format_with_prefix(objective_value - strategy.cbs_limit, 'E\u2095')
+    )
+
     # Keep going until strategy says stop
     results = {}
     ctr = 1
@@ -360,7 +390,13 @@ def _atomic_opt_auto_reduce(
         bo_logger.info(info_str)
     else:
         bo_logger.info("Optimization finished")
-        bo_logger.info("Final objective value: %f", objective_value)
+        bo_logger.info("Final energy: %f", objective_value)
+        exps = '\n'.join(
+            [
+                f"{shell.l}" + ','.join([f"{exp:.6e}" for exp in shell.exps])
+                for shell in basis[element]
+            ]
+        )
         bo_logger.info(
             "Final difference to atomic CBS limit: "
             + format_with_prefix(
@@ -371,6 +407,7 @@ def _atomic_opt_auto_reduce(
                 'E\u2095',
             )
         )
+        bo_logger.info(f"\nFinal exponents:\n{exps}")
         n_exp_removed = ''.join(
             [f'{r_exp}{INV_AM_DICT[idx]}' for idx, r_exp in enumerate(strategy.n_exps_removed)]
         )
@@ -387,6 +424,7 @@ def _atomic_opt_auto_reduce(
         )
         bo_logger.info(f"Number of exponents removed: {n_exp_removed}")
         bo_logger.info(f"Basis reduced from {original_config} to {new_config}")
+        bo_logger.info(f"Basis composition: {get_composition(basis, element)}")
     return results
 
 
