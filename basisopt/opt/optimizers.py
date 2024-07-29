@@ -225,9 +225,6 @@ def _atomic_opt_auto(
         if len(guess) > 0:
             res = minimize(objective, guess, method=algorithm, **opt_params)
             objective_value = res.fun
-            # dE_CBS = (
-            #    objective_value - _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
-            # )
             dE_CBS = objective_value - strategy.cbs_limit
             info_str = "\n" + "\n".join(
                 [
@@ -371,9 +368,7 @@ def _atomic_opt_auto_reduce(
         if len(guess) > 0:
             res = minimize(objective, guess, method=algorithm, **opt_params)
             objective_value = res.fun
-            dE_CBS = (
-                objective_value - _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
-            )
+            dE_CBS = objective_value - strategy.cbs_limit
             info_str = "\n" + "\n".join(
                 [
                     f"Parameters: {res.x}",
@@ -400,10 +395,7 @@ def _atomic_opt_auto_reduce(
         bo_logger.info(
             "Final difference to atomic CBS limit: "
             + format_with_prefix(
-                abs(
-                    objective_value
-                    - _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
-                ),
+                abs(objective_value - strategy.cbs_limit),
                 'E\u2095',
             )
         )
@@ -475,10 +467,6 @@ def atom_auto_reduce(
         if success != 0:
             raise FailedCalculation
         molecule.add_result(strategy.eval_type, wrapper.get_value(strategy.eval_type))
-        current_delta = abs(
-            wrapper.get_value(strategy.eval_type)
-            - _ATOMIC_DFT_CBS[md_element(element.capitalize()).atomic_number]
-        )
         return wrapper.get_value(strategy.eval_type)
 
     # Initialise and run optimization
