@@ -391,7 +391,7 @@ def _atomic_opt_auto_reduce(
         bo_logger.info("Final energy: %f", objective_value)
         exps = '\n\t'.join(
             [
-                f"{shell.l}" + ','.join([f"{exp:.6e}" for exp in shell.exps])
+                f"{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
                 for shell in basis[element]
             ]
         )
