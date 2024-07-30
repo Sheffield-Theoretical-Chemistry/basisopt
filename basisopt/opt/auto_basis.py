@@ -11,7 +11,7 @@ from basisopt.molecule import Molecule
 from basisopt.testing.rank import rank_mol_basis_cbs
 from basisopt.util import bo_logger
 
-from .preconditioners import make_positive, unit
+from .preconditioners import make_positive, unit, Preconditioner
 from .strategies import Strategy
 
 
@@ -59,13 +59,15 @@ class AutoBasisFree(Strategy):
         l: int = -1,
         max_n_a: int = 6,
         n_exp_cutoff: int = 6,
+        pre: Preconditioner = make_positive,
     ):
-        super().__init__(eval_type=eval_type, pre=unit)
+        super().__init__(eval_type=eval_type)
         self.name = 'AutoBasisFree'
         self.shell = []
         self.shell_done = []
         self.target = target
         self.guess = None
+        self.pre = pre
         self.guess_params = {}
         self.params = {}
         self.cbs_limit = None
