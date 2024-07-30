@@ -478,7 +478,7 @@ class AutoBasisReduceStrategyOld(Strategy):
         n_exp_cutoff: int = 6,
     ):
         super().__init__(eval_type=eval_type, pre=unit)
-        self.name = 'AutoBasisReduce'
+        self.name = 'AutoBasisReduceOld'
         self.target = target
         self.guess = None
         self.guess_params = {}
@@ -670,7 +670,7 @@ class AutoBasisReduceStrategy(Strategy):
         n_exp_cutoff: int = 6,
     ):
         super().__init__(eval_type=eval_type, pre=unit)
-        self.name = 'AutoBasisReduceNew'
+        self.name = 'AutoBasisReduce'
         self.target = target
         self.guess = None
         self.guess_params = {}
@@ -895,7 +895,7 @@ class AutoBasisReduceStrategyAll(Strategy):
         n_exp_cutoff: int = 6,
     ):
         super().__init__(eval_type=eval_type, pre=unit)
-        self.name = 'AutoBasisReduceNew'
+        self.name = 'AutoBasisReduceALl'
         self.target = target
         self.guess = None
         self.guess_params = {}
