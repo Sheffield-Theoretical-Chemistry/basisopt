@@ -202,13 +202,13 @@ def _atomic_opt_auto(
     bo_logger.info("Starting optimization of %s/%s", element, strategy.eval_type)
     bo_logger.info("Algorithm: %s, Strategy: %s", algorithm, strategy.name)
     objective_value = objective(strategy.get_active(basis, element))
-    init_exps = '\n\t'.join(
+    init_exps = '\n'.join(
         [
-            f"{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
+            f"\t{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
             for shell in basis[element]
         ]
     )
-    bo_logger.info(f"\n\tInitial exponents:\n\t{init_exps}")
+    bo_logger.info(f"\n\tInitial exponents:\n{init_exps}")
     bo_logger.info(f"CBS Limit: {strategy.cbs_limit}")
     bo_logger.info(
         "Initial difference to CBS limit: "
@@ -226,7 +226,7 @@ def _atomic_opt_auto(
             res = minimize(objective, guess, method=algorithm, **opt_params)
             objective_value = res.fun
             dE_CBS = objective_value - strategy.cbs_limit
-            info_str = "\n" + "\n\t".join(
+            info_str = "\n" + "\n".join(
                 [
                     f"Parameters: {res.x}",
                     f"Objective: {objective_value}",
@@ -243,16 +243,16 @@ def _atomic_opt_auto(
     else:
         bo_logger.info("Optimization finished")
         bo_logger.info("Final energy: %f", objective_value)
-        exps = '\n\t'.join(
+        exps = '\n'.join(
             [
-                f"{shell.l}" + ','.join([f"{exp:.6e}" for exp in shell.exps])
+                f"\t{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
                 for shell in basis[element]
             ]
         )
         bo_logger.info(f"\nFinal exponents:\n{exps}")
         try:
-            final_leg = '\n\t'.join(
-                [f"{shell.l}: \n" + str(shell.leg_params[0].tolist()) for shell in basis[element]]
+            final_leg = '\n'.join(
+                [f"\t{shell.l}: " + str(shell.leg_params[0].tolist()) for shell in basis[element]]
             )
             bo_logger.info(f"\nFinal Legendre params: {final_leg}")
         except:
@@ -348,13 +348,13 @@ def _atomic_opt_auto_reduce(
     bo_logger.info("Starting optimization of %s/%s", element, strategy.eval_type)
     bo_logger.info("Algorithm: %s, Strategy: %s", algorithm, strategy.name)
     objective_value = objective(strategy.get_active(basis, element))
-    init_exps = '\n\t'.join(
+    init_exps = '\n'.join(
         [
-            f"{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
+            f"\t{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
             for shell in basis[element]
         ]
     )
-    bo_logger.info(f"\n\tInitial exponents:\n\t{init_exps}")
+    bo_logger.info(f"\n\tInitial exponents:\n{init_exps}")
     bo_logger.info(f"CBS Limit: {strategy.cbs_limit}")
     bo_logger.info("Initial atomic energy: %f", objective_value)
     bo_logger.info(
@@ -372,7 +372,7 @@ def _atomic_opt_auto_reduce(
             res = minimize(objective, guess, method=algorithm, **opt_params)
             objective_value = res.fun
             dE_CBS = objective_value - strategy.cbs_limit
-            info_str = "\n" + "\n\t".join(
+            info_str = "\n" + "\n".join(
                 [
                     f"Parameters: {res.x}",
                     f"Objective: {objective_value}",
@@ -387,18 +387,28 @@ def _atomic_opt_auto_reduce(
             info_str = "Skipping empty shell"
         bo_logger.info(info_str)
     else:
+        wrapper = api.get_backend()
+        final_res = api.run_calculation(
+            evaluate=strategy.eval_type, mol=molecule, params=strategy.params
+        )
+        objective_value = wrapper.get_value(strategy.eval_type)
+        dE_CBS = objective_value - strategy.cbs_limit
+        ctr += 1
+        final_energy = wrapper.get_value(strategy.eval_type)
+        molecule.add_result(strategy.eval_type, wrapper.get_value(strategy.eval_type))
         bo_logger.info("Optimization finished")
-        bo_logger.info("Final energy: %f", objective_value)
-        exps = '\n\t'.join(
+        bo_logger.info("Final energy: %f", final_energy)
+        exps = '\n'.join(
             [
-                f"{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
+                f"\t{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
                 for shell in basis[element]
             ]
         )
+
         bo_logger.info(
             "Final difference to atomic CBS limit: "
             + format_with_prefix(
-                abs(objective_value - strategy.cbs_limit),
+                abs(final_energy - strategy.cbs_limit),
                 'E\u2095',
             )
         )
