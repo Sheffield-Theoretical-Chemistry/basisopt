@@ -228,10 +228,10 @@ def _atomic_opt_auto(
             dE_CBS = objective_value - strategy.cbs_limit
             info_str = "\n" + "\n".join(
                 [
-                    f"Parameters: {res.x}",
-                    f"Objective: {objective_value}",
-                    f"Delta: {objective_value - strategy.last_objective}",
-                    "Difference to atomic CBS limit: " + format_with_prefix(dE_CBS, 'E\u2095'),
+                    f"\tParameters: {str(res.x.tolist())}",
+                    f"\tObjective: {objective_value}",
+                    f"\tDelta: {objective_value - strategy.last_objective}",
+                    "\tDifference to atomic CBS limit: " + format_with_prefix(dE_CBS, 'E\u2095'),
                 ]
             )
             results[f"atomicopt{ctr}"] = res
@@ -249,12 +249,12 @@ def _atomic_opt_auto(
                 for shell in basis[element]
             ]
         )
-        bo_logger.info(f"\nFinal exponents:\n{exps}")
+        bo_logger.info(f"\n\tFinal exponents:\n{exps}")
         try:
             final_leg = '\n'.join(
                 [f"\t{shell.l}: " + str(shell.leg_params[0].tolist()) for shell in basis[element]]
             )
-            bo_logger.info(f"\nFinal Legendre params: {final_leg}")
+            bo_logger.info(f"\ntFinal Legendre parameters:\n {final_leg}")
         except:
             pass
         bo_logger.info(
@@ -374,10 +374,10 @@ def _atomic_opt_auto_reduce(
             dE_CBS = objective_value - strategy.cbs_limit
             info_str = "\n" + "\n".join(
                 [
-                    f"Parameters: {res.x}",
-                    f"Objective: {objective_value}",
-                    f"Delta: {objective_value - strategy.last_objective}",
-                    "Difference to atomic CBS limit: " + format_with_prefix(dE_CBS, 'E\u2095'),
+                    f"\tParameters: {str(res.x.tolist())}",
+                    f"\tObjective: {objective_value}",
+                    f"\tDelta: {objective_value - strategy.last_objective}",
+                    "\tDifference to atomic CBS limit: " + format_with_prefix(dE_CBS, 'E\u2095'),
                 ]
             )
             results[f"atomicopt{ctr}"] = res
