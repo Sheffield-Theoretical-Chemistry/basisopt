@@ -254,7 +254,7 @@ def _atomic_opt_auto(
             final_leg = '\n'.join(
                 [f"\t{shell.l}: " + str(shell.leg_params[0].tolist()) for shell in basis[element]]
             )
-            bo_logger.info(f"\ntFinal Legendre parameters:\n {final_leg}")
+            bo_logger.info(f"\n\tFinal Legendre parameters:\n {final_leg}")
         except:
             pass
         bo_logger.info(
