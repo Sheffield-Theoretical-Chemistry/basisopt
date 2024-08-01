@@ -202,6 +202,7 @@ def _atomic_opt_auto(
     bo_logger.info("Starting optimization of %s/%s", element, strategy.eval_type)
     bo_logger.info("Algorithm: %s, Strategy: %s", algorithm, strategy.name)
     objective_value = objective(strategy.get_active(basis, element))
+    bo_logger.info("CBS Limit for this element: %f", strategy.cbs_limit)
     init_exps = '\n'.join(
         [
             f"\t{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
@@ -348,6 +349,7 @@ def _atomic_opt_auto_reduce(
     bo_logger.info("Starting optimization of %s/%s", element, strategy.eval_type)
     bo_logger.info("Algorithm: %s, Strategy: %s", algorithm, strategy.name)
     objective_value = objective(strategy.get_active(basis, element))
+    bo_logger.info("CBS Limit for this element: %f", strategy.cbs_limit)
     init_exps = '\n'.join(
         [
             f"\t{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
