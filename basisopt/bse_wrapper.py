@@ -186,7 +186,7 @@ Parameters:
 {parameters}
 CBS limit: {strategy.cbs_limit:.9f} Eh
 Energy: {mol.get_result('energy'):.9f} Hartree
-CBS target accuracy: {format_with_prefix(strategy.cbs_limit, 'Eh')}
+CBS target accuracy: {format_with_prefix(strategy.target, 'Eh')}
 Difference to CBS limit: {format_with_prefix(mol.get_result('energy')-strategy.cbs_limit, 'Eh')}
 Basis set composition: 
     """
