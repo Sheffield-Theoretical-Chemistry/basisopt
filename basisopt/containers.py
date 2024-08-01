@@ -40,6 +40,7 @@ class Shell(MSONable):
             "l": self.l,
             "exps": self.exps,
             "coefs": self.coefs,
+            "leg_params": self.leg_params,
         }
         return d
 
