@@ -33,6 +33,8 @@ class Psi4Wrapper(Wrapper):
             "ras-ci": ["energy"],
             "casscf": ["energy", "trans_dipole", "trans_quadrupole"],
             "rasscf": ["energy", "trans_dipole", "trans_quadrupole"],
+            "mcscf": ["energy", "trans_dipole", "trans_quadrupole"],
+            "sa-mcscf": ["energy", "trans_dipole", "trans_quadrupole"],
             "adc(1)": ["energy", "dipole", "trans_dipole"],
             "adc(2)": ["energy", "dipole", "trans_dipole"],
             "adc(3)": ["energy", "dipole", "trans_dipole"],
@@ -154,10 +156,23 @@ class Psi4Wrapper(Wrapper):
         return results
 
     @available
-    def energy(self, mol, tmp="", **params):
+    def energy(self, mol, tmp="", return_wfn=False, **params):
         self.initialise(mol, name="energy", tmp=tmp, **params)
         runstring = self._command_string(mol.method, **params)
-        return psi4.energy(runstring)
+        return psi4.energy(runstring, return_wfn=return_wfn)
+
+    def ao_coefficients(self, mol, **params):
+        self.initialise(mol, name="energy", **params)
+        runstring = self._command_string(mol.method, **params)
+        _, wfn = psi4.energy(runstring, return_wfn=True)
+        ca_subset = wfn.Ca_subset('AO', 'OCC').to_array().T
+        return ca_subset
+
+    def density(self, mol, **params):
+        self.initialise(mol, name="density", **params)
+        runstring = self._command_string(mol.method, **params)
+        _, wfn = psi4.energy(runstring, return_wfn=True)
+        return wfn.Da().to_array()
 
     @available
     def dipole(self, mol, tmp="", **params):

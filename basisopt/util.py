@@ -128,4 +128,4 @@ def get_composition(basis, element):
     if prim_conf != contracted_conf:
         return prim_conf
     else:
-        return f"({prim_conf}) -> ({contracted_conf})"
+        return f"({prim_conf}) -> [{contracted_conf}]"

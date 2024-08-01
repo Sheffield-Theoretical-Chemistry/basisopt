@@ -10,7 +10,7 @@ import basisopt as bo
 import basisopt.data as data
 from basisopt import get_backend
 from basisopt.containers import BSEBasis, InternalBasis, Shell
-from basisopt.util import format_with_prefix
+from basisopt.util import format_with_prefix, get_composition
 
 
 def make_bse_shell(shell: Shell) -> dict[str, Any]:
@@ -184,14 +184,19 @@ Method: {method}
 
 Parameters:
 {parameters}
-CBS limit: {strategy.cbs_limit:.9f} Eₕ
+CBS limit: {strategy.cbs_limit:.9f} Eh
 Energy: {mol.get_result('energy'):.9f} Hartree
-Difference to CBS limit: {format_with_prefix(mol.get_result('energy')-strategy.cbs_limit, 'Eₕ')}\n
+Difference to CBS limit: {format_with_prefix(mol.get_result('energy')-strategy.cbs_limit, 'Eh')}
+Basis set composition: 
     """
+    for element in mol.basis:
+        outstr += f"{element.capitalize()}: {get_composition(mol.basis, element)}\n"
+    if mol.basis[element][0].leg_params:
+        outstr += 'Legendre Parameters:\n'
     leg_params = {}
     for element in mol.basis:
         leg_params[element] = {}
         for shell in mol.basis[element]:
             if shell.leg_params:
-                outstr += f"Legendre Parameters:\n{shell.l}: {','.join([str(leg_param) for leg_param in shell.leg_params[0]])}\n"
+                outstr += f"\n{shell.l}: {','.join([str(leg_param) for leg_param in shell.leg_params[0]])}"
     return outstr
