@@ -842,7 +842,6 @@ class AutoBasisReduceStrategy(Strategy):
                 np.argmin([item for sublist in errors for item in sublist]),
                 (len(errors), max(len(sublist) for sublist in errors)),
             )
-            print(min_index_np)
 
             self._step = min_index_np[0]
             self.old_exps[self._step] = basis[element][self._step].exps
