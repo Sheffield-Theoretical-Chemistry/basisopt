@@ -5,7 +5,7 @@ from mendeleev import element as md_element
 
 from basisopt import bo_logger
 from basisopt.containers import InternalBasis
-
+from basisopt.basis import contract_function
 from .preconditioners import unit
 from .strategies import Strategy
 

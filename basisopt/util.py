@@ -129,3 +129,48 @@ def get_composition(basis, element):
         return prim_conf
     else:
         return f"({prim_conf}) -> [{contracted_conf}]"
+
+
+def davidson_purify_basis(basis):
+    """A function to perform Davidson purification on a basis set
+    Args:
+        basis InternalBasis: Davidson purified basis set
+    """
+
+    def inside_out(basis_coefficients, inside_out=True):
+        """Performs the inside-out part of the Davidson purification"""
+        K = len(basis_coefficients)  # Number of contractions
+        M = K - 1  # Number of zero primitives per contraction
+        for m in range(M):
+            for k in range(m + 1, K):
+                ratio = basis_coefficients[k][m] / basis_coefficients[m][m]
+                if np.isnan(ratio) or np.isinf(ratio):
+                    ratio = 0
+                # starting from the first coefficient
+                for l in range(k, K):
+                    if inside_out:
+                        if sum(basis_coefficients[l]) == 1.0:
+                            # Ignores any uncontracted shells when doing inside-out
+                            basis_coefficients[l] = basis_coefficients[l]
+                        else:
+                            basis_coefficients[l] -= basis_coefficients[m] * ratio
+                            basis_coefficients[l] = np.round(basis_coefficients[l], 8)
+                    else:
+                        basis_coefficients[l] -= basis_coefficients[m] * ratio
+                        basis_coefficients[l] = np.round(basis_coefficients[l], 8)
+        return np.round(basis_coefficients, 8)
+
+    def outside_in(basis_coefficients):
+        """Does the outside-in part of the Davidson purification"""
+        return list(np.flip(inside_out(np.flip(basis_coefficients))))
+
+    def davidson_purification(basis_coefficients):
+        """Performs the Davidson purification"""
+        basis_coefficients = outside_in(inside_out(basis_coefficients, True))
+        return basis_coefficients
+
+    for element in basis:
+        for shell in basis[element]:
+            print(f'Doing {shell.l}')
+            shell.coefs = davidson_purification(shell.coefs)
+    return basis

@@ -11,7 +11,7 @@ from basisopt.exceptions import FailedCalculation
 from basisopt.molecule import Molecule
 from basisopt.util import bo_logger, format_with_prefix, get_composition
 
-from .contraction import ContractionStrategy
+#from .contraction import ContractionStrategy
 from .regularisers import Regulariser
 from .strategies import Strategy
 
@@ -687,9 +687,9 @@ def _atomic_contract(
 
 def contraction_optimize(
     molecule: Molecule,
+    strategy: Strategy,
     element: Optional[str] = None,
     algorithm: str = 'l-bfgs-b',
-    strategy: Strategy = ContractionStrategy(),
     reg: Regulariser = (lambda x: 0),
     opt_params: dict[str, Any] = {},
 ) -> OptResult:
