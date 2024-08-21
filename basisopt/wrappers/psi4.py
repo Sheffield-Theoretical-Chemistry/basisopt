@@ -156,10 +156,10 @@ class Psi4Wrapper(Wrapper):
         return results
 
     @available
-    def energy(self, mol, tmp="", return_wfn=False, **params):
+    def energy(self, mol, tmp="", **params):
         self.initialise(mol, name="energy", tmp=tmp, **params)
         runstring = self._command_string(mol.method, **params)
-        return psi4.energy(runstring, return_wfn=return_wfn)
+        return psi4.energy(runstring)
 
     def ao_coefficients(self, mol, **params):
         self.initialise(mol, name="energy", **params)
@@ -173,7 +173,13 @@ class Psi4Wrapper(Wrapper):
         runstring = self._command_string(mol.method, **params)
         _, wfn = psi4.energy(runstring, return_wfn=True)
         return wfn.Da().to_array()
-
+    
+    def get_wfn(self, mol, **params):
+        self.initialise(mol, name="energy", **params)
+        runstring = self._command_string(mol.method, **params)
+        _, wfn = psi4.energy(runstring, return_wfn=True)
+        return wfn
+        
     @available
     def dipole(self, mol, tmp="", **params):
         results = self._get_properties(mol, name="dipole", properties=["dipole"], tmp=tmp, **params)

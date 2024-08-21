@@ -171,6 +171,5 @@ def davidson_purify_basis(basis):
 
     for element in basis:
         for shell in basis[element]:
-            print(f'Doing {shell.l}')
             shell.coefs = davidson_purification(shell.coefs)
     return basis
