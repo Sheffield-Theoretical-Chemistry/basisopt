@@ -1,12 +1,15 @@
 # correlation consistent plots
-from typing import Callable
+from typing import Callable, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from basisopt.basis.basis import Basis
 from basisopt.containers import InternalBasis, OptResult
-
+from scipy.optimize import minimize
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
+import seaborn as sns
 
 def extract_steps(opt_results: OptResult, key: str = "fun"):
     """Get the given key value for each step
@@ -67,70 +70,8 @@ def plot_objective(
     return fig, ax
 
 
-def plot_exponents(
-    basis: InternalBasis,
-    atoms: list[str] = [],
-    split_by_shell: bool = True,
-    log_scale: bool = True,
-    figsize: tuple[float, float] = (9, 9),
-) -> tuple[object, list[object]]:
-    """Creates event plots to visualize exponents in a basis set.
-
-    Arguments:
-            basis (dict): internal basis object
-            atoms (list): list of atoms to plot for
-            split_by_shell (bool): if True, the event plots will be
-               split by shell, with a different plot for each atom
-            log_scale (bool): if True, exponents will be in log_10
-            figsize (tuple): (width, heigh) in inches of the figure
-
-    Returns:
-            matplotlib figure, [list of matplotlib axes]
-    """
-    natoms = len(atoms)
-    if natoms > 1 and split_by_shell:
-        fig, axes = plt.subplots(ncols=natoms, sharey=True)
-        to_build = [{k: basis[k.lower()]} for k in atoms]
-    else:
-        fig, ax = plt.subplots()
-        axes = [ax]
-        to_build = [{k: basis[k.lower()] for k in atoms}]
-    fig.set_size_inches(figsize)
-
-    def _single_plot(bas, ax):
-        flat_bases = []
-        for k, v in bas.items():
-            flat_basis = [s.exps for s in v]
-            if log_scale:
-                flat_basis = [np.log10(x) for x in flat_basis]
-            if not split_by_shell:
-                flat_basis = np.concatenate(flat_basis)
-                flat_bases.append(flat_basis)
-            else:
-                flat_bases = flat_basis
-        colors = [f"C{i}" for i in range(len(flat_bases))]
-        ax.eventplot(flat_bases, orientation="vertical", linelengths=0.5, colors=colors)
-
-        if split_by_shell:
-            ax.set_xticks(list(range(len(flat_bases))))
-            ax.set_xticklabels([s.l for v in bas.values() for s in v])
-        else:
-            ax.set_xticks(list(range(len(bas))))
-            ax.set_xticklabels(list(bas.keys()))
-
-        if log_scale:
-            ax.set_ylabel(r"$\log_{10}$ (exponent)")
-        else:
-            ax.set_ylabel("Exponent")
-
-    for bas, ax in zip(to_build, axes):
-        _single_plot(bas, ax)
-
-    return fig, axes
-
-
 def create_exponent_plot(
-    basis_sets: list[InternalBasis],
+    basis_sets: list,
     element: str,
     log: bool = True,
     fit: bool = False,
@@ -140,10 +81,29 @@ def create_exponent_plot(
     min_l: Optional[int] = 0,
     filepath: Optional[str] = None,
     basis_labels: Optional[list[str]] = None,
+    basis_labels_heading: Optional[str] = "Basis Set",
 ):
-    ######### Functions for the plotting #########
+    """
+    Generates and optionally saves a plot of exponents for a given element across different basis sets.
+
+    Parameters:
+    - basis_sets (list): A list of basis sets to be plotted.
+    - element (str): The chemical element for which the exponents are plotted.
+    - log (bool, optional): If True, the y-axis will be logarithmic. Defaults to True.
+    - fit (bool, optional): If True, fits a polynomial of order `polynomial_order` to the exponents. Defaults to False.
+    - polynomial_order (int, optional): The order of the polynomial to fit if `fit` is True. Defaults to 3.
+    - title (Optional[str], optional): The title of the plot. If None, no title is set. Defaults to None.
+    - max_l (Optional[int], optional): The maximum angular momentum quantum number (l) to include. If None, includes all. Defaults to None.
+    - min_l (Optional[int], optional): The minimum angular momentum quantum number (l) to include. Defaults to 0.
+    - filepath (Optional[str], optional): The path to save the plot to. If None, the plot is not saved. Defaults to None.
+    - basis_labels (Optional[list[str]], optional): Labels for the basis sets. If None, basis sets are not labeled. Defaults to None.
+    - basis_labels_heading (Optional[str], optional): The heading for the basis set labels. Defaults to "Basis Set".
+
+    Returns:
+    None: The function generates and displays a plot. If `filepath` is provided, the plot is saved to the specified location.
+    """
+    element = element.lower()
     def set_ax_format(ax):
-        """Set's up the axis formatting"""
 
         ax.tick_params(axis="both", which="major", labelsize=20)
         for axis in ["top", "bottom", "left", "right"]:
@@ -216,33 +176,45 @@ def create_exponent_plot(
         )
 
     def polynomial(j: np.array, coefficients: list[float]):
-        """Polynomial function for fitting"""
         return sum([coefficients[k] * j**k for k in range(len(coefficients))])
 
     def fit_polynomial(exponents):
-        """Polynomial fiting"""
+
         atom_opt_s_exps = exponents
 
+        # Define the objective function
         def objective(coefficients):
             return np.sum(
-                (polynomial(np.arange(0, len(atom_opt_s_exps)), coefficients) - atom_opt_s_exps)
+                (
+                    polynomial(np.arange(0, len(atom_opt_s_exps)), coefficients)
+                    - atom_opt_s_exps
+                )
                 ** 2
             )
 
+        # Initial guess for the coefficients
+        # initial_guess = [1, -1, 0.1, -0.1]
         initial_guess = [
             1 / 10**i if i % 2 == 0 else -1 / 10**i for i in range(polynomial_order)
         ]
 
+        # Perform the optimization
         result = minimize(objective, initial_guess, method="Nelder-Mead")
 
+        # Get the optimized coefficients
         optimized_coefficients = result.x
         return optimized_coefficients
 
-    ######### Initialise plot #########
-
+    # Init plot
     if type(basis_sets) != list:
         basis = [basis_sets]
 
+    if max_l is None:
+        max_l = 0
+        for b in basis_sets:
+            if len(b[element]) > max_l:
+                max_l = len(b[element])
+                
     max_x = 0
     for b in basis_sets:
         for shell in b[element][min_l : max_l + 1]:
@@ -258,7 +230,7 @@ def create_exponent_plot(
                 if min(np.log(shell.exps)) < min_y:
                     min_y = int(min(np.log(shell.exps)))
 
-    ######### Setup the plot #########
+    # Setup the plot
 
     prop_cycle = plt.rcParams["axes.prop_cycle"]
     colors = prop_cycle.by_key()["color"]
@@ -268,41 +240,26 @@ def create_exponent_plot(
     )
 
     set_ax_format(ax)
-
-    ######### Data plotting #########
+    # Plotting the data
 
     l_string = "spdfghijkl"
 
     legend_elements = []
     basis_set_label_elements = []
     line_styles = ["-", "--", "-.", ":"]
+    marker_styles = ["s", "^", "D", "P", "X", "v", "<", ">", "1", "2", "3", "4"]
     max_angular_momentum = 0
 
     def plot_single(shell, z, ax):
-        if len(shell.exps) > 1:
-            fit_coefs = fit_polynomial(np.log(shell.exps))
-            y = polynomial(np.arange(-0.5, len(shell.exps), 0.1), fit_coefs)
-            sns.lineplot(
-                x=np.arange(-0.5, len(shell.exps), 0.1),
-                y=y,
-                ax=ax,
-                lw=2,
-                ls=line_styles[b_id],
-                zorder=z,
-                color=colors[l],
-            )
-        z += 1
-
         if log:
             y = np.log(shell.exps)
         else:
             y = shell.exps
-        sns.scatterplot(
-            x=[i for i in range(0, len(shell.exps))],
-            y=y,
-            ax=ax,
+        ax.scatter(
+            [i for i in range(0, len(shell.exps))],
+            y,
             s=100,
-            marker="o",
+            marker=marker_styles[b_id],
             edgecolor="black",
             linewidth=2,
             alpha=1,
@@ -313,25 +270,50 @@ def create_exponent_plot(
         z += 1
         return z
 
-    for basis in basis_sets:
+    def plot_single_fit_line(shell, z, ax, fit):
+        if len(shell.exps) > 1:
+            fit_coefs = fit_polynomial(np.log(shell.exps))
+            y = polynomial(np.arange(-0.5, len(shell.exps), 0.1), fit_coefs)
+            ax.plot(
+                np.arange(-0.5, len(shell.exps), 0.1),
+                y,
+                lw=2,
+                ls=line_styles[b_id],
+                zorder=z,
+                color=colors[l],
+            )
+        z += 1
+        return z
+
+    z = 1
+    if fit:
         for b_id, basis in enumerate(basis_sets):
-            z = 1
             for l, shell in enumerate(basis[element]):
                 if l < min_l:
                     continue
                 else:
-                    z = plot_single(shell, z, ax=ax)
+                    z = plot_single_fit_line(shell, z, ax=ax, fit=fit)
+                    print(l==max_l, l, max_l)
                     if l == max_l:
                         break
+    for b_id, basis in enumerate(basis_sets):
+        for l, shell in enumerate(basis[element]):
+            if l < min_l:
+                continue
+            else:
+                z = plot_single(shell, z, ax=ax)
+                if l == max_l:
+                    break
 
         basis_set_label_elements.append(
             Line2D(
-                [0],
-                [0],
+                [],
+                [],
                 color="k",
                 lw=2,
                 ls=line_styles[b_id],
                 label=basis_labels[b_id],
+                marker=marker_styles[b_id],
             )
         )
 
@@ -344,17 +326,18 @@ def create_exponent_plot(
     else:
         for i in range(min_l, max_angular_momentum):
             legend_elements.append(Patch(color=colors[i], label=f"{l_string[i]}"))
+    if fit:
+        second_legend = ax.legend(
+            handles=basis_set_label_elements,
+            bbox_to_anchor=(1.0, 1.0),
+            title=basis_labels_heading,
+            frameon=True,
+            framealpha=1,
+            title_fontproperties={"weight": "bold"},
+        )
+        second_legend.get_frame().set_edgecolor("white")
+        ax.add_artist(second_legend)
 
-    second_legend = ax.legend(
-        handles=basis_set_label_elements,
-        bbox_to_anchor=(1.0, 1.0),
-        title="Basis Sets",
-        frameon=True,
-        framealpha=1,
-        title_fontproperties={"weight": "bold"},
-    )
-    second_legend.get_frame().set_edgecolor("white")
-    ax.add_artist(second_legend)
     legend = ax.legend(
         handles=legend_elements[:max_angular_momentum],
         bbox_to_anchor=(1.0, 0.964 - 0.03 * len(basis_labels)),
@@ -372,7 +355,7 @@ def create_exponent_plot(
 
     if filepath:
         fig.savefig(filepath)
-
+        
     return fig, ax
 
 
