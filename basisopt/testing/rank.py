@@ -300,3 +300,100 @@ def rank_mol_basis_cbs(
         shell.coefs = coefs
 
     return errors, ranks, energies, dE_CBS_INITIAL
+
+
+def rank_mol_basis(
+    mol: Molecule,
+    element: str,
+    eval_type: str = 'energy',
+    backend_params: dict = {},
+):
+    """Rank the primitive functions in a basis.
+
+    Args:
+        mol (Molecule): Molecule containing basis set
+        element (str): Element in basis to be ranked
+        eval_type (str, optional): Molecule property to evaluate. Defaults to 'energy'.
+        backend_params (dict, optional): Parameters to pass to the backend.
+
+    Raises:
+        FailedCalculation: Failed calculation, check backend parameters if this occurs.
+
+    Returns:
+        errors (list): List of difference to the DFT CBS limit for each primitive function
+        ranks (list): List of ranks for each primitive function
+        energies (list): List of energies for each primitive function
+        dE_CBS_INITIAL (float): Initial difference to the DFT CBS limit
+    """
+    element = element.lower()
+    if api.run_calculation(evaluate=eval_type, mol=mol, params=backend_params) != 0:
+        raise Exception('Failed calculation')
+    new_mol = copy.deepcopy(mol)
+    reference_energy = api.get_backend().get_value(eval_type)
+    errors = []
+    ranks = []
+    energies = []
+
+    for shell in new_mol.basis[element]:
+        # copy old parameters
+        exps = shell.exps.copy()
+        coefs = shell.coefs.copy()
+        n = len(exps)
+
+        shell.exps = np.zeros(n - 1)
+        uncontract_shell(shell)
+        err = np.zeros(n)
+
+        # remove each exponent one at a time
+        ens = []
+        for i in range(n):
+            shell.exps[:i] = exps[:i]
+            shell.exps[i:] = exps[i + 1 :]
+            success = api.run_calculation(evaluate=eval_type, mol=new_mol, params=backend_params)
+            if success != 0:
+                raise FailedCalculation
+            value = api.get_backend().get_value(eval_type)
+            ens.append(value)
+            err[i] = np.abs(value - reference_energy)
+
+        errors.append(err)
+        ranks.append(np.argsort(err))
+        energies.append(ens)
+        # reset shell to original
+        shell.exps = exps
+        shell.coefs = coefs
+
+    return errors, ranks, energies
+
+
+def rank_basis(
+    mol: Molecule,
+    eval_type: str = 'energy',
+    backend_params: dict = {},
+):
+    """Rank the primitive functions in a basis."""
+    element_ranks = {}
+    for element in mol.basis:
+        errors, ranks, energies = rank_mol_basis(
+            mol, element, eval_type, backend_params
+        )
+        element_ranks[element] = {
+            'errors': errors,
+            'ranks': ranks,
+            'energies': energies,
+        }
+    
+    return element_ranks
+
+def get_smallest_error_element(element_ranks):
+    """Returns the element with the smallest error value"""
+    smallest_error = float('inf')
+    smallest_element = None
+    for element, ranks in element_ranks.items():
+        errors = ranks['errors']
+        for error in errors:
+            min_error = np.min(error)
+            if min_error < smallest_error:
+                smallest_error = min_error
+                smallest_element = element
+    return smallest_element

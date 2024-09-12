@@ -11,7 +11,7 @@ from basisopt.exceptions import FailedCalculation
 from basisopt.molecule import Molecule
 from basisopt.util import bo_logger, format_with_prefix, get_composition
 
-#from .contraction import ContractionStrategy
+# from .contraction import ContractionStrategy
 from .regularisers import Regulariser
 from .strategies import Strategy
 
@@ -494,6 +494,170 @@ def atom_auto_reduce(
     strategy.initialise(basis, element)
     return _atomic_opt_auto_reduce(
         molecule, basis, element, algorithm, strategy, opt_params, objective
+    )
+
+
+def _reduce_any_opt(
+    molecule: Molecule,
+    basis: InternalBasis,
+    #element: str,
+    algorithm: str,
+    strategy: Strategy,
+    opt_params: dict[str, Any],
+    objective: Callable[[np.ndarray], float],
+) -> OptResult:
+    """Helper function to run a strategy for a single atom
+
+    Arguments:
+         basis: internal basis dictionary
+         element: symbol of atom to be optimized
+         algorithm (str): optimization algorithm, see scipy.optimize for options
+         opt_params (dict): parameters to pass to scipy.optimize.minimize
+         objective (func): function to calculate objective, must have signature
+             func(x) where x is a 1D numpy array of floats
+
+     Returns:
+         a dictionary of scipy.optimize result objects for each step in the opt
+    """
+
+    bo_logger.info("Starting optimization of %s/%s", strategy.current_element, strategy.eval_type)
+    bo_logger.info("Algorithm: %s, Strategy: %s", algorithm, strategy.name)
+    objective_value = objective(strategy.get_active(basis))
+    # bo_logger.info(f"CBS limit for this element: {format_with_prefix(strategy.cbs_limit, 'Eh')}")
+    # bo_logger.info(
+    #     f"CBS target accuracy for this element: {format_with_prefix(strategy.target, 'Eh')}"
+    # )
+    # init_exps = '\n'.join(
+    #     [
+    #         f"\t{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
+    #         for shell in basis[element]
+    #     ]
+    # )
+    # bo_logger.info(f"\n\tInitial exponents:\n{init_exps}")
+    # bo_logger.info(f"CBS Limit: {strategy.cbs_limit}")
+    # bo_logger.info("Initial atomic energy: %f", objective_value)
+    # bo_logger.info(
+    #     "Initial difference to CBS limit: "
+    #     + format_with_prefix(objective_value - strategy.cbs_limit, 'E\u2095')
+    # )
+
+    # Keep going until strategy says stop
+    results = {}
+    ctr = 1
+    while strategy.next(molecule, basis, objective_value):
+        bo_logger.info("Doing step %d", strategy._step + 1)
+        guess = strategy.get_active(basis)
+        if len(guess) > 0:
+            res = minimize(objective, guess, method=algorithm, **opt_params)
+            objective_value = res.fun
+            info_str = "\n" + "\n".join(
+                [
+                    f"\tParameters: {str(res.x.tolist())}",
+                    f"\tObjective: {objective_value}",
+                    f"\tDelta: {objective_value - strategy.last_objective}",
+                ]
+            )
+            results[f"atomicopt{ctr}"] = res
+            ctr += 1
+        else:
+            info_str = "Skipping empty shell"
+        bo_logger.info(info_str)
+    else:
+        wrapper = api.get_backend()
+        final_res = api.run_calculation(
+            evaluate=strategy.eval_type, mol=molecule, params=strategy.params
+        )
+        objective_value = wrapper.get_value(strategy.eval_type)
+        ctr += 1
+        final_energy = wrapper.get_value(strategy.eval_type)
+        molecule.add_result(strategy.eval_type, wrapper.get_value(strategy.eval_type))
+        bo_logger.info("Optimization finished")
+        bo_logger.info("Final energy: %f", final_energy)
+        # exps = '\n'.join(
+        #     [
+        #         f"\t{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
+        #         for shell in basis[element]
+        #     ]
+        # )
+
+        # bo_logger.info(
+        #     "Final difference to atomic CBS limit: "
+        #     + format_with_prefix(
+        #         abs(final_energy - strategy.cbs_limit),
+        #         'E\u2095',
+        #     )
+        # )
+        # bo_logger.info(f"\nFinal exponents:\n{exps}")
+        # n_exp_removed = ''.join(
+        #     [f'{r_exp}{INV_AM_DICT[idx]}' for idx, r_exp in enumerate(strategy.n_exps_removed)]
+        # )
+        # original_config = ''.join(
+        #     [f'{exp}{INV_AM_DICT[idx]}' for idx, exp in enumerate(strategy.original_size)]
+        # )
+        # new_config = ''.join(
+        #     [
+        #         f'{o_exp-r_exp}{INV_AM_DICT[idx]}'
+        #         for idx, (o_exp, r_exp) in enumerate(
+        #             zip(strategy.original_size, strategy.n_exps_removed)
+        #         )
+        #     ]
+        # )
+        #bo_logger.info(f"Number of exponents removed: {n_exp_removed}")
+        #bo_logger.info(f"Basis reduced from {original_config} to {new_config}")
+        #bo_logger.info(f"Basis composition: {get_composition(basis, element)}")
+    return results
+
+
+def reduce_any(
+    molecule: Molecule,
+    #element: Optional[str] = None,
+    algorithm: str = 'l-bfgs-b',
+    strategy: Strategy = Strategy(),
+    reg: Regulariser = (lambda x: 0),
+    opt_params: dict[str, Any] = {},
+) -> OptResult:
+    """General purpose optimizer for a single atomic basis
+
+    Arguments:
+        molecule: Molecule object
+        element (str): symbol of atom to optimize; if None, will default to first atom in molecule
+        algorithm (str): scipy.optimize algorithm to use
+        strategy (Strategy): optimization strategy
+        basis_type (str): which basis type to use; currently "orbital", "jfit", or "jkfit"
+        reg (func): regularization function
+        opt_params (dict): parameters to pass to scipy.optimize.minimize
+
+    Returns:
+        dictionary of scipy.optimize result objects for each step in the opt
+
+    Raises:
+        FailedCalculation
+    """
+    wrapper = api.get_backend()
+
+    basis = molecule.basis
+    if strategy.basis_type == "jfit":
+        basis = molecule.jbasis
+    elif strategy.basis_type == "jkfit":
+        basis = molecule.jkbasis
+
+    def objective(x):
+        """Set exponents, run calculation, compute objective
+        Currently just RMSE, need to expand via Strategy
+        """
+        strategy.set_active(x, basis)
+        success = api.run_calculation(
+            evaluate=strategy.eval_type, mol=molecule, params=strategy.params
+        )
+        if success != 0:
+            raise FailedCalculation
+        molecule.add_result(strategy.eval_type, wrapper.get_value(strategy.eval_type))
+        return wrapper.get_value(strategy.eval_type)
+
+    # Initialise and run optimization
+    strategy.initialise(molecule)
+    return _reduce_any_opt(
+        molecule, basis, algorithm, strategy, opt_params, objective
     )
 
 
