@@ -173,3 +173,83 @@ def davidson_purify_basis(basis):
         for shell in basis[element]:
             shell.coefs = davidson_purification(shell.coefs)
     return basis
+
+def rank_basis_contraction(mol, element):
+    """ Rank basis functions energy contributions
+
+    Args:
+        mol (Molecule): BasisOpt Molecule object
+        element (InternalBasis): Element to prune in basis set
+
+    Returns:
+        energies (list): Energy after removing each contraction coefficient
+        errors (list): Energy delta after removing each contraction coefficient
+        ranked_idx (list): Ranked indices of contractions
+        sorted_errors (list): Sorted error contributions
+    """
+        flat_array = []
+        index_mapping = []
+        
+        for i, outer_list in enumerate(array):
+            for j, middle_list in enumerate(outer_list):
+                for k, element in enumerate(middle_list):
+                    flat_array.append(element)
+                    index_mapping.append((i, j, k))
+
+        sorted_indices = np.argsort(flat_array)
+        
+        ranked_indices = [index_mapping[idx] for idx in sorted_indices]
+        sorted_values = [flat_array[idx] for idx in sorted_indices]
+
+        return ranked_indices, sorted_values
+    
+    energies = []
+    errors = []
+    for shell in mol.basis[element]:
+        en, er, ra, sr = rank_shell_contractions(mol, shell)
+        energies.append(en)
+        errors.append(er)
+    ranked_idx, sorted_errors = argsort_inhomogeneous_3d_array(errors)
+    return energies, errors, ranked_idx, sorted_errors
+
+
+def prune_element(mol, element, target):
+    """Prune a basis set element to reach a target energy difference
+
+    Args:
+        mol (InternalBasis): BasisOpt Molecule object
+        element (str): Element to prune in basis set
+        target (float): Maximum energy difference to reach
+
+    Returns:
+        _type_: _description_
+    """
+    mol.name = f'{element}pruned{int(target*1000)}'
+    bo.run_calculation(mol=mol, params=params)
+    reference_energy = wrapper.get_value('energy')
+    energy = reference_energy
+    while energy < reference_energy+target:
+        energies, errors, ranked_idx, sorted_errors = rank_basis(mol, element)
+        ang_idx, idx, exp_idx = ranked_idx.pop(0)
+        shell = mol.basis[element][ang_idx]
+        bo_logger.info(f'Pruning {element} {shell.l} contractions')
+        while shell.coefs[idx][exp_idx] == 0.0:
+            ang_idx, idx, exp_idx = ranked_idx.pop(0)
+            shell = mol.basis[element][ang_idx]
+        else:
+            old_coefs = copy.deepcopy(shell.coefs)
+            shell.coefs[idx][exp_idx] = 0.0
+            bo_logger.info(f'Pruned {shell.l} {idx} {exp_idx}')
+            bo.run_calculation(mol=mol, params=params)
+            energy = wrapper.get_value('energy')
+            bo_logger.info(f'Energy: {energy}')
+            bo_logger.info(f'Target: {reference_energy+target}')
+            bo_logger.info(f'Diff: {energy - reference_energy}')
+    else:
+        shell.coefs = old_coefs
+        bo_logger.info(f'Reverted Prune of {shell.l} {idx} {exp_idx}')
+        energy = wrapper.get_value('energy')
+        bo_logger.info(f'Energy: {energy}')
+        bo_logger.info(f'Target: {reference_energy+target}')
+        bo_logger.info(f'Diff: {energy - reference_energy}')
+    return mol
