@@ -187,6 +187,7 @@ def rank_basis_contraction(mol, element):
         ranked_idx (list): Ranked indices of contractions
         sorted_errors (list): Sorted error contributions
     """
+    def argsort_inhomogeneous_3d_array(array):
         flat_array = []
         index_mapping = []
         
@@ -219,7 +220,7 @@ def prune_element(mol, element, target):
     Args:
         mol (InternalBasis): BasisOpt Molecule object
         element (str): Element to prune in basis set
-        target (float): Maximum energy difference to reach
+        target (float): Maximum 
 
     Returns:
         _type_: _description_
