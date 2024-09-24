@@ -144,7 +144,7 @@ def rank_uncontract_element_robust(mol, element, params, verbose=False):
     return energies, errors, ranks, ranked_idx, sorted_errors
 
 
-def add_uncontracted_functions(mol, element, params, target):
+def add_uncontracted_functions(mol, element, params, target, verbose=False):
     """Add uncontracted functions to a basis set element until the energy difference is below a target.
 
     Args:
@@ -171,7 +171,7 @@ def add_uncontracted_functions(mol, element, params, target):
     uncontracted_functions = []
     while energy > reference_energy - target:
         energies, errors, ranks, ranked_idx, sorted_errors = rank_uncontract_element(
-            mol, element, params
+            mol, element, params, verbose
         )
         angular_momentum, exp_idx = ranked_idx.pop(-1)
         while (angular_momentum, exp_idx) in uncontracted_functions:
@@ -187,7 +187,7 @@ def add_uncontracted_functions(mol, element, params, target):
     return uncontracted_functions
 
 
-def add_uncontracted_functions_cutoff(mol, element, params, cutoff):
+def add_uncontracted_functions_cutoff(mol, element, params, cutoff, verbose=False):
     """Uncontracts all functions that have a contribution above a cutoff.
     This performs inplace modification of the basis set and returns the uncontracted functions.
 
@@ -223,6 +223,7 @@ def add_uncontracted_functions_cutoff(mol, element, params, cutoff):
             mol,
             element,
             params,
+            verbose,
         )
         angular_momentum, exp_idx = ranked_idx.pop(-1)
         contribution = sorted_errors.pop(-1)
