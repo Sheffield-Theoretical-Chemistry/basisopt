@@ -131,13 +131,7 @@ def get_composition(basis, element):
         return f"({prim_conf}) -> [{contracted_conf}]"
 
 
-def davidson_purify_basis(basis):
-    """A function to perform Davidson purification on a basis set
-    Args:
-        basis InternalBasis: Davidson purified basis set
-    """
-
-    def inside_out(basis_coefficients, inside_out=True):
+def inside_out(basis_coefficients, inside_out=True):
         """Performs the inside-out part of the Davidson purification"""
         K = len(basis_coefficients)  # Number of contractions
         M = K - 1  # Number of zero primitives per contraction
@@ -160,18 +154,109 @@ def davidson_purify_basis(basis):
                         basis_coefficients[l] = np.round(basis_coefficients[l], 8)
         return np.round(basis_coefficients, 8)
 
-    def outside_in(basis_coefficients):
-        """Does the outside-in part of the Davidson purification"""
-        return list(np.flip(inside_out(np.flip(basis_coefficients))))
 
-    def davidson_purification(basis_coefficients):
-        """Performs the Davidson purification"""
-        basis_coefficients = outside_in(inside_out(basis_coefficients, True))
-        return basis_coefficients
+def outside_in(basis_coefficients):
+	"""Does the outside-in part of the Davidson purification"""
+	return list(np.flip(inside_out(np.flip(basis_coefficients))))
+
+def davidson_purification(basis_coefficients):
+	"""Performs the Davidson purification"""
+	basis_coefficients = outside_in(inside_out(basis_coefficients, True))
+	return basis_coefficients
+
+
+def davidson_purify_basis(basis):
+    """A function to perform Davidson purification on a basis set
+    Args:
+        basis InternalBasis: Davidson purified basis set
+    """
 
     for element in basis:
         for shell in basis[element]:
             shell.coefs = davidson_purification(shell.coefs)
+    return basis
+
+def davidson_purify_extended(basis):
+    """Extended Davidson purification.
+    Removes any uncontracted functions from lower contractions.
+    Removes any zero coefficients, purifies the remaining coefficients and restores the zeros.
+
+    Args:
+        basis (InternalBasis): Internal basis set dictionary
+    """
+	
+    def uncontract_contractions(coefs):
+        """Remove uncontracted functions from a basis set"""
+        def has_single_func(arr):
+            return np.count_nonzero(arr == 1) == 1
+
+
+        def get_uncontracted_index(arr):
+            indices = np.where(arr == 1)[0]  # Get the indices where the value is 1
+            if len(indices) == 1:
+                return indices[0]  # Return the index if there's exactly one 1
+            return None  # Return None if not exactly one 1
+        
+        coefs = coefs[::-1]
+        uncontracted = []
+        for coef in coefs:
+            if has_single_func(coef):
+                index = get_uncontracted_index(coef)
+                uncontracted.append(coef.copy())
+                for coef in coefs:
+                    coef[index] = 0
+                coefs = coefs[1:]
+        return coefs[::-1], uncontracted[::-1]
+
+    def remove_zeros(arrays):
+        no_zeros_arrays = []
+        zero_indices_list = []
+        original_length = len(arrays[0])
+
+        for arr in arrays:
+            zero_indices = np.where(arr == 0)[0]  # Get the indices where the zeros are
+            non_zero_elements = arr[arr != 0]  # Remove zeros from the array
+
+            no_zeros_arrays.append(non_zero_elements)
+            zero_indices_list.append(zero_indices)
+
+        return no_zeros_arrays, zero_indices_list, original_length
+
+    # Function to restore zeros to their original positions
+    def restore_zeros(modified_arrays, zero_indices_list, original_length):
+        restored_arrays = []
+
+        for modified_arr, zero_indices in zip(modified_arrays, zero_indices_list):
+            # Create a new array of the original length, filled with the modified non-zero values
+            restored_array = np.zeros(original_length)
+
+            # Fill the non-zero positions in the array
+            non_zero_indices = np.setdiff1d(np.arange(original_length), zero_indices)
+            restored_array[non_zero_indices] = modified_arr
+
+            # Append the restored array to the list
+            restored_arrays.append(restored_array)
+
+        return restored_arrays
+
+    def purify_reduced_coefs_new(coefs):
+        # Remove zeros from the coefs
+        removed_uncontracted, uncontracted_funcs = uncontract_contractions(coefs)
+
+        no_zeros_coefs, zero_positions_list, original_length = remove_zeros(removed_uncontracted)
+
+        # Purify the reduced coefs
+        purified_coefs = davidson_purification(no_zeros_coefs)
+
+        # Restore zeros to the purified coefs
+        restored_coefs = restore_zeros(purified_coefs, zero_positions_list, original_length)
+
+        return restored_coefs + uncontracted_funcs
+
+    for element in basis:
+        for shell in basis[element]:
+            if len(shell.coefs) != len(shell.exps):
+                shell.coefs = purify_reduced_coefs_new(shell.coefs)
     return basis
 
 def rank_basis_contraction(mol, element):
@@ -254,3 +339,5 @@ def prune_element(mol, element, target):
         bo_logger.info(f'Target: {reference_energy+target}')
         bo_logger.info(f'Diff: {energy - reference_energy}')
     return mol
+
+
