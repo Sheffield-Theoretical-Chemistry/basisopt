@@ -1,5 +1,5 @@
 from . import api
-from .api import _CURRENT_BACKEND as wrapper
+#from .api import _CURRENT_BACKEND as wrapper
 from .api import bo_logger
 
 import numpy as np
@@ -50,7 +50,7 @@ def rank_uncontract_element(mol, element, params, verbose=False):
         element (str): Element to rank in basis set
         verbose (bool, optional): Print rankings. Defaults to False.
     """
-
+    wrapper = api.get_backend()
     def rank_uncontract_angular_momentum(mol, shell, verbose=True):
         energies = []
         errors = []
@@ -99,7 +99,7 @@ def rank_uncontract_element_robust(mol, element, params, verbose=False):
         element (str): Element to rank in basis set
         verbose (bool, optional): Print rankings. Defaults to False.
     """
-
+    wrapper = api.get_backend()
     def rank_uncontract_angular_momentum_robust(mol, shell, verbose=True):
         energies = []
         errors = []
@@ -120,8 +120,8 @@ def rank_uncontract_element_robust(mol, element, params, verbose=False):
                 api.run_calculation(mol=mol, params=params)
                 energies.append(wrapper.get_value('energy'))
                 errors.append(abs(energies[-1] - ref_energy))
-            except:
-                bo_logger.error(f'Failed to calculate {shell.l} {i}')
+            except Exception as e:
+                bo_logger.error(f'Failed to calculate {shell.l} {i}: {e}')
                 energies.append(-1)
                 errors.append(-1)
             shell.coefs = old_coefs
@@ -152,7 +152,7 @@ def add_uncontracted_functions(mol, element, params, target):
         element (str): Element to uncontract in basis set.
         target (float): Maximum energy difference to reach.
     """
-
+    wrapper = api.get_backend()
     def sort_by_length_and_nonzero_index(array_list):
         def sort_key(array):
             length = len(array)
@@ -170,7 +170,9 @@ def add_uncontracted_functions(mol, element, params, target):
     reference_energy = energy
     uncontracted_functions = []
     while energy > reference_energy - target:
-        energies, errors, ranks, ranked_idx, sorted_errors = rank_uncontract_element(mol, element)
+        energies, errors, ranks, ranked_idx, sorted_errors = rank_uncontract_element(
+            mol, element, params
+        )
         angular_momentum, exp_idx = ranked_idx.pop(-1)
         while (angular_momentum, exp_idx) in uncontracted_functions:
             angular_momentum, exp_idx = ranked_idx.pop(-1)
@@ -196,7 +198,7 @@ def add_uncontracted_functions_cutoff(mol, element, params, cutoff):
     Returns:
         list: List of tuples with the angular momentum and exponent index of the uncontracted functions.
     """
-
+    wrapper = api.get_backend()
     def sort_by_length_and_nonzero_index(array_list):
         def sort_key(array):
             length = len(array)
@@ -218,7 +220,9 @@ def add_uncontracted_functions_cutoff(mol, element, params, cutoff):
     uncontract = True
     while uncontract:
         energies, errors, ranks, ranked_idx, sorted_errors = rank_uncontract_element_robust(
-            mol, element
+            mol,
+            element,
+            params,
         )
         angular_momentum, exp_idx = ranked_idx.pop(-1)
         contribution = sorted_errors.pop(-1)
