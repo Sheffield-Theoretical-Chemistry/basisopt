@@ -166,7 +166,7 @@ class MolproWrapper(Wrapper):
         if p.errors():
             raise FailedCalculation
         # Attempt to catch race cases where wait=True doesn't seem to be sufficient
-        p.wait()
+        #p.wait()
         energy = self._get_energy(p, mol.method)
 
         p.clean()

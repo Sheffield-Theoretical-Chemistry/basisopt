@@ -1,6 +1,7 @@
 from . import api
 #from .api import _CURRENT_BACKEND as wrapper
 from .api import bo_logger
+from .basis.basis import uncontract
 
 import numpy as np
 import copy
@@ -115,7 +116,6 @@ def rank_uncontract_element_robust(mol, element, params, verbose=False):
                 errors.append(0)
                 continue
             shell.coefs.append(new_coefs)
-            # print(shell.coefs)
             try:
                 api.run_calculation(mol=mol, params=params)
                 energies.append(wrapper.get_value('energy'))
@@ -241,4 +241,40 @@ def add_uncontracted_functions_cutoff(mol, element, params, cutoff, verbose=Fals
             energy = wrapper.get_value('energy')
         else:
             uncontract = False
+    return uncontracted_functions
+
+def add_uncontracted_functions(mol, element, target, params, verbose=False):
+    wrapper = api.get_backend()
+    def sort_by_length_and_nonzero_index(array_list):
+        def sort_key(array):
+            length = len(array)
+            non_zero_indices = np.nonzero(array)[0]
+            first_non_zero_index = (
+                non_zero_indices[0] if non_zero_indices.size > 0 else float('inf')
+            )
+            return (length, first_non_zero_index)
+
+        sorted_list = sorted(array_list, key=sort_key)
+        return sorted_list
+    contracted_basis = copy.deepcopy(mol.basis)
+    mol.basis = uncontract(mol.basis)
+    api.run_calculation(mol=mol, params=params)
+    reference_energy = wrapper.get_value('energy')
+    mol.basis = contracted_basis
+    api.run_calculation(mol=mol, params=params)
+    energy = wrapper.get_value('energy')
+    uncontracted_functions = []
+    while energy > reference_energy + target:
+        energies, errors, ranks, ranked_idx, sorted_errors = rank_uncontract_element_robust(mol, element, params, verbose)
+        angular_momentum, exp_idx = ranked_idx.pop(-1)
+        while (angular_momentum, exp_idx) in uncontracted_functions:
+            angular_momentum, exp_idx = ranked_idx.pop()
+        uncontracted_functions.append((angular_momentum, exp_idx))
+        shell = mol.basis[element.lower()][angular_momentum]
+        shell.coefs.append(np.zeros(len(shell.exps)))
+        shell.coefs[-1][exp_idx] = 1.0
+        shell.coefs = sort_by_length_and_nonzero_index(shell.coefs)
+        # print(f'{shell.l}: {shell.coefs}')
+        api.run_calculation(mol=mol, params=params)
+        energy = wrapper.get_value('energy')
     return uncontracted_functions
