@@ -5,6 +5,8 @@ from typing import Any
 
 import numpy as np
 from monty.json import MontyDecoder, MontyEncoder, MSONable
+import copy
+from . import api
 
 bo_logger = logging.getLogger("basisopt")  # internal logging object
 
@@ -123,8 +125,8 @@ def format_with_prefix(value: float, unit: str, dp: int = 3) -> str:
 
 
 def get_composition(basis, element):
-    prim_conf = ''.join([f"{len(shell.exps)}{shell.l}" for shell in basis[element]])
-    contracted_conf = ''.join([f"{len(shell.coefs)}{shell.l}" for shell in basis[element]])
+    prim_conf = ''.join([f"{len(shell.exps)}{shell.l}" for shell in basis[element.lower()]])
+    contracted_conf = ''.join([f"{len(shell.coefs)}{shell.l}" for shell in basis[element.lower()]])
     if prim_conf != contracted_conf:
         return prim_conf
     else:
@@ -132,37 +134,38 @@ def get_composition(basis, element):
 
 
 def inside_out(basis_coefficients, inside_out=True):
-        """Performs the inside-out part of the Davidson purification"""
-        K = len(basis_coefficients)  # Number of contractions
-        M = K - 1  # Number of zero primitives per contraction
-        for m in range(M):
-            for k in range(m + 1, K):
-                ratio = basis_coefficients[k][m] / basis_coefficients[m][m]
-                if np.isnan(ratio) or np.isinf(ratio):
-                    ratio = 0
-                # starting from the first coefficient
-                for l in range(k, K):
-                    if inside_out:
-                        if sum(basis_coefficients[l]) == 1.0:
-                            # Ignores any uncontracted shells when doing inside-out
-                            basis_coefficients[l] = basis_coefficients[l]
-                        else:
-                            basis_coefficients[l] -= basis_coefficients[m] * ratio
-                            basis_coefficients[l] = np.round(basis_coefficients[l], 8)
+    """Performs the inside-out part of the Davidson purification"""
+    K = len(basis_coefficients)  # Number of contractions
+    M = K - 1  # Number of zero primitives per contraction
+    for m in range(M):
+        for k in range(m + 1, K):
+            ratio = basis_coefficients[k][m] / basis_coefficients[m][m]
+            if np.isnan(ratio) or np.isinf(ratio):
+                ratio = 0
+            # starting from the first coefficient
+            for l in range(k, K):
+                if inside_out:
+                    if sum(basis_coefficients[l]) == 1.0:
+                        # Ignores any uncontracted shells when doing inside-out
+                        basis_coefficients[l] = basis_coefficients[l]
                     else:
                         basis_coefficients[l] -= basis_coefficients[m] * ratio
                         basis_coefficients[l] = np.round(basis_coefficients[l], 8)
-        return np.round(basis_coefficients, 8)
+                else:
+                    basis_coefficients[l] -= basis_coefficients[m] * ratio
+                    basis_coefficients[l] = np.round(basis_coefficients[l], 8)
+    return np.round(basis_coefficients, 8)
 
 
 def outside_in(basis_coefficients):
-	"""Does the outside-in part of the Davidson purification"""
-	return list(np.flip(inside_out(np.flip(basis_coefficients))))
+    """Does the outside-in part of the Davidson purification"""
+    return list(np.flip(inside_out(np.flip(basis_coefficients))))
+
 
 def davidson_purification(basis_coefficients):
-	"""Performs the Davidson purification"""
-	basis_coefficients = outside_in(inside_out(basis_coefficients, True))
-	return basis_coefficients
+    """Performs the Davidson purification"""
+    basis_coefficients = outside_in(inside_out(basis_coefficients, True))
+    return basis_coefficients
 
 
 def davidson_purify_basis(basis):
@@ -172,11 +175,12 @@ def davidson_purify_basis(basis):
     """
 
     for element in basis:
-        for shell in basis[element]:
+        for shell in basis[element.lower()]:
             shell.coefs = davidson_purification(shell.coefs)
     return basis
 
-def davidson_purify_extended(basis):
+
+def davidson_purify_extended(basis, inplace=False):
     """Extended Davidson purification.
     Removes any uncontracted functions from lower contractions.
     Removes any zero coefficients, purifies the remaining coefficients and restores the zeros.
@@ -184,19 +188,21 @@ def davidson_purify_extended(basis):
     Args:
         basis (InternalBasis): Internal basis set dictionary
     """
-	
+    if not inplace:
+        basis = copy.deepcopy(basis)
+
     def uncontract_contractions(coefs):
         """Remove uncontracted functions from a basis set"""
+
         def has_single_func(arr):
             return np.count_nonzero(arr == 1) == 1
-
 
         def get_uncontracted_index(arr):
             indices = np.where(arr == 1)[0]  # Get the indices where the value is 1
             if len(indices) == 1:
                 return indices[0]  # Return the index if there's exactly one 1
             return None  # Return None if not exactly one 1
-        
+
         coefs = coefs[::-1]
         uncontracted = []
         for coef in coefs:
@@ -254,36 +260,42 @@ def davidson_purify_extended(basis):
         return restored_coefs + uncontracted_funcs
 
     for element in basis:
-        for shell in basis[element]:
+        for shell in basis[element.lower()]:
             if len(shell.coefs) != len(shell.exps):
                 shell.coefs = purify_reduced_coefs_new(shell.coefs)
     return basis
 
-def rank_basis_contraction(mol, element):
-    """ Rank basis functions energy contributions
 
-    Args:
-        mol (Molecule): BasisOpt Molecule object
-        element (InternalBasis): Element to prune in basis set
+def rank_shell_contractions(mol, shell, params, skip_zeros=False):
+    def argsort_inhomogeneous_array(array):
+        """
+        Argsorts an inhomogeneous array globally while keeping dimensional information.
 
-    Returns:
-        energies (list): Energy after removing each contraction coefficient
-        errors (list): Energy delta after removing each contraction coefficient
-        ranked_idx (list): Ranked indices of contractions
-        sorted_errors (list): Sorted error contributions
-    """
-    def argsort_inhomogeneous_3d_array(array):
+        Parameters:
+        array: list of lists
+            A 2D inhomogeneous array where each sublist can have a different length.
+
+        Returns:
+        ranked_indices: list of tuples
+            A list of tuples where each tuple represents (sublist index, element index)
+            sorted in ascending order of the array values.
+        sorted_values: list
+            The corresponding values of the array in ascending order.
+        """
+        # Flatten the array while keeping track of original indices
         flat_array = []
         index_mapping = []
-        
-        for i, outer_list in enumerate(array):
-            for j, middle_list in enumerate(outer_list):
-                for k, element in enumerate(middle_list):
-                    flat_array.append(element)
-                    index_mapping.append((i, j, k))
 
+        # Loop through each sublist and element to build flattened array and index map
+        for i, sublist in enumerate(array):
+            for j, element in enumerate(sublist):
+                flat_array.append(element)
+                index_mapping.append((i, j))
+
+        # Use numpy argsort to sort the flat array
         sorted_indices = np.argsort(flat_array)
-        
+
+        # Generate the ranked indices and sorted values
         ranked_indices = [index_mapping[idx] for idx in sorted_indices]
         sorted_values = [flat_array[idx] for idx in sorted_indices]
 
@@ -291,53 +303,66 @@ def rank_basis_contraction(mol, element):
     
     energies = []
     errors = []
-    for shell in mol.basis[element]:
-        en, er, ra, sr = rank_shell_contractions(mol, shell)
+    n_contractions = len(shell.coefs)
+    api.run_calculation(mol=mol, params=params)
+    ref_energy = api.get_backend().get_value('energy')
+    bo_logger.info(f'Ranking {shell.l} contractions')
+    for idx, coeffs in enumerate(shell.coefs):
+        en = []
+        er = []
+        old_coeffs = copy.deepcopy(shell.coefs[idx])
+        for i in range(len(coeffs)):
+            if skip_zeros:
+                if shell.coefs[idx][i] == 0.0:
+                    continue
+            if np.count_nonzero(shell.coefs[idx]) == 1:
+                continue
+            shell.coefs[idx][i] = 0.0
+            api.run_calculation(mol=mol, params=params)
+            en.append(api.get_backend().get_value('energy'))
+            er.append(abs(en[-1] - ref_energy))
+            shell.coefs[idx] = copy.deepcopy(old_coeffs)
         energies.append(en)
         errors.append(er)
-    ranked_idx, sorted_errors = argsort_inhomogeneous_3d_array(errors)
+    ranked_idx, sorted_errors = argsort_inhomogeneous_array(errors)
     return energies, errors, ranked_idx, sorted_errors
 
 
-def prune_element(mol, element, target):
-    """Prune a basis set element to reach a target energy difference
-
-    Args:
-        mol (InternalBasis): BasisOpt Molecule object
-        element (str): Element to prune in basis set
-        target (float): Maximum 
-
-    Returns:
-        _type_: _description_
-    """
+def prune_shell(mol, element, shell, target, reference_energy, params):
     mol.name = f'{element}pruned{int(target*1000)}'
-    bo.run_calculation(mol=mol, params=params)
-    reference_energy = wrapper.get_value('energy')
-    energy = reference_energy
+    api.run_calculation(mol=mol, params=params)
+    energy = api.get_backend().get_value('energy')
     while energy < reference_energy+target:
-        energies, errors, ranked_idx, sorted_errors = rank_basis(mol, element)
-        ang_idx, idx, exp_idx = ranked_idx.pop(0)
-        shell = mol.basis[element][ang_idx]
-        bo_logger.info(f'Pruning {element} {shell.l} contractions')
+        energies, errors, ranked_idx, sorted_errors = rank_shell_contractions(mol, shell, params, True)
+        idx, exp_idx = ranked_idx.pop(0)
+        old_coefs = copy.deepcopy(shell.coefs)
         while shell.coefs[idx][exp_idx] == 0.0:
-            ang_idx, idx, exp_idx = ranked_idx.pop(0)
-            shell = mol.basis[element][ang_idx]
-        else:
-            old_coefs = copy.deepcopy(shell.coefs)
+            idx, exp_idx = ranked_idx.pop(0)
+        else:          
             shell.coefs[idx][exp_idx] = 0.0
             bo_logger.info(f'Pruned {shell.l} {idx} {exp_idx}')
-            bo.run_calculation(mol=mol, params=params)
-            energy = wrapper.get_value('energy')
+            api.run_calculation(mol=mol, params=params)
+            energy = api.get_backend().get_value('energy')
             bo_logger.info(f'Energy: {energy}')
             bo_logger.info(f'Target: {reference_energy+target}')
             bo_logger.info(f'Diff: {energy - reference_energy}')
-    else:
-        shell.coefs = old_coefs
-        bo_logger.info(f'Reverted Prune of {shell.l} {idx} {exp_idx}')
-        energy = wrapper.get_value('energy')
-        bo_logger.info(f'Energy: {energy}')
-        bo_logger.info(f'Target: {reference_energy+target}')
-        bo_logger.info(f'Diff: {energy - reference_energy}')
+            if energy > reference_energy+target:
+                shell.coefs = old_coefs
+                bo_logger.info(f'Reverted Prune of {shell.l} {idx} {exp_idx}')
+                api.run_calculation(mol=mol, params=params)
+                energy = api.get_backend().get_value('energy')
+                bo_logger.info(f'Energy: {energy}')
+                bo_logger.info(f'Target: {reference_energy+target}')
+                bo_logger.info(f'Diff: {energy - reference_energy}')
+                break
     return mol
 
 
+def prune_basis(mol, target, params):
+    api.run_calculation(mol=mol, params=params)
+    reference_energy = api.get_backend().get_value('energy')
+    for element in mol.basis:
+        for shell in mol.basis[element]:
+            bo_logger.info(f'Pruning {element} {shell.l} contractions')
+            mol = prune_shell(mol, element, shell, target, reference_energy, params)
+    return mol

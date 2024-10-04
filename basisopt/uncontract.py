@@ -259,10 +259,10 @@ def add_uncontracted_functions(mol, element, target, params, verbose=False):
     contracted_basis = copy.deepcopy(mol.basis)
     mol.basis = uncontract(mol.basis)
     api.run_calculation(mol=mol, params=params)
-    reference_energy = wrapper.get_value('energy')
+    reference_energy = np.floor(wrapper.get_value('energy')*10**6)/10**6
     mol.basis = contracted_basis
     api.run_calculation(mol=mol, params=params)
-    energy = wrapper.get_value('energy')
+    energy = np.floor(wrapper.get_value('energy')*10**6)/10**6
     uncontracted_functions = []
     while energy > reference_energy + target:
         energies, errors, ranks, ranked_idx, sorted_errors = rank_uncontract_element_robust(mol, element, params, verbose)
@@ -278,3 +278,30 @@ def add_uncontracted_functions(mol, element, target, params, verbose=False):
         api.run_calculation(mol=mol, params=params)
         energy = wrapper.get_value('energy')
     return uncontracted_functions
+
+
+def uncontract_single_function(mol, element, ang, exp, params):
+    """Uncontract a single function and run a calculation
+
+    Args:
+        mol (Molecule): BasisOpt Molecule object
+        element (str): Element to uncontract
+        params (dict): Backend parameters
+        ang (int): Angular momentum of the function to uncontract
+        exp (int): Exponent index of the function to uncontract
+
+    Returns:
+        energy (float): Energy of the uncontracted calculation
+    """
+    api.run_calculation(mol=mol, params=params)
+    wrapper = api.get_backend()
+    ref_energy = np.floor(wrapper.get_value('energy')*10**6)/10**6
+    bo_logger.info(f'Uncontracting {element} {ang} {exp+1}')
+    new_contraction = np.zeros(len(mol.basis[element.lower()][ang].exps))
+    new_contraction[exp] = 1
+    mol.basis[element.lower()][ang].coefs.append(new_contraction)
+    api.run_calculation(mol=mol, params=params)
+    energy = np.floor(wrapper.get_value('energy')*10**6)/10**6
+    delta = energy - ref_energy
+    bo_logger.info(f'New energy: {energy} Delta: {delta}')
+    return energy
