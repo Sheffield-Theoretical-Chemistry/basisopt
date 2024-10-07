@@ -121,6 +121,9 @@ class Psi4Wrapper(Wrapper):
     def clean(self):
         """Cleans up calculation"""
         psi4.core.clean()
+        psi4.core.clean_options()
+        psi4.core.clean_timers()
+        psi4.core.clean_variables()
 
     def _get_properties(
         self,

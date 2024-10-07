@@ -4,7 +4,6 @@ import numpy as np
 
 from .containers import InternalBasis
 
-
 class BasisShell:
     def __init__(self, l, exps, coefs):
         self.l = l
