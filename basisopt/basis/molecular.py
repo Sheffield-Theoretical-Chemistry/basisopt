@@ -14,7 +14,7 @@ from basisopt.containers import (
 )
 from basisopt.exceptions import DataNotFound, EmptyBasis
 from basisopt.molecule import Molecule
-from basisopt.opt import collective_minimize, collective_optimize
+from basisopt.opt import collective_minimize, collective_optimize, collective_polarize
 from basisopt.opt.strategies import Strategy
 from basisopt.util import bo_logger
 
@@ -212,41 +212,54 @@ class MolecularBasis(Basis):
 
         for m in self.molecules():
             m.method = method
-
-        self._atomic_bases = {}
-        for atom in self._atoms:
-            self._atomic_bases[atom] = AtomicBasis(atom)
-            bo_logger.info("Doing setup for atom %s", atom)
-            self._atomic_bases[atom].setup(
-                method=method,
-                quality=quality,
-                strategy=strategy,
-                reference=("dummy", 0.0),
-                params=params,
-            )
-        self.basis = {k: v.get_basis()[k] for k, v in self._atomic_bases.items()}
-        if reference is not None:
-            if api.which_backend() == "Empty":
-                bo_logger.warning("No backend currently set, can't compute reference value")
-            else:
-                ref_basis = fetch_basis(reference, self.unique_atoms())
-                for m in self.molecules():
-                    bo_logger.info(
-                        "Calculating reference value for molecule %s using %s and %s/%s",
-                        m.name,
-                        api.which_backend(),
-                        method,
-                        reference,
-                    )
-                    m.basis = ref_basis
-                    success = api.run_calculation(evaluate=strategy.eval_type, mol=m, params=params)
-                    if success != 0:
-                        bo_logger.warning("Reference calculation failed")
-                        value = 0.0
-                    else:
-                        value = api.get_backend().get_value(strategy.eval_type)
-                    m.add_reference(strategy.eval_type, value)
-                    bo_logger.info("Reference value set to %f", value)
+        if not self.basis:
+            self._atomic_bases = {}
+            for atom in self._atoms:
+                self._atomic_bases[atom] = AtomicBasis(atom)
+                bo_logger.info("Doing setup for atom %s", atom)
+                self._atomic_bases[atom].setup(
+                    method=method,
+                    quality=quality,
+                    strategy=strategy,
+                    reference=("dummy", 0.0),
+                    params=params,
+                )
+            self.basis = {k: v.get_basis()[k] for k, v in self._atomic_bases.items()}
+            if reference is not None:
+                if api.which_backend() == "Empty":
+                    bo_logger.warning("No backend currently set, can't compute reference value")
+                else:
+                    ref_basis = fetch_basis(reference, self.unique_atoms())
+                    for m in self.molecules():
+                        bo_logger.info(
+                            "Calculating reference value for molecule %s using %s and %s/%s",
+                            m.name,
+                            api.which_backend(),
+                            method,
+                            reference,
+                        )
+                        m.basis = ref_basis
+                        success = api.run_calculation(
+                            evaluate=strategy.eval_type, mol=m, params=params
+                        )
+                        if success != 0:
+                            bo_logger.warning("Reference calculation failed")
+                            value = 0.0
+                        else:
+                            value = api.get_backend().get_value(strategy.eval_type)
+                        m.add_reference(strategy.eval_type, value)
+                        bo_logger.info("Reference value set to %f", value)
+        else:
+            for m in self.molecules():
+                bo_logger.info(
+                    "Adding basis for molecule %s using %s and %s/%s",
+                    m.name,
+                    api.which_backend(),
+                    method,
+                    reference,
+                )
+                m.basis = self.basis
+        self.strategy = strategy
 
         self._done_setup = True
         bo_logger.info("Molecular basis setup complete")
@@ -315,6 +328,43 @@ class MolecularBasis(Basis):
                 (k, algorithm, v.strategy, reg, params) for k, v in self._atomic_bases.items()
             ]
             self.opt_results = collective_minimize(
+                self._molecules.values(),
+                self.basis,
+                opt_data=opt_data,
+                npass=npass,
+                parallel=parallel,
+                ray_params=ray_params,
+            )
+        else:
+            bo_logger.error("Please call setup first")
+            self.opt_results = None
+        return self.opt_results
+
+    def polarization(
+        self,
+        element: str,
+        algorithm: str = "Nelder-Mead",
+        params: dict[str, Any] = {},
+        reg: Callable[[np.ndarray], float] = lambda x: 0,
+        npass: int = 1,
+        parallel: bool = False,
+        ray_params: dict = None,
+    ) -> OptCollection:
+        """Calls collective optimize to optimize all the atomic basis sets in this basis
+
+        Arguments:
+             algorithm (str): name of scipy.optimize algorithm to use
+             params (dict): parameters to pass to scipy.optimize
+             reg (callable): regularization to use
+             npass (int): number of optimization passes to do
+             parallel (bool): if True, molecular calculations will be distributed in parallel
+
+         Returns:
+             dictionary of scipy.optimize result objects, indexed by atom
+        """
+        if self._done_setup:
+            opt_data = [(element.lower(), algorithm, self.strategy, reg, params)]
+            self.opt_results = collective_polarize(
                 self._molecules.values(),
                 self.basis,
                 opt_data=opt_data,

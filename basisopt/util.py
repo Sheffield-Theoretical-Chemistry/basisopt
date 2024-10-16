@@ -318,10 +318,16 @@ def rank_shell_contractions(mol, shell, params, skip_zeros=False):
             if np.count_nonzero(shell.coefs[idx]) == 1:
                 continue
             shell.coefs[idx][i] = 0.0
-            api.run_calculation(mol=mol, params=params)
-            en.append(api.get_backend().get_value('energy'))
-            er.append(abs(en[-1] - ref_energy))
-            shell.coefs[idx] = copy.deepcopy(old_coeffs)
+            try:
+                api.run_calculation(mol=mol, params=params)
+                en.append(api.get_backend().get_value('energy'))
+                er.append(abs(en[-1] - ref_energy))
+                shell.coefs[idx] = copy.deepcopy(old_coeffs)
+            except Exception as e:
+                bo_logger.error(f'Error: {e} on {shell.l} {idx} {i}')
+                shell.coefs[idx] = copy.deepcopy(old_coeffs)
+                en.append(np.nan)
+                er.append(0.0)
         energies.append(en)
         errors.append(er)
     ranked_idx, sorted_errors = argsort_inhomogeneous_array(errors)

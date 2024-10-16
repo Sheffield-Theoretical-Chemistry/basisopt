@@ -206,8 +206,8 @@ def create_exponent_plot(
         return optimized_coefficients
 
     # Init plot
-    if type(basis_sets) != list:
-        basis = [basis_sets]
+    if not isinstance(basis_sets, list):
+        basis_sets = [basis_sets]
 
     if max_l is None:
         max_l = 0
@@ -293,7 +293,6 @@ def create_exponent_plot(
                     continue
                 else:
                     z = plot_single_fit_line(shell, z, ax=ax, fit=fit)
-                    print(l==max_l, l, max_l)
                     if l == max_l:
                         break
     for b_id, basis in enumerate(basis_sets):
@@ -304,18 +303,30 @@ def create_exponent_plot(
                 z = plot_single(shell, z, ax=ax)
                 if l == max_l:
                     break
-
-        basis_set_label_elements.append(
-            Line2D(
-                [],
-                [],
-                color="k",
-                lw=2,
-                ls=line_styles[b_id],
-                label=basis_labels[b_id],
-                marker=marker_styles[b_id],
+        if fit:
+            basis_set_label_elements.append(
+                Line2D(
+                    [],
+                    [],
+                    color="k",
+                    lw=2,
+                    ls=line_styles[b_id],
+                    label=basis_labels[b_id],
+                    marker=marker_styles[b_id],
+                )
             )
-        )
+        else:
+            basis_set_label_elements.append(
+                Line2D(
+                    [],
+                    [],
+                    color="k",
+                    lw=0,
+                    ls=line_styles[b_id],
+                    label=basis_labels[b_id],
+                    marker=marker_styles[b_id],
+                )
+            )
 
     if len(basis[element]) > max_angular_momentum:
         max_angular_momentum = len(basis[element])
@@ -326,17 +337,17 @@ def create_exponent_plot(
     else:
         for i in range(min_l, max_angular_momentum):
             legend_elements.append(Patch(color=colors[i], label=f"{l_string[i]}"))
-    if fit:
-        second_legend = ax.legend(
-            handles=basis_set_label_elements,
-            bbox_to_anchor=(1.0, 1.0),
-            title=basis_labels_heading,
-            frameon=True,
-            framealpha=1,
-            title_fontproperties={"weight": "bold"},
-        )
-        second_legend.get_frame().set_edgecolor("white")
-        ax.add_artist(second_legend)
+    #if fit:
+    second_legend = ax.legend(
+        handles=basis_set_label_elements,
+        bbox_to_anchor=(1.0, 1.0),
+        title=basis_labels_heading,
+        frameon=True,
+        framealpha=1,
+        title_fontproperties={"weight": "bold"},
+    )
+    second_legend.get_frame().set_edgecolor("white")
+    ax.add_artist(second_legend)
 
     legend = ax.legend(
         handles=legend_elements[:max_angular_momentum],
@@ -357,6 +368,73 @@ def create_exponent_plot(
         fig.savefig(filepath)
         
     return fig, ax
+
+
+def plot_exponents(
+    basis: InternalBasis,
+    atoms: list[str] = [],
+    titles: list[str] = [],
+    split_by_shell: bool = True,
+    log_scale: bool = True,
+    figsize: tuple[float, float] = (9, 9),
+) -> tuple[object, list[object]]:
+    """Creates event plots to visualize exponents in a basis set.
+
+    Arguments:
+            basis (dict): internal basis object
+            atoms (list): list of atoms to plot for
+            split_by_shell (bool): if True, the event plots will be
+               split by shell, with a different plot for each atom
+            log_scale (bool): if True, exponents will be in log_10
+            figsize (tuple): (width, heigh) in inches of the figure
+
+    Returns:
+            matplotlib figure, [list of matplotlib axes]
+    """
+    natoms = len(atoms)
+    if natoms > 1 and split_by_shell:
+        fig, axes = plt.subplots(ncols=natoms, sharey=True)
+        to_build = [{k: basis[k.lower()]} for k in atoms]
+    else:
+        fig, ax = plt.subplots()
+        axes = [ax]
+        to_build = [{k: basis[k.lower()] for k in atoms}]
+    fig.set_size_inches(figsize)
+
+    def _single_plot(bas, ax, title=None):
+        flat_bases = []
+        for k, v in bas.items():
+            flat_basis = [s.exps for s in v]
+            if log_scale:
+                flat_basis = [np.log10(x) for x in flat_basis]
+            if not split_by_shell:
+                flat_basis = np.concatenate(flat_basis)
+                flat_bases.append(flat_basis)
+            else:
+                flat_bases = flat_basis
+        colors = [f"C{i}" for i in range(len(flat_bases))]
+        ax.eventplot(flat_bases, orientation="vertical", linelengths=0.5, colors=colors)
+
+        if split_by_shell:
+            ax.set_xticks(list(range(len(flat_bases))))
+            ax.set_xticklabels([s.l for v in bas.values() for s in v])
+        else:
+            ax.set_xticks(list(range(len(bas))))
+            ax.set_xticklabels(list(bas.keys()))
+
+        if log_scale:
+            ax.set_ylabel(r"$\log_{10}$ (exponent)")
+        else:
+            ax.set_ylabel("Exponent")
+        ax.set_title(title)
+    if titles:
+        for bas, ax, title in zip(to_build, axes, titles):
+            _single_plot(bas, ax, title=title)
+    else:
+        for bas, ax in zip(to_build, axes):
+            _single_plot(bas, ax)
+
+    return fig, axes
 
 
 def compare_exponents(

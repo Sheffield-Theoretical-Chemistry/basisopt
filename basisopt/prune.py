@@ -41,9 +41,12 @@ def prune_element(mol, element, target, params):
     while energy < reference_energy+target:
         energies, errors, ranked_idx, sorted_errors = rank_basis(mol, element, params)
         ang_idx, idx, exp_idx = ranked_idx.pop(0)
+        current_err = sorted_errors.pop(0)
         shell = mol.basis[element.lower()][ang_idx]
-        while shell.coefs[idx][exp_idx] == 0.0:
+        #while shell.coefs[idx][exp_idx] == 0.0:
+        while current_err == 0.0:
             ang_idx, idx, exp_idx = ranked_idx.pop(0)
+            current_err = sorted_errors.pop(0)
             shell = mol.basis[element.lower()][ang_idx]
         else:
             old_coefs = copy.deepcopy(shell.coefs)
