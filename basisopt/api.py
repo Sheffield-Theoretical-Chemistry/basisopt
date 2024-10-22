@@ -236,8 +236,8 @@ def _run_one_job(molecule, evaluate, params, ray_params=None):
     else:
         set_tmp_dir('./tmp/', verbose=False)
     try:
+        print(f'Running molecule: {molecule.name}')
         name, value = _one_job(molecule, evaluate=evaluate, params=params)
-        print(value)
         return name, value
     except FailedCalculation:
         bo_logger.error(f"Calculation failed for molecule: {molecule.name}")
@@ -277,6 +277,7 @@ def run_all(
         # Collect results
         for name, value in tmp_results:
             if value is not None:
+                print(name,value)
                 results[name] = value
     else:
         # Sequential processing

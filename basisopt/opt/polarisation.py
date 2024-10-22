@@ -120,6 +120,10 @@ class PolarizationStrategy(Strategy):
         y = np.array(values)
         basis[element][self._step].exps = self.pre.inverse(y, **self.pre.params)
 
+    def set_new_basis(self, new_basis: InternalBasis, element: str):
+        """Sets the new basis"""
+        basis = new_basis
+
     def generate_combinations(self, basis: InternalBasis, element: str):
         """Generates all possible combinations of the current shell"""
         possible_combinations = []
@@ -157,38 +161,47 @@ class PolarizationStrategy(Strategy):
             self._testing[self._combination] = True
             self._combinations[self._combination] = (
                 self._step,
-                basis[element][self._step].exps.tolist(),
+                copy.deepcopy(basis[element]),
                 objective,
             )
             if all(self._testing):
                 energies = np.array([test[2] for test in self._combinations])
                 min_idx = np.argmin(energies)
-                ang, exps, energy = self._combinations[min_idx]
-                basis[element][ang].exps = np.array(exps)
-                uncontract_shell(basis[element][ang])
+                ang, test_basis, energy = self._combinations[min_idx]
+                basis[element] = test_basis
+                bo_logger.info(f'Lowest energy basis config = {" ".join([str(len(shell.exps))+shell.l for shell in basis[element]])}.')
+                self.last_objective = energy
                 if energy < self.target:
                     return False
-                else:
-                    return True
         except:
             pass
 
         if self._possible_combinations:
             l, n = self._possible_combinations.pop(0)
+            basis[element] = self.old_basis[element]
+            bo_logger.info(f"Previous basis config = {''.join([str(len(shell.exps))+shell.l for shell in basis[element]])}.")
+            bo_logger.info("Reverting to old basis to test new combination.")
+            bo_logger.info(f"Testing shell {INV_AM_DICT[l]} with {n+1} primitives.")
             try:
                 exps = basis[element][l].exps.tolist()
                 exps.append(exps[-1] / 2)
                 basis[element][l].exps = np.array(exps)
+                shell = basis[element][l]
             except IndexError:
                 shell = Shell()
                 shell.l = INV_AM_DICT[l]
+                basis[element].append(shell)
                 shell.exps = np.array([1])
             self._step = l
             self._combination = self._step - self.min_l
             uncontract_shell(shell)
+            bo_logger.info(f"Current basis config = {''.join([str(len(shell.exps))+shell.l for shell in basis[element]])}.")
             return True
         else:
+            self.old_basis = copy.deepcopy(basis)
             self._possible_combinations = self.generate_combinations(basis, element)
+            bo_logger.info(f"Generating new basis combinations for element {element}.")
+            bo_logger.info(f"Combinations = {','.join([str(n+1)+INV_AM_DICT[l] for l, n in self._possible_combinations])}.")
             self._combinations = [()] * len(self._possible_combinations)
             self._testing = [False] * len(self._possible_combinations)
             l, n = self._possible_combinations.pop(0)

@@ -804,7 +804,6 @@ def collective_polarize(
                     mol.add_result(name, value)
                     result = value / mol.nelectrons()
                     local_total += result
-                print(local_total/len(molecules))
                 return (local_total + reg(x))/len(molecules)
 
             strategy.initialise(basis, el)
