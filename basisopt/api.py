@@ -219,6 +219,10 @@ def _apply_additional_params(ray_params):
             import psi4
 
             psi4.core.set_num_threads(num_threads)
+        default_path = ray_params.get('default_path')
+        if default_path:
+            psi4_io = psi4.core.IOManager.shared_object()
+            psi4_io.set_default_path(default_path)
 
 
 @ray.remote
@@ -236,7 +240,6 @@ def _run_one_job(molecule, evaluate, params, ray_params=None):
     else:
         set_tmp_dir('./tmp/', verbose=False)
     try:
-        print(f'Running molecule: {molecule.name}')
         name, value = _one_job(molecule, evaluate=evaluate, params=params)
         return name, value
     except FailedCalculation:
@@ -277,7 +280,6 @@ def run_all(
         # Collect results
         for name, value in tmp_results:
             if value is not None:
-                print(name,value)
                 results[name] = value
     else:
         # Sequential processing
