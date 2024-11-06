@@ -152,7 +152,9 @@ class PolarizationStrategy(Strategy):
             self.just_optimised = (self._step, len(basis[element][self._step].exps) - 1)
             return True
         elif self.first_run_just:
-            if objective < self.target:
+            #if objective < self.target:
+            self.first_run_just = False
+            if self.delta_objective < self.target:
                 self.first_run_just = False
                 return False
         
@@ -163,22 +165,28 @@ class PolarizationStrategy(Strategy):
                 self._step,
                 copy.deepcopy(basis[element]),
                 objective,
+                objective-self.old_energy
             )
             if all(self._testing):
                 energies = np.array([test[2] for test in self._combinations])
-                min_idx = np.argmin(energies)
-                ang, test_basis, energy = self._combinations[min_idx]
+                errors = np.array([test[3] for test in self._combinations])
+                bo_logger.info(f'Increments = {errors}.')
+                min_idx = np.argmin(errors)
+                ang, test_basis, energy, error = self._combinations[min_idx]
                 basis[element] = test_basis
                 bo_logger.info(f'Lowest energy basis config = {" ".join([str(len(shell.exps))+shell.l for shell in basis[element]])}.')
                 self.last_objective = energy
-                if energy < self.target:
+                #if energy < self.target:
+                if abs(error) < self.target:
+                    bo_logger.info(f'Basis set converged, restoring old basis.')
+                    basis[element]=self.old_basis
                     return False
         except:
             pass
 
         if self._possible_combinations:
             l, n = self._possible_combinations.pop(0)
-            basis[element] = self.old_basis[element]
+            basis[element] = self.old_basis
             bo_logger.info(f"Previous basis config = {''.join([str(len(shell.exps))+shell.l for shell in basis[element]])}.")
             bo_logger.info("Reverting to old basis to test new combination.")
             bo_logger.info(f"Testing shell {INV_AM_DICT[l]} with {n+1} primitives.")
@@ -198,7 +206,8 @@ class PolarizationStrategy(Strategy):
             bo_logger.info(f"Current basis config = {''.join([str(len(shell.exps))+shell.l for shell in basis[element]])}.")
             return True
         else:
-            self.old_basis = copy.deepcopy(basis)
+            self.old_basis = copy.deepcopy(basis[element])
+            self.old_energy = objective
             self._possible_combinations = self.generate_combinations(basis, element)
             bo_logger.info(f"Generating new basis combinations for element {element}.")
             bo_logger.info(f"Combinations = {','.join([str(n+1)+INV_AM_DICT[l] for l, n in self._possible_combinations])}.")
