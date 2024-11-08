@@ -215,9 +215,8 @@ def _apply_additional_params(ray_params):
     """Apply additional parameters based on the backend."""
     if ray_params and ray_params.get('backend') == 'psi4':
         num_threads = ray_params.get('threads_per_job')
+        import psi4
         if num_threads:
-            import psi4
-
             psi4.core.set_num_threads(num_threads)
         default_path = ray_params.get('default_path')
         if default_path:
