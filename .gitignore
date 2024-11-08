@@ -1,5 +1,6 @@
 tmp/
 working_folder/
+auto-basis-paper/
 timer.dat
 *.pkl
 *.DS_Store

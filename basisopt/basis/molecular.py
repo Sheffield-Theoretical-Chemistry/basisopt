@@ -259,6 +259,14 @@ class MolecularBasis(Basis):
                     reference,
                 )
                 m.basis = self.basis
+                success = api.run_calculation(evaluate=strategy.eval_type, mol=m, params=params)
+                if success != 0:
+                    bo_logger.warning("Reference calculation failed")
+                    value = 0.0
+                else:
+                    value = api.get_backend().get_value(strategy.eval_type)
+                m.add_reference(strategy.eval_type, value)
+                bo_logger.info("Reference value set to %f", value)
         self.strategy = strategy
 
         self._done_setup = True
@@ -324,9 +332,10 @@ class MolecularBasis(Basis):
              dictionary of scipy.optimize result objects, indexed by atom
         """
         if self._done_setup:
-            opt_data = [
-                (k, algorithm, v.strategy, reg, params) for k, v in self._atomic_bases.items()
-            ]
+            # opt_data = [
+            #     (k, algorithm, v.strategy, reg, params) for k, v in self._atomic_bases.items()
+            # ]
+            opt_data = [(k, algorithm, self.strategy, reg, params) for k, _ in self.basis.items()]
             self.opt_results = collective_minimize(
                 self._molecules.values(),
                 self.basis,

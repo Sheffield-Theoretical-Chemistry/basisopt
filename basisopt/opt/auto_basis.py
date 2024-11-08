@@ -1268,3 +1268,64 @@ class AutoBasisPolarization(Strategy):
             self._step = 0
 
         return True
+        
+class AutoBasisOpt(Strategy):
+    def __init__(self, eval_type: str = "energy", pre: Preconditioner = make_positive):
+        self.name = "Default"
+        self._eval_type = ""
+        self.eval_type = eval_type
+        self.params = {}
+        self.guess = None
+        self.guess_params = {"name": "cc-pvdz"}
+        self._step = -1
+        self.pre = pre
+        self.pre.params = {}
+        self.last_objective = 0
+        self.delta_objective = 0
+        self.first_run = True
+        self.min_l = 2
+        self.min_lh = 1
+
+        self.basis_type = "orbital"
+        self.orbital_basis = None
+
+        # currently fixed, to be expanded later
+        self.loss = np.linalg.norm
+
+    def initialise(self, basis: InternalBasis, element: str):
+        """Initialises the strategy (does nothing in default)
+
+        Arguments:
+            basis: internal basis dictionary
+            element: symbol of the atom being optimized
+        """
+        if element.lower() != 'h':
+            self._step = self.min_l
+        else:
+            self._step = self.min_lh
+        self.last_objective = 0
+        self.delta_objective = 0
+        self.first_run = True
+
+    def next(self, basis: InternalBasis, element: str, objective: float) -> bool:
+        """Moves the strategy forward a step (see algorithm)
+
+        Arguments:
+            basis: internal basis dictionary
+            element: symbol of atom being optimized
+            objective: value of objective function from last steps
+
+        Returns:
+            True if there is a next step, False if strategy is finished
+        """
+        
+        if self.first_run:
+            self.first_run=False
+            return True
+        
+        self.delta_objective = np.abs(objective - self.last_objective)
+        self.last_objective = objective
+        self._step += 1
+        self.first_run = False
+        maxl = len(basis[element])
+        return maxl != self._step
