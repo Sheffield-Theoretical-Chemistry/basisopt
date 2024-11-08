@@ -222,6 +222,7 @@ def _apply_additional_params(ray_params):
         if default_path:
             psi4_io = psi4.core.IOManager.shared_object()
             psi4_io.set_default_path(default_path)
+            bo_logger.info(f"Setting psi4 path to {default_path}")
 
 
 @ray.remote
