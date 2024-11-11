@@ -27,6 +27,7 @@ class MolproWrapper(Wrapper):
             "uccsd(t)": ["energy"],
             "rks": ["energy"],
             "uks": ["energy"],
+            "mcscf":["energy"],
         }
 
     def convert_molecule(self, m: Molecule) -> str:
