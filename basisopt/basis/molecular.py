@@ -17,6 +17,7 @@ from basisopt.molecule import Molecule
 from basisopt.opt import collective_minimize, collective_optimize, collective_polarize
 from basisopt.opt.strategies import Strategy
 from basisopt.util import bo_logger
+from basisopt.molecule import Molecule
 
 from .atomic import AtomicBasis
 from .basis import Basis
@@ -385,3 +386,110 @@ class MolecularBasis(Basis):
             bo_logger.error("Please call setup first")
             self.opt_results = None
         return self.opt_results
+
+
+class MoleculeLoader:
+    """A dataloader class load and store Molecule objects for use in the Minimizer and Optimizer classes"""
+
+    def __init__(self, molecules: list[Molecule] = []):
+        if molecules:
+            self._molecules = {mol.name: mol for mol in molecules}
+            self._atoms = set()
+            for mol in molecules:
+                for atom in mol.unique_atoms():
+                    self._atoms.add(atom)
+        else:
+            self._molecules = {}
+            self._atoms = set()
+        self._loaded = False
+        self.params = {}
+
+    def set_basis(self, basis: InternalBasis):
+        """Set the basis for all molecules in the loader"""
+        self.basis = basis
+        for mol in self._molecules.values():
+            mol.basis = self.basis
+
+    def _add_molecule(self, molecule: Molecule):
+        """Add a molecule to the loader"""
+        self._molecules[molecule.name] = molecule
+        if molecule.name in self._molecules:
+            bo_logger.warning(f"Molecule with name {molecule.name} already exists. Overwriting.")
+        for atom in molecule.unique_atoms():
+            self._atoms.add(atom)
+
+    def unique_atoms(self) -> list[str]:
+        """Returns a list of all the Molecule objects"""
+        return list(self._atoms)
+
+    def add_molecules_from_xyz(self, geoms: list[str], elements: list[str] = [], **kwargs):
+        """
+        Add multiple molecules to the loader from XYZ files with dynamic attributes.
+
+        Args:
+            geoms (list[str]): List of XYZ file paths.
+            **kwargs: Additional attributes to be assigned to the molecules.
+                      Keys are attribute names, and values are dictionaries
+                      mapping molecule names to their corresponding values.
+        """
+        for xyz_file in geoms:
+            # Create the molecule from the XYZ file
+            mol = Molecule.from_xyz(xyz_file)
+            mol.name = xyz_file.split('/')[-1].split('.')[0]
+            if elements:
+                if not set(elements).intersection(
+                    set(mol.unique_atoms())
+                ):  # Check if the molecule contains any of the filter atoms
+                    # Extract the molecule name (assuming Molecule has a `name` attribute)
+                    continue
+
+            molecule_name = mol.name
+
+            # Dynamically assign attributes from kwargs
+            for attr_name, attr_values in kwargs.items():
+                if molecule_name in attr_values:
+                    setattr(mol, attr_name, attr_values[molecule_name])
+
+            # Add the molecule to the loader
+            self._add_molecule(mol)
+
+    def add_molecule_from_xyz(self, xyz_file: str, **kwargs):
+        """Add a molecule to the loader from an xyz file"""
+        mol = Molecule.from_xyz(xyz_file)
+        for key, value in kwargs.items():
+            setattr(mol, key, value)
+        self.add_molecule(mol)
+
+    def set_method(self, method: str):
+        """Set the method for all molecules in the loader"""
+        for mol in self._molecules.values():
+            mol.method = method
+
+    def load_molecules(self, molecules: list[str]):
+        """Load molecules into the loader from a list of Molecule objects"""
+        for mol in molecules:
+            self._add_molecule(mol)
+
+    def __getitem__(self, index):
+        """Get a molecule from the loader by index"""
+        return list(self._molecuels.values())[index]
+
+    def __len__(self):
+        """Get the number of molecules in the loader"""
+        return len(self._molecules.values())
+
+    def __iter__(self):
+        """Iterate over the molecules in the loader"""
+        return iter(self._molecules.values())
+
+    def run_calculations(self, params: dict, objective=None):
+        """
+        Run calculations on all molecules in the loader
+        If an objective function is provided, return the objective value from all molecules
+        """
+        wrapper = api.get_backend()
+        for mol in self._molecules.values():
+            api.run_calculation(mol=mol, params=params)
+            mol.add_result('energy', wrapper.get_value('energy'))
+        if objective:
+            return objective(self._molecules.values())

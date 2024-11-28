@@ -11,9 +11,10 @@ from basisopt.exceptions import FailedCalculation
 from basisopt.molecule import Molecule
 from basisopt.util import bo_logger, format_with_prefix, get_composition
 
-#from .contraction import ContractionStrategy
+# from .contraction import ContractionStrategy
 from .regularisers import Regulariser
 from .strategies import Strategy
+from .objectives import default_opt_loss
 
 
 def _atomic_opt(
@@ -799,12 +800,12 @@ def collective_polarize(
                     ray_params=ray_params,
                 )
                 for mol in molecules:
-                    value = abs(results[mol.name]-mol.cbs_limit)
+                    value = abs(results[mol.name] - mol.cbs_limit)
                     name = strategy.eval_type + "_" + el.title()
                     mol.add_result(name, value)
                     result = value / mol.nelectrons()
                     local_total += result
-                return (local_total + reg(x))/len(molecules)
+                return (local_total + reg(x)) / len(molecules)
 
             strategy.initialise(basis, el)
             res = _atomic_opt(basis, el, alg, strategy, params, objective)
@@ -813,3 +814,232 @@ def collective_polarize(
             ctr += 1
         bo_logger.info("Collective objective: %f", total)
     return results
+
+
+class Optimizer:
+    def __init__(
+        self,
+        strategy,
+        params,
+        reference_basis=None,
+        basis=None,
+        elements=[],
+        loss=default_opt_loss,
+        parallel=False,
+        nprocs=2,
+        parallel_params={},
+    ):
+        self.strategy = strategy
+        self.params = params
+        self.loss = loss
+        self.reference_basis = reference_basis
+        self.basis = basis
+        self.elements = elements
+        self.results = {}
+        self.opt_params = {}
+        self.active_element = str
+        self.results = {}
+        self.molecules = []
+        self._initialzed = False
+        self.parallel = parallel
+        self.parallel_params = parallel_params
+        self.nprocs = nprocs
+
+    def _objective(self, x):
+        """
+        Get the objective value for the current set of active exponents.
+        Uses the strategy to set the active exponents, runs the calculation, and returns the loss.
+        """
+        self.strategy.set_active(x, self.basis, self.active_element)
+        for mol in self.molecules:
+            success = api.run_calculation(
+                evaluate=self.strategy.eval_type, mol=mol, params=self.params
+            )
+            if success != 0:
+                raise ValueError("Calculation failed")
+            mol.add_result(self.strategy.eval_type, self.wrapper.get_value(self.strategy.eval_type))
+        return self.loss(self.molecules)
+
+    def _parallel_objective(self, x):
+        self.strategy.set_active(x, self.basis, self.active_element)
+        results = api.run_all(
+            evaluate=self.strategy.eval_type,
+            mols=self.molecules,
+            params=self.params,
+            parallel=self.parallel,
+            ray_params=self.parallel_params,
+        )
+        for mol in self.molecules:
+            mol.add_result(self.strategy.eval_type, results[mol.name])
+        return self.loss(self.molecules)
+
+    def _opt(self, element: str, algorithm: str):
+        """
+        A method to optimize the active exponents for a given element using a given algorithm.
+
+        Args:
+            element (str): Element to optimize over
+            algorithm (str): Scipy optimization algorithm to use
+        """
+        bo_logger.info(f"Starting optimization of {self.strategy.eval_type} {element.capitalize()}")
+        bo_logger.info(f"Using {algorithm} algorithm for strategy {self.strategy.name}")
+        if self.parallel:
+            api.set_parallel(True, self.nprocs)
+            initial_objective = self._parallel_objective(
+                self.strategy.get_active(self.basis, element)
+            )
+        else:
+            initial_objective = self._objective(self.strategy.get_active(self.basis, element))
+        objective_value = initial_objective
+        ctr = 1
+        while self.strategy.next(self.basis, element, objective_value):
+            guess = self.strategy.get_active(self.basis, element)
+            if len(guess) > 0:
+                if self.parallel:
+                    res = minimize(
+                        self._parallel_objective, guess, method=algorithm, **self.opt_params
+                    )
+                else:
+                    res = minimize(self._objective, guess, method=algorithm, **self.opt_params)
+                objective_value = res.fun
+                info_str = "\n".join(
+                    [
+                        f"Parameters: {res.x}",
+                        f"Objective value: {res.fun}",
+                        f"Step Delta: {objective_value - self.strategy.last_objective}",
+                        f"Total Delta: {objective_value - initial_objective}",
+                    ]
+                )
+                self.results[f"opt{ctr}"] = res
+                ctr += 1
+            else:
+                info_str = "Skipping empty shell"
+            bo_logger.info(info_str)
+        bo_logger.info("Optimization complete.")
+
+    def _initialize(self):
+        """
+        Initialize the optimizer.
+        If given a reference basis, then that is used to calculate a reference energy.
+        """
+        self.wrapper = api.get_backend()
+        if self.molecules:
+            self.molecules = self.molecules
+        if not self.elements:
+            for mol in self.molecules:
+                for atom in mol.unique_atoms():
+                    self.elements.append(atom.lower())
+            self.elements = set(self.elements)
+        else:
+            self.elements = set(self.elements)
+        for mol in self.molecules:
+            if self.reference_basis:
+                mol.basis = self.reference_basis
+            else:
+                mol.basis = self.basis
+            success = api.run_calculation(
+                evaluate=self.strategy.eval_type, mol=mol, params=self.params
+            )
+            if success != 0:
+                raise ValueError("Calculation failed")
+            mol.add_result("energy", self.wrapper.get_value("energy"))
+            if mol.get_reference(self.strategy.eval_type) == 0.0:
+                mol.add_reference(
+                    self.strategy.eval_type, self.wrapper.get_value(self.strategy.eval_type)
+                )
+            bo_logger.info(f'Reference for {mol.name} is {mol.get_reference("energy")}')
+            mol.basis = self.basis
+        self._initialzed = True
+
+    def run(self, molecules: list = [], algorithm: str = "Nelder-Mead"):
+        """Run the optimizer on the given molecules using the given algorithm"""
+        if molecules:
+            self.molecules = molecules
+        if not self._initialzed:
+            self._initialize()
+        if self.elements is None:
+            raise ValueError("No elements to optimize")
+        for element in self.elements:
+            self.active_element = element
+            self.strategy.initialise(self.basis, self.active_element)
+            self._opt(self.active_element, algorithm)
+
+    def set_parallel_params(self, parallel_params):
+        self.parallel_params = parallel_params
+
+    def get_results(self):
+        return self.results
+
+    def get_basis(self):
+        return self.basis
+
+    def get_strategy(self):
+        return self.strategy
+
+    def get_params(self):
+        return self.params
+
+
+class Minimizer(Optimizer):
+    """Class to minimize the energy of a given molecule or set of molecules using a given strategy"""
+
+    def __init__(
+        self,
+        strategy,
+        params,
+        reference_basis=None,
+        basis=None,
+        elements=[],
+        loss=default_min_loss,
+        parallel=False,
+        nprocs=2,
+        parallel_params={},
+    ):
+        super().__init__(
+            strategy, params, reference_basis, basis, elements, loss, parallel, nprocs, parallel_params
+        )
+
+    def _opt(self, element: str, algorithm: str):
+        """
+        A method to optimize the active exponents for a given element using a given algorithm.
+
+        Args:
+            element (str): Element to optimize over
+            algorithm (str): Scipy optimization algorithm to use
+        """
+        bo_logger.info(f"Starting optimization of {self.strategy.eval_type} {element.capitalize()}")
+        bo_logger.info(f"Using {algorithm} algorithm for strategy {self.strategy.name}")
+        if self.parallel:
+            initial_objective = self._parallel_objective(
+                self.strategy.get_active(self.basis, element)
+            )
+        else:
+            initial_objective = self._objective(self.strategy.get_active(self.basis, element))
+        objective_value = initial_objective
+        ctr = 1
+        while self.strategy.next(self.basis, element, objective_value):
+            guess = self.strategy.get_active(self.basis, element)
+            if len(guess) > 0:
+                if self.parallel:
+                    res = minimize(
+                        self._parallel_objective, guess, method=algorithm, **self.opt_params
+                    )
+                else:
+                    res = minimize(self._objective, guess, method=algorithm, **self.opt_params)
+                objective_value = res.fun
+                running_total = 0
+                running_total += objective_value - self.strategy.last_objective
+                info_str = "\n".join(
+                    [
+                        f"Parameters: {res.x}",
+                        f"Objective value: {res.fun}",
+                        f"Step Delta: {objective_value - self.strategy.last_objective}",
+                        f"Total Delta: {running_total}",
+                    ]
+                )
+                self.results[f"opt{ctr}"] = res
+                ctr += 1
+            else:
+                info_str = "Skipping empty shell"
+            bo_logger.info(info_str)
+        bo_logger.info("Minimization complete")
