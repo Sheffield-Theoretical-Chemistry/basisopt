@@ -1,11 +1,12 @@
 # utility functions
+import copy
 import json
 import logging
 from typing import Any
 
 import numpy as np
 from monty.json import MontyDecoder, MontyEncoder, MSONable
-import copy
+
 from . import api
 
 bo_logger = logging.getLogger("basisopt")  # internal logging object
@@ -300,10 +301,9 @@ def rank_shell_contractions(mol, shell, params, skip_zeros=False):
         sorted_values = [flat_array[idx] for idx in sorted_indices]
 
         return ranked_indices, sorted_values
-    
+
     energies = []
     errors = []
-    n_contractions = len(shell.coefs)
     api.run_calculation(mol=mol, params=params)
     ref_energy = api.get_backend().get_value('energy')
     bo_logger.info(f'Ranking {shell.l} contractions')
@@ -338,13 +338,15 @@ def prune_shell(mol, element, shell, target, reference_energy, params):
     mol.name = f'{element}pruned{int(target*1000)}'
     api.run_calculation(mol=mol, params=params)
     energy = api.get_backend().get_value('energy')
-    while energy < reference_energy+target:
-        energies, errors, ranked_idx, sorted_errors = rank_shell_contractions(mol, shell, params, True)
+    while energy < reference_energy + target:
+        energies, errors, ranked_idx, sorted_errors = rank_shell_contractions(
+            mol, shell, params, True
+        )
         idx, exp_idx = ranked_idx.pop(0)
         old_coefs = copy.deepcopy(shell.coefs)
         while shell.coefs[idx][exp_idx] == 0.0:
             idx, exp_idx = ranked_idx.pop(0)
-        else:          
+        else:
             shell.coefs[idx][exp_idx] = 0.0
             bo_logger.info(f'Pruned {shell.l} {idx} {exp_idx}')
             api.run_calculation(mol=mol, params=params)
@@ -352,7 +354,7 @@ def prune_shell(mol, element, shell, target, reference_energy, params):
             bo_logger.info(f'Energy: {energy}')
             bo_logger.info(f'Target: {reference_energy+target}')
             bo_logger.info(f'Diff: {energy - reference_energy}')
-            if energy > reference_energy+target:
+            if energy > reference_energy + target:
                 shell.coefs = old_coefs
                 bo_logger.info(f'Reverted Prune of {shell.l} {idx} {exp_idx}')
                 api.run_calculation(mol=mol, params=params)

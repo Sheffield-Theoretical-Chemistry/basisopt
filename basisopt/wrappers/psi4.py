@@ -5,7 +5,7 @@ import psi4
 from basis_set_exchange.writers import write_formatted_basis_str
 
 from basisopt.basis_set_converters import convert_internal_to_basis_str
-from basisopt.bse_wrapper import fetch_ecp, internal_basis_converter
+from basisopt.bse_wrapper import fetch_ecp
 from basisopt.exceptions import EmptyCalculation, PropertyNotAvailable
 from basisopt.molecule import Molecule
 from basisopt.wrappers.wrapper import Wrapper, available
@@ -177,13 +177,13 @@ class Psi4Wrapper(Wrapper):
         runstring = self._command_string(mol.method, **params)
         _, wfn = psi4.energy(runstring, return_wfn=True)
         return wfn.Da().to_array()
-    
+
     def get_wfn(self, mol, **params):
         self.initialise(mol, name="energy", **params)
         runstring = self._command_string(mol.method, **params)
         _, wfn = psi4.energy(runstring, return_wfn=True)
         return wfn
-        
+
     @available
     def dipole(self, mol, tmp="", **params):
         results = self._get_properties(mol, name="dipole", properties=["dipole"], tmp=tmp, **params)

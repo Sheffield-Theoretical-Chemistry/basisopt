@@ -4,11 +4,7 @@ from typing import Any, Optional
 from basisopt import api
 from basisopt.bse_wrapper import fetch_basis
 from basisopt.containers import InternalBasis, Result
-from basisopt.exceptions import (
-    EmptyCalculation,
-    FailedCalculation,
-    PropertyNotAvailable,
-)
+from basisopt.exceptions import EmptyCalculation, FailedCalculation, PropertyNotAvailable
 from basisopt.molecule import Molecule
 
 

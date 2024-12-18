@@ -35,3 +35,9 @@ def default_opt_loss(molecules):
     """Default loss function, the norm of the difference between the result and the reference"""
     deltas = np.array([mol.get_result('energy') - mol.get_reference('energy') for mol in molecules])
     return np.linalg.norm(deltas)
+
+
+def default_min_loss(molecules):
+    """Default loss function, the mean of energy per electron"""
+    deltas = np.mean([mol.get_result('energy') / mol.nelectrons() for mol in molecules])
+    return deltas

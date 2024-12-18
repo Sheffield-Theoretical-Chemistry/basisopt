@@ -27,7 +27,7 @@ class MolproWrapper(Wrapper):
             "uccsd(t)": ["energy"],
             "rks": ["energy"],
             "uks": ["energy"],
-            "mcscf":["energy"],
+            "mcscf": ["energy"],
         }
 
     def convert_molecule(self, m: Molecule) -> str:
@@ -167,7 +167,7 @@ class MolproWrapper(Wrapper):
         if p.errors():
             raise FailedCalculation
         # Attempt to catch race cases where wait=True doesn't seem to be sufficient
-        #p.wait()
+        # p.wait()
         energy = self._get_energy(p, mol.method)
 
         p.clean()

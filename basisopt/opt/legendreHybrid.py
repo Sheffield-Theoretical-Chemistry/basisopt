@@ -1,10 +1,9 @@
 from typing import Any
 
 import numpy as np
-from mendeleev import element as md_element
+
 
 from basisopt.basis.basis import legendre_expansion
-from basisopt.basis.guesses import legendre_guess
 from basisopt.containers import InternalBasis
 from basisopt.data import get_legendre_params
 from basisopt.util import bo_logger
@@ -177,7 +176,6 @@ class LegendrePairsHybrid(Strategy):
                     if self.ignore_database:
                         raise Exception("Ignoring database")
                     self._database_guesses = get_legendre_params(atom=element.upper())
-                    length = len(basis[element.lower()])
                     bo_logger.warning(self._database_guesses)
                     for idx, shell in enumerate(basis[element.lower()]):
                         if len(shell.exps) > self.n_exp_cutoff:
@@ -246,7 +244,7 @@ class LegendrePairsHybrid(Strategy):
                 elif self._just_added:
                     self.shells[self._step][0] = (A_vals, n)
                     self._just_added = False
-            elif len(A_vals) == max_n_a and self._just_added == True:
+            elif len(A_vals) == max_n_a and self._just_added is True:
                 self.shells[self._step][0] = (A_vals, n)
                 self._just_added = False
             else:

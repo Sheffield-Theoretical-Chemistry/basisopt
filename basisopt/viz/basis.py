@@ -3,13 +3,13 @@ from typing import Callable, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
+from scipy.optimize import minimize
 
 from basisopt.basis.basis import Basis
 from basisopt.containers import InternalBasis, OptResult
-from scipy.optimize import minimize
-from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
-import seaborn as sns
+
 
 def extract_steps(opt_results: OptResult, key: str = "fun"):
     """Get the given key value for each step
@@ -103,8 +103,8 @@ def create_exponent_plot(
     None: The function generates and displays a plot. If `filepath` is provided, the plot is saved to the specified location.
     """
     element = element.lower()
-    def set_ax_format(ax):
 
+    def set_ax_format(ax):
         ax.tick_params(axis="both", which="major", labelsize=20)
         for axis in ["top", "bottom", "left", "right"]:
             ax.spines[axis].set_linewidth(4)
@@ -179,16 +179,12 @@ def create_exponent_plot(
         return sum([coefficients[k] * j**k for k in range(len(coefficients))])
 
     def fit_polynomial(exponents):
-
         atom_opt_s_exps = exponents
 
         # Define the objective function
         def objective(coefficients):
             return np.sum(
-                (
-                    polynomial(np.arange(0, len(atom_opt_s_exps)), coefficients)
-                    - atom_opt_s_exps
-                )
+                (polynomial(np.arange(0, len(atom_opt_s_exps)), coefficients) - atom_opt_s_exps)
                 ** 2
             )
 
@@ -214,7 +210,7 @@ def create_exponent_plot(
         for b in basis_sets:
             if len(b[element]) > max_l:
                 max_l = len(b[element])
-                
+
     max_x = 0
     for b in basis_sets:
         for shell in b[element][min_l : max_l + 1]:
@@ -337,7 +333,7 @@ def create_exponent_plot(
     else:
         for i in range(min_l, max_angular_momentum):
             legend_elements.append(Patch(color=colors[i], label=f"{l_string[i]}"))
-    #if fit:
+    # if fit:
     second_legend = ax.legend(
         handles=basis_set_label_elements,
         bbox_to_anchor=(1.0, 1.0),
@@ -366,7 +362,7 @@ def create_exponent_plot(
 
     if filepath:
         fig.savefig(filepath)
-        
+
     return fig, ax
 
 
@@ -427,6 +423,7 @@ def plot_exponents(
         else:
             ax.set_ylabel("Exponent")
         ax.set_title(title)
+
     if titles:
         for bas, ax, title in zip(to_build, axes, titles):
             _single_plot(bas, ax, title=title)
@@ -435,27 +432,3 @@ def plot_exponents(
             _single_plot(bas, ax)
 
     return fig, axes
-
-
-def compare_exponents(
-    basis_sets: list,
-    atoms: list[str] = [],
-    split_by_shell: bool = True,
-    log_scale: bool = True,
-    figsize: tuple[float, float] = (9, 9),
-) -> tuple[object, list[object]]:
-    """Creates event plots to visualize exponents in a basis set.
-
-    Arguments:
-            basis1 (dict): internal basis object
-            basis2 (dict): internal basis object
-            atoms (list): list of atoms to plot for
-            split_by_shell (bool): if True, the event plots will be
-               split by shell, with a different plot for each atom
-            log_scale (bool): if True, exponents will be in log_10
-            figsize (tuple): (width, heigh) in inches of the figure
-
-    Returns:
-            matplotlib figure, [list of matplotlib axes]
-    """
-    natoms = len(atoms)

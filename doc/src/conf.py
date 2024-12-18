@@ -1,10 +1,10 @@
 # -- Project information -----------------------------------------------------
 
+import basisopt
+
 project = "BasisOpt"
 copyright = "2024, Robert Shaw, Grant Hill, and Shaun Donnelly"
 author = "Robert Shaw, Grant Hill, and Shaun Donnelly"
-
-import basisopt
 
 # The full version, including alpha/beta/rc tags
 version = basisopt.__version__

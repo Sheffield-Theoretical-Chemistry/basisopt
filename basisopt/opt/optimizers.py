@@ -1,7 +1,7 @@
+from collections.abc import Iterable
 from typing import Any, Callable, Optional
 
 import numpy as np
-from mendeleev import element as md_element
 from scipy.optimize import minimize
 
 from basisopt import api
@@ -11,10 +11,11 @@ from basisopt.exceptions import FailedCalculation
 from basisopt.molecule import Molecule
 from basisopt.util import bo_logger, format_with_prefix, get_composition
 
+from .objectives import default_min_loss, default_opt_loss
+
 # from .contraction import ContractionStrategy
 from .regularisers import Regulariser
 from .strategies import Strategy
-from .objectives import default_opt_loss
 
 
 def _atomic_opt(
@@ -397,7 +398,7 @@ def _atomic_opt_auto_reduce(
         bo_logger.info(info_str)
     else:
         wrapper = api.get_backend()
-        final_res = api.run_calculation(
+        api.run_calculation(
             evaluate=strategy.eval_type, mol=molecule, params=strategy.params
         )
         objective_value = wrapper.get_value(strategy.eval_type)
@@ -733,7 +734,6 @@ def contraction_optimize(
         if success != 0:
             raise FailedCalculation
         molecule.add_result(strategy.eval_type, wrapper.get_value(strategy.eval_type))
-        result = molecule.get_delta(strategy.eval_type)
         return wrapper.get_value(strategy.eval_type) - molecule.get_reference('uncontracted_energy')
 
     # Check reference energy added
@@ -822,7 +822,7 @@ class Optimizer:
         strategy,
         params,
         reference_basis=None,
-        basis=None,
+        basis={},
         elements=[],
         loss=default_opt_loss,
         parallel=False,
@@ -840,7 +840,7 @@ class Optimizer:
         self.active_element = str
         self.results = {}
         self.molecules = []
-        self._initialzed = False
+        self._initialized = False
         self.parallel = parallel
         self.parallel_params = parallel_params
         self.nprocs = nprocs
@@ -922,6 +922,14 @@ class Optimizer:
         Initialize the optimizer.
         If given a reference basis, then that is used to calculate a reference energy.
         """
+        for element in self.elements:
+            """
+            Set the active element and initialize the strategy
+            This will set any initial exponents if the basis set is created
+            as part of the strategy.
+            """
+            self.active_element = element
+            self.strategy.initialise(self.basis, self.active_element)
         self.wrapper = api.get_backend()
         if self.molecules:
             self.molecules = self.molecules
@@ -949,13 +957,16 @@ class Optimizer:
                 )
             bo_logger.info(f'Reference for {mol.name} is {mol.get_reference("energy")}')
             mol.basis = self.basis
-        self._initialzed = True
+        self._initialized = True
 
     def run(self, molecules: list = [], algorithm: str = "Nelder-Mead"):
         """Run the optimizer on the given molecules using the given algorithm"""
         if molecules:
-            self.molecules = molecules
-        if not self._initialzed:
+            if isinstance(molecules, Iterable):
+                self.molecules = molecules
+            else:
+                self.molecules = [molecules]
+        if not self._initialized:
             self._initialize()
         if self.elements is None:
             raise ValueError("No elements to optimize")
@@ -988,7 +999,7 @@ class Minimizer(Optimizer):
         strategy,
         params,
         reference_basis=None,
-        basis=None,
+        basis={},
         elements=[],
         loss=default_min_loss,
         parallel=False,
@@ -996,7 +1007,15 @@ class Minimizer(Optimizer):
         parallel_params={},
     ):
         super().__init__(
-            strategy, params, reference_basis, basis, elements, loss, parallel, nprocs, parallel_params
+            strategy,
+            params,
+            reference_basis,
+            basis,
+            elements,
+            loss,
+            parallel,
+            nprocs,
+            parallel_params,
         )
 
     def _opt(self, element: str, algorithm: str):

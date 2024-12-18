@@ -1,10 +1,12 @@
-from . import api
-#from .api import _CURRENT_BACKEND as wrapper
-from .api import bo_logger
-from .basis.basis import uncontract
+import copy
 
 import numpy as np
-import copy
+
+from . import api
+
+# from .api import _CURRENT_BACKEND as wrapper
+from .api import bo_logger
+from .basis.basis import uncontract
 
 
 def argsort_inhomogeneous_array(array):
@@ -52,6 +54,7 @@ def rank_uncontract_element(mol, element, params, verbose=False):
         verbose (bool, optional): Print rankings. Defaults to False.
     """
     wrapper = api.get_backend()
+
     def rank_uncontract_angular_momentum(mol, shell, verbose=True):
         energies = []
         errors = []
@@ -101,6 +104,7 @@ def rank_uncontract_element_robust(mol, element, params, verbose=False):
         verbose (bool, optional): Print rankings. Defaults to False.
     """
     wrapper = api.get_backend()
+
     def rank_uncontract_angular_momentum_robust(mol, shell, verbose=True):
         energies = []
         errors = []
@@ -144,49 +148,6 @@ def rank_uncontract_element_robust(mol, element, params, verbose=False):
     return energies, errors, ranks, ranked_idx, sorted_errors
 
 
-def add_uncontracted_functions(mol, element, params, target, verbose=False):
-    """Add uncontracted functions to a basis set element until the energy difference is below a target.
-
-    Args:
-        mol (Molecule): BasisOpt Molecule object.
-        element (str): Element to uncontract in basis set.
-        target (float): Maximum energy difference to reach.
-    """
-    wrapper = api.get_backend()
-    def sort_by_length_and_nonzero_index(array_list):
-        def sort_key(array):
-            length = len(array)
-            non_zero_indices = np.nonzero(array)[0]
-            first_non_zero_index = (
-                non_zero_indices[0] if non_zero_indices.size > 0 else float('inf')
-            )
-            return (length, first_non_zero_index)
-
-        sorted_list = sorted(array_list, key=sort_key)
-        return sorted_list
-
-    api.run_calculation(mol=mol, params=params)
-    energy = wrapper.get_value('energy')
-    reference_energy = energy
-    uncontracted_functions = []
-    while energy > reference_energy - target:
-        energies, errors, ranks, ranked_idx, sorted_errors = rank_uncontract_element(
-            mol, element, params, verbose
-        )
-        angular_momentum, exp_idx = ranked_idx.pop(-1)
-        while (angular_momentum, exp_idx) in uncontracted_functions:
-            angular_momentum, exp_idx = ranked_idx.pop(-1)
-        uncontracted_functions.append((angular_momentum, exp_idx))
-        shell = mol.basis[element.lower()][angular_momentum]
-        shell.coefs.append(np.zeros(len(shell.exps)))
-        shell.coefs[-1][exp_idx] = 1.0
-        shell.coefs = sort_by_length_and_nonzero_index(shell.coefs)
-        # print(f'{shell.l}: {shell.coefs}')
-        api.run_calculation(mol=mol, params=params)
-        energy = wrapper.get_value('energy')
-    return uncontracted_functions
-
-
 def add_uncontracted_functions_cutoff(mol, element, params, cutoff, verbose=False):
     """Uncontracts all functions that have a contribution above a cutoff.
     This performs inplace modification of the basis set and returns the uncontracted functions.
@@ -198,7 +159,7 @@ def add_uncontracted_functions_cutoff(mol, element, params, cutoff, verbose=Fals
     Returns:
         list: List of tuples with the angular momentum and exponent index of the uncontracted functions.
     """
-    wrapper = api.get_backend()
+
     def sort_by_length_and_nonzero_index(array_list):
         def sort_key(array):
             length = len(array)
@@ -214,8 +175,6 @@ def add_uncontracted_functions_cutoff(mol, element, params, cutoff, verbose=Fals
     bo_logger.info(f'Uncontracting coefficients for {element} with cutoff {cutoff}.')
 
     api.run_calculation(mol=mol, params=params)
-    energy = wrapper.get_value('energy')
-    reference_energy = energy
     uncontracted_functions = []
     uncontract = True
     while uncontract:
@@ -238,13 +197,14 @@ def add_uncontracted_functions_cutoff(mol, element, params, cutoff, verbose=Fals
             shell.coefs[-1][exp_idx] = 1.0
             shell.coefs = sort_by_length_and_nonzero_index(shell.coefs)
             api.run_calculation(mol=mol, params=params)
-            energy = wrapper.get_value('energy')
         else:
             uncontract = False
     return uncontracted_functions
 
+
 def add_uncontracted_functions(mol, element, target, params, verbose=False):
     wrapper = api.get_backend()
+
     def sort_by_length_and_nonzero_index(array_list):
         def sort_key(array):
             length = len(array)
@@ -256,16 +216,19 @@ def add_uncontracted_functions(mol, element, target, params, verbose=False):
 
         sorted_list = sorted(array_list, key=sort_key)
         return sorted_list
+
     contracted_basis = copy.deepcopy(mol.basis)
     mol.basis = uncontract(mol.basis)
     api.run_calculation(mol=mol, params=params)
-    reference_energy = np.floor(wrapper.get_value('energy')*10**6)/10**6
+    reference_energy = np.floor(wrapper.get_value('energy') * 10**6) / 10**6
     mol.basis = contracted_basis
     api.run_calculation(mol=mol, params=params)
-    energy = np.floor(wrapper.get_value('energy')*10**6)/10**6
+    energy = np.floor(wrapper.get_value('energy') * 10**6) / 10**6
     uncontracted_functions = []
     while energy > reference_energy + target:
-        energies, errors, ranks, ranked_idx, sorted_errors = rank_uncontract_element_robust(mol, element, params, verbose)
+        energies, errors, ranks, ranked_idx, sorted_errors = rank_uncontract_element_robust(
+            mol, element, params, verbose
+        )
         angular_momentum, exp_idx = ranked_idx.pop(-1)
         while (angular_momentum, exp_idx) in uncontracted_functions:
             angular_momentum, exp_idx = ranked_idx.pop()
@@ -295,13 +258,101 @@ def uncontract_single_function(mol, element, ang, exp, params):
     """
     api.run_calculation(mol=mol, params=params)
     wrapper = api.get_backend()
-    ref_energy = np.floor(wrapper.get_value('energy')*10**6)/10**6
+    ref_energy = np.floor(wrapper.get_value('energy') * 10**6) / 10**6
     bo_logger.info(f'Uncontracting {element} {ang} {exp+1}')
     new_contraction = np.zeros(len(mol.basis[element.lower()][ang].exps))
     new_contraction[exp] = 1
     mol.basis[element.lower()][ang].coefs.append(new_contraction)
     api.run_calculation(mol=mol, params=params)
-    energy = np.floor(wrapper.get_value('energy')*10**6)/10**6
+    energy = np.floor(wrapper.get_value('energy') * 10**6) / 10**6
     delta = energy - ref_energy
     bo_logger.info(f'New energy: {energy} Delta: {delta}')
     return energy
+
+
+def uncontract_percentage(mol, element, percentage_target, params):
+    wrapper = api.get_backend()
+    uncontracted_molecule = copy.deepcopy(mol)  # Create a copy of the molecule object
+    uncontracted_energy = mol.get_result('uncontracted_energy')
+    contracted_energy = mol.get_result('contracted_energy')
+    threshold_final = percentage_target
+    threshold_exp = 0.1
+
+    out_dict = {
+        'energies': [],
+        'ang': [],
+        'exp': [],
+        'contribution': [],
+        'contrib_diff': [],
+        'uncontracted_functions': [],
+        'delta': [],
+        'target_delta': [],
+        'percentage_contraction': [],
+    }
+
+    s_funcs_removed = 0
+    p_funcs_removed = 0
+
+    contraction_error = contracted_energy - uncontracted_energy
+    energy = contracted_energy
+    while np.floor(((energy - uncontracted_energy) / contraction_error) * 100) >= threshold_final:
+        rank1 = rank_uncontract_element_robust(
+            uncontracted_molecule, element, params, verbose=False
+        )
+        ranks = list(zip(rank1[3], rank1[4]))
+
+        angs = [rank[0][0] for rank in ranks]
+        exps = [rank[0][1] for rank in ranks]
+        contribs = [rank[1] for rank in ranks]
+
+        ranks_array = np.array([angs, exps, contribs]).T
+
+        s_ranks = ranks_array[ranks_array[:, 0] == 0]
+        p_ranks = ranks_array[ranks_array[:, 0] == 1]
+
+        s_ang, s_exp, s_contrib = s_ranks[-1]
+        p_ang, p_exp, p_contrib = p_ranks[-1]
+        bo_logger.warning(f'{int(s_exp+1)}s: {s_contrib}')
+        bo_logger.warning(f'{int(p_exp+1)}p: {p_contrib}')
+        bo_logger.warning(
+            f'Difference between contributions: {s_contrib - p_contrib} ({(s_contrib - p_contrib)/p_contrib*100}%)'
+        )
+        contrib_difference = abs(s_contrib - p_contrib)
+
+        if s_contrib > p_contrib:
+            uncontract_single_function(
+                uncontracted_molecule, element, int(s_ang), int(s_exp), params
+            )
+            out_dict['ang'].append(s_ang)
+            out_dict['exp'].append(s_exp)
+            out_dict['contribution'].append(s_contrib)
+            s_funcs_removed += 1
+        elif s_contrib < p_contrib and abs(s_contrib - p_contrib) <= threshold_exp * abs(p_contrib):
+            uncontract_single_function(
+                uncontracted_molecule, element, int(s_ang), int(s_exp), params
+            )
+            out_dict['ang'].append(s_ang)
+            out_dict['exp'].append(s_exp)
+            out_dict['contribution'].append(s_contrib)
+            s_funcs_removed += 1
+        else:
+            uncontract_single_function(
+                uncontracted_molecule, element, int(p_ang), int(p_exp), params
+            )
+            out_dict['ang'].append(p_ang)
+            out_dict['exp'].append(p_exp)
+            out_dict['contribution'].append(p_contrib)
+            p_funcs_removed += 1
+        api.run_calculation(mol=uncontracted_molecule, params=params)
+        energy = wrapper.get_value('energy')
+        out_dict['energies'].append(energy)
+        out_dict['uncontracted_functions'].append(f'{s_funcs_removed}s {p_funcs_removed}p')
+        out_dict['delta'].append(energy - uncontracted_energy)
+        out_dict['target_delta'].append(
+            (energy - uncontracted_energy) - contraction_error * threshold_final
+        )
+        out_dict['contrib_diff'].append(contrib_difference)
+        out_dict['percentage_contraction'].append(
+            ((energy - uncontracted_energy) / contraction_error) * 100
+        )
+    return out_dict, uncontracted_molecule

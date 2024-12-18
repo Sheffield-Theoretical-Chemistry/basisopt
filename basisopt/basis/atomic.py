@@ -17,12 +17,7 @@ from basisopt.opt.welltemper import WellTemperedStrategy
 from basisopt.util import bo_logger
 
 from . import zetatools as zt
-from .basis import (
-    Basis,
-    even_temper_expansion,
-    legendre_expansion,
-    well_temper_expansion,
-)
+from .basis import Basis, even_temper_expansion, legendre_expansion, well_temper_expansion
 
 
 def needs_element(func: Callable) -> Callable:

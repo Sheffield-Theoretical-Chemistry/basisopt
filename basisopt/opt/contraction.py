@@ -3,9 +3,9 @@ from typing import Any
 import numpy as np
 from mendeleev import element as md_element
 
-from basisopt import bo_logger
-from basisopt.containers import InternalBasis
 from basisopt.basis import contract_function
+from basisopt.containers import InternalBasis
+
 from .preconditioners import unit
 from .strategies import Strategy
 
@@ -108,13 +108,13 @@ class ContractionStrategy(Strategy):
 
     def set_active(self, values: np.ndarray, basis: InternalBasis, element: str):
         """Given a series of coefficients for a shell, set the contractions for the basis"""
-        coefficients = self.shells[self._step][self._n_step]
+        # coefficients = self.shells[self._step][self._n_step]
         self.shells[self._step][self._n_step] = values
         self.set_basis_shells(basis=basis, element=element, values=values)
 
-    def set_basis_contractions(self, basis, contractions):
-        """Sets the initial guess for the contraction coefficients"""
-        contract_basis(basis, contractions)
+    # def set_basis_contractions(self, basis, contractions):
+        # """Sets the initial guess for the contraction coefficients"""
+        # contract_basis(basis, contractions)
 
     def set_basis_shells(self, basis: InternalBasis, element: str, values: np.ndarray):
         """Expands parameters into a basis set

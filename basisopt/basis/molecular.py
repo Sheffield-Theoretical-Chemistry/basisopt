@@ -5,19 +5,12 @@ import numpy as np
 
 from basisopt import api
 from basisopt.bse_wrapper import fetch_basis
-from basisopt.containers import (
-    InternalBasis,
-    OptCollection,
-    Result,
-    basis_to_dict,
-    dict_to_basis,
-)
+from basisopt.containers import InternalBasis, OptCollection, Result, basis_to_dict, dict_to_basis
 from basisopt.exceptions import DataNotFound, EmptyBasis
 from basisopt.molecule import Molecule
 from basisopt.opt import collective_minimize, collective_optimize, collective_polarize
 from basisopt.opt.strategies import Strategy
 from basisopt.util import bo_logger
-from basisopt.molecule import Molecule
 
 from .atomic import AtomicBasis
 from .basis import Basis
@@ -467,6 +460,8 @@ class MoleculeLoader:
 
     def load_molecules(self, molecules: list[str]):
         """Load molecules into the loader from a list of Molecule objects"""
+        if not isinstance(molecules, list):
+            molecules = [molecules]
         for mol in molecules:
             self._add_molecule(mol)
 

@@ -1,6 +1,5 @@
 import logging
 import os
-from datetime import datetime
 from typing import Any, Callable
 
 import colorlog
@@ -216,13 +215,14 @@ def _apply_additional_params(ray_params):
     if ray_params and ray_params.get('backend') == 'psi4':
         num_threads = ray_params.get('threads_per_job')
         import psi4
+
         if num_threads:
             psi4.core.set_num_threads(num_threads)
         default_path = ray_params.get('default_path')
         if default_path:
             psi4_io = psi4.core.IOManager.shared_object()
             psi4_io.set_default_path(default_path)
-            #bo_logger.info(f"Setting psi4 path to {default_path}")
+            # bo_logger.info(f"Setting psi4 path to {default_path}")
 
 
 @ray.remote
