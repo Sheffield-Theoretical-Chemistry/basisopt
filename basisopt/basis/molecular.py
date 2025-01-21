@@ -40,7 +40,7 @@ class MolecularBasis(Basis):
         self._atomic_bases = {}
         self._done_setup = False
         for m in molecules:
-            self.add_molecule(m)
+            self._add_molecule(m)
 
     def save(self, filename: str):
         """Pickles the MolecularBasis object into a binary file"""
@@ -405,9 +405,9 @@ class MoleculeLoader:
 
     def _add_molecule(self, molecule: Molecule):
         """Add a molecule to the loader"""
-        self._molecules[molecule.name] = molecule
         if molecule.name in self._molecules:
             bo_logger.warning(f"Molecule with name {molecule.name} already exists. Overwriting.")
+        self._molecules[molecule.name] = molecule
         for atom in molecule.unique_atoms():
             self._atoms.add(atom)
 
@@ -451,7 +451,7 @@ class MoleculeLoader:
         mol = Molecule.from_xyz(xyz_file)
         for key, value in kwargs.items():
             setattr(mol, key, value)
-        self.add_molecule(mol)
+        self._add_molecule(mol)
 
     def set_method(self, method: str):
         """Set the method for all molecules in the loader"""
