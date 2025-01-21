@@ -467,7 +467,7 @@ class MoleculeLoader:
 
     def __getitem__(self, index):
         """Get a molecule from the loader by index"""
-        return list(self._molecuels.values())[index]
+        return list(self._molecules.values())[index]
 
     def __len__(self):
         """Get the number of molecules in the loader"""
