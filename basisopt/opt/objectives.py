@@ -41,3 +41,8 @@ def default_min_loss(molecules):
     """Default loss function, the mean of energy per electron"""
     deltas = np.mean([mol.get_result('energy') / mol.nelectrons() for mol in molecules])
     return deltas
+
+
+def sp_polarisation_energy(molecules):
+    objective = np.mean([((mol.get_result('energy') - mol.cbs_limit) + mol.sp_polarisation) / mol.nelectrons() for mol in molecules])
+    return objective
