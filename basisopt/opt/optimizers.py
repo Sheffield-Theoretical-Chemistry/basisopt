@@ -1,4 +1,8 @@
+import csv
+import os
 from collections.abc import Iterable
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 import numpy as np
@@ -12,6 +16,7 @@ from basisopt.molecule import Molecule
 from basisopt.util import bo_logger, format_with_prefix, get_composition
 
 from .objectives import default_min_loss, default_opt_loss
+from .opt_logging import BasisOptimizationLogger
 
 # from .contraction import ContractionStrategy
 from .regularisers import Regulariser
@@ -274,6 +279,8 @@ def _atomic_opt_auto(
     return results
 
 
+# Updated atom_auto function
+# Updated atom_auto function
 def atom_auto(
     molecule: Molecule,
     element: Optional[str] = None,
@@ -281,24 +288,12 @@ def atom_auto(
     strategy: Strategy = Strategy(),
     reg: Regulariser = (lambda x: 0),
     opt_params: dict[str, Any] = {},
+    log_minimisation: bool = False,
+    log_dir: Optional[str] = None,
+    flush_interval: int = 50,
+    log_session_id: Optional[str] = None,
 ) -> OptResult:
-    """General purpose optimizer for a single atomic basis
-
-    Arguments:
-        molecule: Molecule object
-        element (str): symbol of atom to optimize; if None, will default to first atom in molecule
-        algorithm (str): scipy.optimize algorithm to use
-        strategy (Strategy): optimization strategy
-        basis_type (str): which basis type to use; currently "orbital", "jfit", or "jkfit"
-        reg (func): regularization function
-        opt_params (dict): parameters to pass to scipy.optimize.minimize
-
-    Returns:
-        dictionary of scipy.optimize result objects for each step in the opt
-
-    Raises:
-        FailedCalculation
-    """
+    """General purpose optimizer for a single atomic basis"""
     wrapper = api.get_backend()
     if element is None:
         element = molecule.unique_atoms()[0]
@@ -310,22 +305,39 @@ def atom_auto(
     elif strategy.basis_type == "jkfit":
         basis = molecule.jkbasis
 
-    def objective(x):
-        """Set exponents, run calculation, compute objective
-        Currently just RMSE, need to expand via Strategy
-        """
-        strategy.set_active(x, basis, element)
-        success = api.run_calculation(
-            evaluate=strategy.eval_type, mol=molecule, params=strategy.params
-        )
-        if success != 0:
-            raise FailedCalculation
-        molecule.add_result(strategy.eval_type, wrapper.get_value(strategy.eval_type))
-        return wrapper.get_value(strategy.eval_type)
+    # Create logger
+    with BasisOptimizationLogger(
+        basis=basis,
+        element=element,
+        strategy_name=strategy.name,
+        basis_type=strategy.basis_type,
+        eval_type=strategy.eval_type,
+        log_dir=log_dir,
+        flush_interval=flush_interval,
+        enabled=log_minimisation,
+        session_id=log_session_id,
+    ) as logger:
 
-    # Initialise and run optimization
-    strategy.initialise(basis, element)
-    return _atomic_opt_auto(basis, element, algorithm, strategy, opt_params, objective)
+        def objective(x):
+            """Set exponents, run calculation, compute objective"""
+            strategy.set_active(x, basis, element)
+            success = api.run_calculation(
+                evaluate=strategy.eval_type, mol=molecule, params=strategy.params
+            )
+            if success != 0:
+                raise FailedCalculation
+
+            energy = wrapper.get_value(strategy.eval_type)
+            molecule.add_result(strategy.eval_type, energy)
+
+            # Log the evaluation with CBS limit
+            logger.log(energy, basis, element, cbs_limit=strategy.cbs_limit)
+
+            return energy
+
+        # Initialise and run optimization
+        strategy.initialise(basis, element)
+        return _atomic_opt_auto(basis, element, algorithm, strategy, opt_params, objective)
 
 
 def _atomic_opt_auto_reduce(
@@ -398,9 +410,7 @@ def _atomic_opt_auto_reduce(
         bo_logger.info(info_str)
     else:
         wrapper = api.get_backend()
-        api.run_calculation(
-            evaluate=strategy.eval_type, mol=molecule, params=strategy.params
-        )
+        api.run_calculation(evaluate=strategy.eval_type, mol=molecule, params=strategy.params)
         objective_value = wrapper.get_value(strategy.eval_type)
         dE_CBS = objective_value - strategy.cbs_limit
         ctr += 1
@@ -443,6 +453,8 @@ def _atomic_opt_auto_reduce(
     return results
 
 
+# Updated atom_auto_reduce function
+# Updated atom_auto_reduce function
 def atom_auto_reduce(
     molecule: Molecule,
     element: Optional[str] = None,
@@ -450,24 +462,12 @@ def atom_auto_reduce(
     strategy: Strategy = Strategy(),
     reg: Regulariser = (lambda x: 0),
     opt_params: dict[str, Any] = {},
+    log_minimisation: bool = False,
+    log_dir: Optional[str] = None,
+    flush_interval: int = 50,
+    log_session_id: Optional[str] = None,
 ) -> OptResult:
-    """General purpose optimizer for a single atomic basis
-
-    Arguments:
-        molecule: Molecule object
-        element (str): symbol of atom to optimize; if None, will default to first atom in molecule
-        algorithm (str): scipy.optimize algorithm to use
-        strategy (Strategy): optimization strategy
-        basis_type (str): which basis type to use; currently "orbital", "jfit", or "jkfit"
-        reg (func): regularization function
-        opt_params (dict): parameters to pass to scipy.optimize.minimize
-
-    Returns:
-        dictionary of scipy.optimize result objects for each step in the opt
-
-    Raises:
-        FailedCalculation
-    """
+    """General purpose optimizer for a single atomic basis"""
     wrapper = api.get_backend()
     if element is None:
         element = molecule.unique_atoms()[0]
@@ -479,24 +479,41 @@ def atom_auto_reduce(
     elif strategy.basis_type == "jkfit":
         basis = molecule.jkbasis
 
-    def objective(x):
-        """Set exponents, run calculation, compute objective
-        Currently just RMSE, need to expand via Strategy
-        """
-        strategy.set_active(x, basis, element)
-        success = api.run_calculation(
-            evaluate=strategy.eval_type, mol=molecule, params=strategy.params
-        )
-        if success != 0:
-            raise FailedCalculation
-        molecule.add_result(strategy.eval_type, wrapper.get_value(strategy.eval_type))
-        return wrapper.get_value(strategy.eval_type)
+    # Create logger
+    with BasisOptimizationLogger(
+        basis=basis,
+        element=element,
+        strategy_name=strategy.name,
+        basis_type=strategy.basis_type,
+        eval_type=strategy.eval_type,
+        log_dir=log_dir,
+        flush_interval=flush_interval,
+        enabled=log_minimisation,
+        session_id=log_session_id,
+    ) as logger:
 
-    # Initialise and run optimization
-    strategy.initialise(basis, element)
-    return _atomic_opt_auto_reduce(
-        molecule, basis, element, algorithm, strategy, opt_params, objective
-    )
+        def objective(x):
+            """Set exponents, run calculation, compute objective"""
+            strategy.set_active(x, basis, element)
+            success = api.run_calculation(
+                evaluate=strategy.eval_type, mol=molecule, params=strategy.params
+            )
+            if success != 0:
+                raise FailedCalculation
+
+            energy = wrapper.get_value(strategy.eval_type)
+            molecule.add_result(strategy.eval_type, energy)
+
+            # Log the evaluation with CBS limit
+            logger.log(energy, basis, element, cbs_limit=strategy.cbs_limit)
+
+            return energy
+
+        # Initialise and run optimization
+        strategy.initialise(basis, element)
+        return _atomic_opt_auto_reduce(
+            molecule, basis, element, algorithm, strategy, opt_params, objective
+        )
 
 
 def collective_optimize(
