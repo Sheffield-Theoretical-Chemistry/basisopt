@@ -884,7 +884,6 @@ class Optimizer:
             if success != 0:
                 raise ValueError("Calculation failed")
             mol.add_result(self.strategy.eval_type, self.wrapper.get_value(self.strategy.eval_type))
-        bo_logger.info(f"Calling loss function: {self.loss.__name__}")
         result = self.loss(self.molecules)
         print(f"Objective value: {result}")
         return result
@@ -900,7 +899,6 @@ class Optimizer:
         )
         for mol in self.molecules:
             mol.add_result(self.strategy.eval_type, results[mol.name])
-        bo_logger.info(f"Calling loss function: {self.loss.__name__}")
         result = self.loss(self.molecules)
         print(f"Objective parallel value: {result}")
         return result
