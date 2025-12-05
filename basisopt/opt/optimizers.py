@@ -885,7 +885,11 @@ class Optimizer:
                 raise ValueError("Calculation failed")
             mol.add_result(self.strategy.eval_type, self.wrapper.get_value(self.strategy.eval_type))
         result = self.loss(self.molecules)
-        print(f"Objective value: {result}")
+        
+        # Log the evaluation if logger is provided
+        if logger is not None:
+            logger.log(result, self.basis, self.active_element, cbs_limit=self.strategy.target)
+        
         return result
 
     def _parallel_objective(self, x, logger=None):
@@ -900,7 +904,11 @@ class Optimizer:
         for mol in self.molecules:
             mol.add_result(self.strategy.eval_type, results[mol.name])
         result = self.loss(self.molecules)
-        print(f"Objective parallel value: {result}")
+        
+        # Log the evaluation if logger is provided
+        if logger is not None:
+            logger.log(result, self.basis, self.active_element, cbs_limit=self.strategy.target)
+        
         return result
 
     def _opt(self, element: str, algorithm: str):
