@@ -1079,34 +1079,22 @@ class Minimizer(Optimizer):
         bo_logger.info(f"Starting optimization of {self.strategy.eval_type} {element.capitalize()}")
         bo_logger.info(f"Using {algorithm} algorithm for strategy {self.strategy.name}")
         bo_logger.info(f"Using loss function: {self.loss.__name__}")
-        if self.parallel:
-            api.set_parallel(True, self.nprocs)
-            initial_objective = self._parallel_objective(
-                self.strategy.get_active(self.basis, element)
-            )
-        else:
-            initial_objective = self._objective(self.strategy.get_active(self.basis, element))
-        objective_value = initial_objective
-        ctr = 1
-        while self.strategy.next(self.basis, element, objective_value):
-            guess = self.strategy.get_active(self.basis, element)
-            if len(guess) > 0:
-                if self.parallel:
-                    res = minimize(
-                        self._parallel_objective, guess, method=algorithm, **self.opt_params
-                    )
-                else:
-                    res = minimize(self._objective, guess, method=algorithm, **self.opt_params)
-                objective_value = res.fun
-                running_total = 0
-                running_total += objective_value - self.strategy.last_objective
-                info_str = "\n".join(
-                    [
-                        f"Parameters: {res.x}",
-                        f"Objective value: {res.fun}",
-                        f"Step Delta: {objective_value - self.strategy.last_objective}",
-                        f"Total Delta: {running_total}",
-                    ]
+        
+        with BasisOptimizationLogger(
+            basis=self.basis,
+            element=element,
+            strategy_name=self.strategy.name,
+            basis_type=self.strategy.basis_type,
+            eval_type=self.strategy.eval_type,
+            log_dir=self.log_dir,
+            flush_interval=self.flush_interval,
+            enabled=self.log_minimisation,
+            session_id=self.log_session_id,
+        ) as logger:
+            if self.parallel:
+                api.set_parallel(True, self.nprocs)
+                initial_objective = self._parallel_objective(
+                    self.strategy.get_active(self.basis, element), logger=logger
                 )
             else:
                 initial_objective = self._objective(self.strategy.get_active(self.basis, element), logger=logger)
