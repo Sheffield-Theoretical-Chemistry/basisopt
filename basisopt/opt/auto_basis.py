@@ -1212,7 +1212,7 @@ class PolarizationStrategy(Strategy):
         self.basis_type = "orbital"
         self.orbital_basis = None
 
-        self.all_combinations = {'config': [], 'bsie_per_e': [], 'increment': []}
+        self.all_combinations = {'config': [], 'objective': [], 'increment': []}
 
         # currently fixed, to be expanded later
         self.loss = np.linalg.norm
@@ -1292,7 +1292,7 @@ class PolarizationStrategy(Strategy):
             self.all_combinations['config'].append(
                 get_composition({element: basis[element]}, element)
             )
-            self.all_combinations['bsie_per_e'].append(objective)
+            self.all_combinations['objective'].append(objective)
             self.all_combinations['increment'].append(self.delta_objective)
             self.first_run_just = False
             # if self.delta_objective < self.target:
@@ -1313,7 +1313,7 @@ class PolarizationStrategy(Strategy):
                     self.all_combinations['config'].append(
                         get_composition({element: test[1]}, element)
                     )
-                    self.all_combinations['bsie_per_e'].append(test[2])
+                    self.all_combinations['objective'].append(test[2])
                     self.all_combinations['increment'].append(test[3])
                 energies = np.array([test[2] for test in self._combinations])
                 errors = np.array([test[3] for test in self._combinations])

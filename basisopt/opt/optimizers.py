@@ -849,6 +849,7 @@ class Optimizer:
         self.strategy = strategy
         self.params = params
         self.loss = loss
+        bo_logger.info(f"Optimizer initialized with loss function: {loss.__name__}")
         self.reference_basis = reference_basis
         self.basis = basis
         self.elements = elements
@@ -875,7 +876,10 @@ class Optimizer:
             if success != 0:
                 raise ValueError("Calculation failed")
             mol.add_result(self.strategy.eval_type, self.wrapper.get_value(self.strategy.eval_type))
-        return self.loss(self.molecules)
+        bo_logger.info(f"Calling loss function: {self.loss.__name__}")
+        result = self.loss(self.molecules)
+        print(f"Objective value: {result}")
+        return result
 
     def _parallel_objective(self, x):
         self.strategy.set_active(x, self.basis, self.active_element)
@@ -888,7 +892,10 @@ class Optimizer:
         )
         for mol in self.molecules:
             mol.add_result(self.strategy.eval_type, results[mol.name])
-        return self.loss(self.molecules)
+        bo_logger.info(f"Calling loss function: {self.loss.__name__}")
+        result = self.loss(self.molecules)
+        print(f"Objective parallel value: {result}")
+        return result
 
     def _opt(self, element: str, algorithm: str):
         """
@@ -1045,7 +1052,9 @@ class Minimizer(Optimizer):
         """
         bo_logger.info(f"Starting optimization of {self.strategy.eval_type} {element.capitalize()}")
         bo_logger.info(f"Using {algorithm} algorithm for strategy {self.strategy.name}")
+        bo_logger.info(f"Using loss function: {self.loss.__name__}")
         if self.parallel:
+            api.set_parallel(True, self.nprocs)
             initial_objective = self._parallel_objective(
                 self.strategy.get_active(self.basis, element)
             )
