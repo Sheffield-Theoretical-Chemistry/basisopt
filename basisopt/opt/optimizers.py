@@ -884,17 +884,10 @@ class Optimizer:
             if success != 0:
                 raise ValueError("Calculation failed")
             mol.add_result(self.strategy.eval_type, self.wrapper.get_value(self.strategy.eval_type))
-<<<<<<< Updated upstream
         bo_logger.info(f"Calling loss function: {self.loss.__name__}")
         result = self.loss(self.molecules)
         print(f"Objective value: {result}")
         return result
-=======
-        loss_value = self.loss(self.molecules)
-        if logger is not None:
-            logger.log(loss_value, self.basis, self.active_element)
-        return loss_value
->>>>>>> Stashed changes
 
     def _parallel_objective(self, x, logger=None):
         self.strategy.set_active(x, self.basis, self.active_element)
@@ -907,17 +900,10 @@ class Optimizer:
         )
         for mol in self.molecules:
             mol.add_result(self.strategy.eval_type, results[mol.name])
-<<<<<<< Updated upstream
         bo_logger.info(f"Calling loss function: {self.loss.__name__}")
         result = self.loss(self.molecules)
         print(f"Objective parallel value: {result}")
         return result
-=======
-        loss_value = self.loss(self.molecules)
-        if logger is not None:
-            logger.log(loss_value, self.basis, self.active_element)
-        return loss_value
->>>>>>> Stashed changes
 
     def _opt(self, element: str, algorithm: str):
         """
@@ -1094,7 +1080,6 @@ class Minimizer(Optimizer):
         """
         bo_logger.info(f"Starting optimization of {self.strategy.eval_type} {element.capitalize()}")
         bo_logger.info(f"Using {algorithm} algorithm for strategy {self.strategy.name}")
-<<<<<<< Updated upstream
         bo_logger.info(f"Using loss function: {self.loss.__name__}")
         if self.parallel:
             api.set_parallel(True, self.nprocs)
@@ -1124,23 +1109,6 @@ class Minimizer(Optimizer):
                         f"Step Delta: {objective_value - self.strategy.last_objective}",
                         f"Total Delta: {running_total}",
                     ]
-=======
-        
-        with BasisOptimizationLogger(
-            basis=self.basis,
-            element=element,
-            strategy_name=self.strategy.name,
-            basis_type=self.strategy.basis_type,
-            eval_type=self.strategy.eval_type,
-            log_dir=self.log_dir,
-            flush_interval=self.flush_interval,
-            enabled=self.log_minimisation,
-            session_id=self.log_session_id,
-        ) as logger:
-            if self.parallel:
-                initial_objective = self._parallel_objective(
-                    self.strategy.get_active(self.basis, element), logger=logger
->>>>>>> Stashed changes
                 )
             else:
                 initial_objective = self._objective(self.strategy.get_active(self.basis, element), logger=logger)
