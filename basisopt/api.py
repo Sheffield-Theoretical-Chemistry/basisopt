@@ -96,10 +96,14 @@ def set_tmp_dir(path: str, verbose=True):
          path (str): path to the scratch directory
     """
     global _TMP_DIR
+    # Check for a trailing slash and add if missing
+    if not path.endswith('/'):
+        path += '/'
     # check if dir exists, and create if not
     if not os.path.isdir(path):
         bo_logger.info("Created directory at %s", path)
         os.makedirs(path, exist_ok=True)
+    # Check the path is valid
     _TMP_DIR = path
     if verbose:
         bo_logger.info("Scratch directory set to %s", _TMP_DIR)
