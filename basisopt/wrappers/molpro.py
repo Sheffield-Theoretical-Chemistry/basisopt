@@ -76,6 +76,9 @@ class MolproWrapper(Wrapper):
             if "functional" in params:
                 xcfun = params["functional"]
                 command = f"{{{method},{xcfun}{method_options}}}"
+            elif "dfunc" in params:
+                dfunc = params["dfunc"]
+                command = f"{dfunc}\n\n{{{method}{method_options}}}"
             else:
                 raise KeyError("DFT functional not specified")
         else:
@@ -161,14 +164,23 @@ class MolproWrapper(Wrapper):
     def energy(self, mol, tmp="", **params):
         name = "energy"
         proj_name = f"{mol.name}-{mol.method}-" + name
-        p = Project(proj_name, location=tmp)
-        self.initialise(p, mol, tmp=tmp, **params)
-        p.run(wait=True)
-        if p.errors():
+        self.p = Project(proj_name, location=tmp)
+        self.initialise(self.p, mol, tmp=tmp, **params)
+        self.p.run(wait=True)
+        if self.p.errors():
             raise FailedCalculation
         # Attempt to catch race cases where wait=True doesn't seem to be sufficient
-        # p.wait()
-        energy = self._get_energy(p, mol.method)
+        self.p.wait()
+        energy = self._get_energy(self.p, mol.method)
 
-        p.clean()
+        self.p.clean()
         return energy
+
+    @available
+    def get_xml(self):
+        """Retrieve the Molpro XML output from the last calculation"""
+        try:
+            return self.p.xml
+        except AttributeError:
+            err_str = "No calculation has been run yet to retrieve XML from."
+            raise RuntimeError(err_str)
