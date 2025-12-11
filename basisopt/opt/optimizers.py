@@ -953,14 +953,22 @@ class Optimizer:
                     else:
                         res = minimize(lambda x: self._objective(x, logger=logger), guess, method=algorithm, **self.opt_params)
                     objective_value = res.fun
-                    info_str = "\n".join(
-                        [
-                            f"Parameters: {res.x}",
-                            f"Objective value: {res.fun}",
-                            f"Step Delta: {objective_value - self.strategy.last_objective}",
-                            f"Total Delta: {objective_value - initial_objective}",
-                        ]
-                    )
+                    
+                    info_lines = [
+                        f"Parameters: {res.x}",
+                        f"Objective value: {res.fun}",
+                    ]
+                    
+                    if self.strategy.target is not None:
+                        info_lines.append(f"Target value: {self.strategy.target}")
+                        info_lines.append(f"Difference to target: {objective_value - self.strategy.target}")
+                    
+                    info_lines.extend([
+                        f"Step Delta: {objective_value - self.strategy.last_objective}",
+                        f"Total Delta: {objective_value - initial_objective}",
+                    ])
+                    
+                    info_str = "\n".join(info_lines)
                     self.results[f"opt{ctr}"] = res
                     ctr += 1
                 else:
@@ -1123,14 +1131,22 @@ class Minimizer(Optimizer):
                     objective_value = res.fun
                     running_total = 0
                     running_total += objective_value - self.strategy.last_objective
-                    info_str = "\n".join(
-                        [
-                            f"Parameters: {res.x}",
-                            f"Objective value: {res.fun}",
-                            f"Step Delta: {objective_value - self.strategy.last_objective}",
-                            f"Total Delta: {running_total}",
-                        ]
-                    )
+                    
+                    info_lines = [
+                        f"Parameters: {res.x}",
+                        f"Objective value: {res.fun}",
+                    ]
+                    
+                    if self.strategy.target is not None:
+                        info_lines.append(f"Target value: {self.strategy.target}")
+                        info_lines.append(f"Difference to target: {objective_value - self.strategy.target}")
+                    
+                    info_lines.extend([
+                        f"Step Delta: {objective_value - self.strategy.last_objective}",
+                        f"Total Delta: {running_total}",
+                    ])
+                    
+                    info_str = "\n".join(info_lines)
                     self.results[f"opt{ctr}"] = res
                     ctr += 1
                 else:
