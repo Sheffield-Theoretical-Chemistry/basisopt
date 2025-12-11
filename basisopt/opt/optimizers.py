@@ -849,6 +849,7 @@ class Optimizer:
         log_dir=None,
         flush_interval=50,
         log_session_id=None,
+        opt_params={},
     ):
         self.strategy = strategy
         self.params = params
@@ -858,7 +859,7 @@ class Optimizer:
         self.basis = basis
         self.elements = elements
         self.results = {}
-        self.opt_params = {}
+        self.opt_params = opt_params
         self.active_element = str
         self.results = {}
         self.molecules = []
@@ -1059,6 +1060,7 @@ class Minimizer(Optimizer):
         log_dir=None,
         flush_interval=50,
         log_session_id=None,
+        opt_params={},
     ):
         super().__init__(
             strategy,
@@ -1074,6 +1076,7 @@ class Minimizer(Optimizer):
             log_dir,
             flush_interval,
             log_session_id,
+            opt_params,
         )
 
     def _opt(self, element: str, algorithm: str):
