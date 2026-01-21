@@ -1245,7 +1245,12 @@ class PolarizationStrategy(Strategy):
         self._testing = False
 
     def get_active(self, basis: InternalBasis, element: str) -> np.ndarray:
-        """Returns the even temper params for the current shell"""
+        """Returns the params for the current shell, including a print of queued messages"""
+        if hasattr(self, 'queued_logs') and self.queued_logs:
+            for line in self.queued_logs:
+                bo_logger.info(line)
+            self.queued_logs = []
+            
         y = basis[element][self._step].exps
         return self.pre(y, **self.pre.params)
 
@@ -1270,8 +1275,14 @@ class PolarizationStrategy(Strategy):
         return possible_combinations
 
     def next(self, basis: InternalBasis, element: str, objective: float) -> bool:
+        """Determines the next step in the polarization optimization.
+        
+        Returns:
+            bool: True if optimization continues, False if target met or finished.
+        """
         self.delta_objective = np.abs(self.last_objective - objective)
         self.last_objective = objective
+
         if self.first_run:
             self._step = self.min_l
             self.first_run = False
@@ -1284,10 +1295,11 @@ class PolarizationStrategy(Strategy):
                 basis[element].append(shell)
                 basis[element][self._step].exps = np.array([1])
                 uncontract_shell(shell)
+
             self.first_run_just = True
-            self.first_run = False
             self.just_optimised = (self._step, len(basis[element][self._step].exps) - 1)
             return True
+
         elif self.first_run_just:
             self.all_combinations['config'].append(
                 get_composition({element: basis[element]}, element)
@@ -1297,7 +1309,6 @@ class PolarizationStrategy(Strategy):
             self.first_run_just = False
             # if self.delta_objective < self.target:
             if objective < self.target:
-                self.first_run_just = False
                 return False
 
         try:
@@ -1308,6 +1319,7 @@ class PolarizationStrategy(Strategy):
                 objective,
                 objective - self.old_energy,
             )
+
             if all(self._testing):
                 for test in self._combinations:
                     self.all_combinations['config'].append(
@@ -1327,18 +1339,30 @@ class PolarizationStrategy(Strategy):
                 self.last_objective = energy
                 # if energy < self.target:
                 if objective < self.target:
+                    bo_logger.info("Target objective reached.")
                     return False
         except:
             pass
 
+        self.queued_logs = []
+
+        if not hasattr(self, 'batch_results'):
+            self.batch_results = []
+        
         if self._possible_combinations:
+            self.batch_results.append({
+                'energy': objective,
+                'shells': copy.deepcopy(basis[element])
+            })
+
+            basis[element] = copy.deepcopy(self.old_basis)
+            
             l, n = self._possible_combinations.pop(0)
-            basis[element] = self.old_basis
-            bo_logger.info(
-                f"Previous basis config = {''.join([str(len(shell.exps))+shell.l for shell in basis[element]])}."
-            )
-            bo_logger.info("Reverting to old basis to test new combination.")
-            bo_logger.info(f"Testing shell {INV_AM_DICT[l]} with {n+1} primitives.")
+
+            comp_str = get_composition({element: basis[element]}, element)
+            self.queued_logs.append(f"Transitioning: Reverting to composition {comp_str}.")
+            self.queued_logs.append(f"Testing shell {INV_AM_DICT[l]} with {n+1} primitives.")
+
             try:
                 exps = basis[element][l].exps.tolist()
                 exps.append(exps[-1] / 2)
@@ -1349,21 +1373,41 @@ class PolarizationStrategy(Strategy):
                 shell.l = INV_AM_DICT[l]
                 basis[element].append(shell)
                 shell.exps = np.array([1])
+
             self._step = l
             self._combination = self._step - self.min_l
             uncontract_shell(shell)
-            bo_logger.info(
-                f"Current basis config = {''.join([str(len(shell.exps))+shell.l for shell in basis[element]])}."
-            )
+            self.queued_logs.append(f"New target config: {get_composition({element: basis[element]}, element)}.")
             return True
         else:
-            self.old_basis = copy.deepcopy(basis[element])
-            self.old_energy = objective
+            # Process the full batch of combinations
+            self.batch_results.append({
+                'energy': objective,
+                'shells': copy.deepcopy(basis[element])
+            })
+
+            best_trial = min(self.batch_results, key=lambda x: x['energy'])
+            best_energy = best_trial['energy']
+            best_shells = best_trial['shells']
+
+            bo_logger.info(f"Batch of possible combinations complete. Lowest objective found: {best_energy:.8e}")
+            
+            if (self.target is not None) and (best_energy < self.target):
+                bo_logger.info("Target achieved by the best configuration in batch.")
+                bo_logger.info(f"Best objective {best_energy:.8e} < {self.target:.8e}.")
+                basis[element] = best_shells
+                self.last_objective = best_energy
+                return False
+            
+            self.old_basis = copy.deepcopy(best_shells)
+            self.old_energy = best_energy
+            basis[element] = copy.deepcopy(best_shells)
+            
             self._possible_combinations = self.generate_combinations(basis, element)
-            bo_logger.info(f"Generating new basis combinations for element {element}.")
-            bo_logger.info(
-                f"Combinations = {','.join([str(n+1)+INV_AM_DICT[l] for l, n in self._possible_combinations])}."
-            )
+            
+            self.queued_logs.append(f"--- Generating new basis combinations for {element.capitalize()} ---")
+            self.queued_logs.append(f"Combinations to test: {','.join([str(n+1)+INV_AM_DICT[l] for l, n in self._possible_combinations])}")
+
             self._combinations = [()] * len(self._possible_combinations)
             self._testing = [False] * len(self._possible_combinations)
             l, n = self._possible_combinations.pop(0)
@@ -1376,6 +1420,7 @@ class PolarizationStrategy(Strategy):
                 shell = Shell()
                 shell.l = INV_AM_DICT[l]
                 shell.exps = np.array([1])
+                basis[element].append(shell) #Possible crash fix
                 uncontract_shell(shell)
             self._step = l
             self._combination = self._step - self.min_l
