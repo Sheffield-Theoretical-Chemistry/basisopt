@@ -1132,24 +1132,26 @@ class Minimizer(Optimizer):
                     running_total = 0
                     running_total += objective_value - self.strategy.last_objective
                     
+                    params_formatted = np.array2string(res.x, formatter={'float_kind':lambda x: f"{x:.8f}"})
                     info_lines = [
-                        f"Parameters: {res.x}",
-                        f"Objective value: {res.fun}",
+                        f"Parameters: {params_formatted}",
+                        f"Objective value: {res.fun:.8e}",
                     ]
                     
                     if self.strategy.target is not None:
-                        info_lines.append(f"Target value: {self.strategy.target}")
-                        info_lines.append(f"Difference to target: {objective_value - self.strategy.target}")
+                        info_lines.append(f"Target value: {self.strategy.target:.8e}")
+                        info_lines.append(f"Difference to target: {(objective_value - self.strategy.target):.8e}")
                     
                     info_lines.extend([
-                        f"Step Delta: {objective_value - self.strategy.last_objective}",
-                        f"Total Delta: {running_total}",
+                        f"Step Delta: {(objective_value - self.strategy.last_objective):.8e}",
+                        f"Total Delta: {running_total:.8e}",
                     ])
-                    
-                    info_str = "\n".join(info_lines)
+
+                    for line in info_lines:
+                        bo_logger.info(line)
+
                     self.results[f"opt{ctr}"] = res
                     ctr += 1
                 else:
                     info_str = "Skipping empty shell"
-                bo_logger.info(info_str)
             bo_logger.info("Minimization complete")

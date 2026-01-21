@@ -79,7 +79,7 @@ class BasisOptimizationLogger:
         self.total_eval_counter = 0
         self.file_eval_counter = 0  # Counter for current file
 
-        bo_logger.info(f"Logger initialized for {element} (session: {session_id})")
+        bo_logger.info(f"Logger initialized for {element.capitalize()} (session: {session_id})")
         bo_logger.info(f"Flush interval: {flush_interval} evaluations")
 
     def _get_composition(self, basis: dict, element: str) -> str:
