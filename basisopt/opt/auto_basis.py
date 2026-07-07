@@ -14,69 +14,54 @@ from .preconditioners import Preconditioner, make_positive, unit
 from .strategies import Strategy
 
 
-class AutoBasisFree(Strategy):
-    """
+class AutoBasisStrategy(Strategy):
+    """Shared base for the automatic basis-set optimization strategies.
 
-    Algorithm:
-        Evaluate: energy (can change to any RMSE-compatible property)
-        Loss: root-mean-square error
-        Guess: null, uses _INITIAL_GUESS above
-        Pre-conditioner: None
+    Holds the CBS-limit/target bookkeeping, the raw-exponent get/set, and the
+    MSONable serialization common to :class:`AutoBasisFree` and the reduce
+    strategies. Subclasses implement ``initialise`` and ``next``;
+    :class:`AutoBasisLegendre` additionally overrides ``get_active``/
+    ``set_active`` because it optimises Legendre expansion coefficients rather
+    than raw exponents.
 
-        Initialisation:
-            - Find minimum no. of shells needed
-            - max_l >= min_l
-            - generate initial parameters for each shell
-
-        First run:
-            - optimize parameters for each shell once, sequentially
-
-        Next shell in list not marked finished:
-            - re-optimise
-            - below threshold or n=max_n: mark finished
-            - above threshold: increment n
-        Repeat until all shells are marked finished.
-
-        Uses iteration, limited by two parameters:
-            max_n: max number of exponents in shell
-            target: threshold for objective function
-
-    Additional attributes:
-        shells (list): list of ([A_vals], n) parameter tuples
-        shell_done (list): list of flags for whether shell is finished (0) or not (1)
-        target (float): threshold for optimization delta
-        max_n_a (int): Maximum number of legendre values to pass as a
-        n (int): number of primitives in shell expansion
-        l (int): angular momentum shell to do
+    Attributes:
+        target (float): convergence threshold on ``|objective - cbs_limit|``
+        cbs_limit (float): complete-basis-set limit for the property being
+            optimized; must be set via :meth:`set_cbs_limit` before ``initialise``
     """
 
     def __init__(
         self,
         eval_type: str = 'energy',
         target: float = 1e-6,
-        max_n: int = 9,
-        l: int = -1,
-        max_n_a: int = 6,
-        n_exp_cutoff: int = 6,
         pre: Preconditioner = make_positive,
     ):
-        super().__init__(eval_type=eval_type)
-        self.name = 'AutoBasisFree'
-        self.shell = []
-        self.shell_done = []
+        super().__init__(eval_type=eval_type, pre=pre)
         self.target = target
         self.guess = None
-        self.pre = pre
         self.guess_params = {}
         self.params = {}
         self.cbs_limit = None
+
+    def set_cbs_limit(self, cbs_limit: float):
+        """Sets the CBS limit used as the optimization target."""
+        self.cbs_limit = cbs_limit
+
+    def get_active(self, basis: InternalBasis, element: str) -> np.ndarray:
+        """Returns the (preconditioned) exponents of the current shell."""
+        x = basis[element][self._step].exps
+        return self.pre(x, **self.pre.params)
+
+    def set_active(self, values: np.ndarray, basis: InternalBasis, element: str):
+        """Sets the current shell's exponents from preconditioned values."""
+        y = np.array(values)
+        basis[element][self._step].exps = self.pre.inverse(y, **self.pre.params)
 
     def as_dict(self) -> dict[str, Any]:
         """Returns MSONable dictionary of object"""
         d = super().as_dict()
         d["@module"] = type(self).__module__
         d["@class"] = type(self).__name__
-        d["target"] = self.target
         d["cbs_limit"] = self.cbs_limit
         return d
 
@@ -97,8 +82,35 @@ class AutoBasisFree(Strategy):
         instance.cbs_limit = d.get("cbs_limit", None)
         return instance
 
+
+class AutoBasisFree(AutoBasisStrategy):
+    """Grows a fully free (non-parametrised) atomic basis to the CBS limit.
+
+    Each shell is optimised in turn; after an initial sweep over the existing
+    shells, exponents are appended one at a time (extrapolating the outermost
+    ratio) and re-optimised until ``|objective - cbs_limit|`` drops below
+    ``target``.
+
+    Attributes:
+        target (float): convergence threshold on ``|objective - cbs_limit|``
+        cbs_limit (float): complete-basis-set limit for the property
+    """
+
+    def __init__(
+        self,
+        eval_type: str = 'energy',
+        target: float = 1e-6,
+        max_n: int = 9,
+        l: int = -1,
+        max_n_a: int = 6,
+        n_exp_cutoff: int = 6,
+        pre: Preconditioner = make_positive,
+    ):
+        super().__init__(eval_type=eval_type, target=target, pre=pre)
+        self.name = 'AutoBasisFree'
+
     def initialise(self, basis: InternalBasis, element: str):
-        """Initialises the strategy (does nothing in default)
+        """Resets per-run state and checks the CBS limit has been set.
 
         Arguments:
             basis: internal basis dictionary
@@ -112,40 +124,8 @@ class AutoBasisFree(Strategy):
         self.first_run = [True] * len(basis[element])
         self.init_run = True
         self.just_added = [False] * len(basis[element])
-        if not self.cbs_limit:
+        if self.cbs_limit is None:
             raise ValueError('CBS limit not set. This can be set with the .set_cbs_limit method.')
-
-    def set_cbs_limit(self, cbs_limit: float):
-        """Sets the CBS limit for the strategy
-
-        Arguments:
-            cbs_limit: the CBS limit for the strategy
-        """
-        self.cbs_limit = cbs_limit
-
-    def get_active(self, basis: InternalBasis, element: str) -> np.ndarray:
-        """Arguments:
-             basis: internal basis dictionary
-             element: symbol of the atom being optimized
-
-        Returns:
-             the set of exponents currently being optimised
-        """
-        elbasis = basis[element]
-        x = elbasis[self._step].exps
-        return self.pre(x, **self.pre.params)
-
-    def set_active(self, values: np.ndarray, basis: InternalBasis, element: str):
-        """Sets the currently active exponents to the given values.
-
-        Arguments:
-            values (list): list of new exponents
-            basis: internal basis dictionary
-            element: symbol of atom being optimized
-        """
-        elbasis = basis[element]
-        y = np.array(values)
-        elbasis[self._step].exps = self.pre.inverse(y, **self.pre.params)
 
     def next(self, basis: InternalBasis, element: str, objective: float) -> bool:
         """Moves the strategy forward a step (see algorithm)
@@ -193,40 +173,20 @@ class AutoBasisFree(Strategy):
         return True
 
 
-class AutoBasisLegendre(Strategy):
-    """
+class AutoBasisLegendre(AutoBasisStrategy):
+    """Grows a Legendre-parametrised atomic basis to the CBS limit.
 
-    Algorithm:
-        Evaluate: energy (can change to any RMSE-compatible property)
-        Loss: root-mean-square error
-        Guess: null, uses _INITIAL_GUESS above
-        Pre-conditioner: None
+    Each shell's exponents are generated from a short Legendre expansion; the
+    optimised quantities are the expansion coefficients (``A_vals``). After an
+    initial sweep, the number of primitives per shell is increased and
+    re-optimised until ``|objective - cbs_limit|`` drops below ``target``.
+    ``get_active``/``set_active`` are overridden to operate on the Legendre
+    coefficients rather than raw exponents.
 
-        Initialisation:
-            - Find minimum no. of shells needed
-            - max_l >= min_l
-            - generate initial parameters for each shell
-
-        First run:
-            - optimize parameters for each shell once, sequentially
-
-        Next shell in list not marked finished:
-            - re-optimise
-            - below threshold or n=max_n: mark finished
-            - above threshold: increment n
-        Repeat until all shells are marked finished.
-
-        Uses iteration, limited by two parameters:
-            max_n: max number of exponents in shell
-            target: threshold for objective function
-
-    Additional attributes:
-        shells (list): list of ([A_vals], n) parameter tuples
-        shell_done (list): list of flags for whether shell is finished (0) or not (1)
-        target (float): threshold for optimization delta
-        max_n_a (int): Maximum number of legendre values to pass as a
-        n (int): number of primitives in shell expansion
-        l (int): angular momentum shell to do
+    Attributes:
+        n_prim (tuple): number of primitives per shell
+        legendre_params (list): Legendre A-coefficients per shell; if None,
+            ``initialise`` falls back to the built-in ``_ATOMIC_LEGENDRE_COEFFS``
     """
 
     def __init__(
@@ -239,53 +199,12 @@ class AutoBasisLegendre(Strategy):
         n_exp_cutoff: int = 6,
         n_coefs: Optional[tuple] = None,
     ):
-        super().__init__(eval_type=eval_type, pre=unit)
+        super().__init__(eval_type=eval_type, target=target, pre=unit)
         self.name = 'AutoBasisLegendre'
-        self.shell = []
-        self.shell_done = []
-        self.target = target
-        self.guess = None
-        self.guess_params = {}
-        self.params = {}
         self.n_prim = n_coefs
         # Legendre A-coefficients per shell; if left as None, initialise() falls
         # back to the built-in _ATOMIC_LEGENDRE_COEFFS for the element.
         self.legendre_params = None
-        self.cbs_limit = None
-
-    def as_dict(self) -> dict[str, Any]:
-        """Returns MSONable dictionary of object"""
-        d = super().as_dict()
-        d["@module"] = type(self).__module__
-        d["@class"] = type(self).__name__
-        d["target"] = self.target
-        d["cbs_limit"] = self.cbs_limit
-        return d
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> object:
-        """Creates the strategy from an MSONable dictionary"""
-        strategy = Strategy.from_dict(d)
-        instance = cls(
-            eval_type=d.get("eval_type", 'energy'),
-            target=d.get("target", 1e-5),
-        )
-        instance.name = strategy.name
-        instance.params = strategy.params
-        instance.first_run = strategy.first_run
-        instance._step = strategy._step
-        instance.last_objective = strategy.last_objective
-        instance.delta_objective = strategy.delta_objective
-        instance.cbs_limit = d.get("cbs_limit", None)
-        return instance
-
-    def set_cbs_limit(self, cbs_limit: float):
-        """Sets the CBS limit for the strategy
-
-        Arguments:
-            cbs_limit: the CBS limit for the strategy
-        """
-        self.cbs_limit = cbs_limit
 
     def initialise(self, basis: InternalBasis, element: str):
         """Initialises the strategy (does nothing in default)
@@ -419,40 +338,18 @@ class AutoBasisLegendre(Strategy):
         return True
 
 
-class AutoBasisReduceStrategy(Strategy):
-    """
+class AutoBasisReduceStrategy(AutoBasisStrategy):
+    """Reduces an atomic basis by removing the least important exponents.
 
-    Algorithm:
-        Evaluate: energy (can change to any RMSE-compatible property)
-        Loss: root-mean-square error
-        Guess: null, uses _INITIAL_GUESS above
-        Pre-conditioner: None
+    Ranks every exponent by its contribution (via ``rank_mol_basis_cbs``),
+    removes the single least-important one, and re-optimises. A removal that
+    pushes ``objective - cbs_limit`` above ``target`` is reverted and the
+    reduction stops.
 
-        Initialisation:
-            - Find minimum no. of shells needed
-            - max_l >= min_l
-            - generate initial parameters for each shell
-
-        First run:
-            - optimize parameters for each shell once, sequentially
-
-        Next shell in list not marked finished:
-            - re-optimise
-            - below threshold or n=max_n: mark finished
-            - above threshold: increment n
-        Repeat until all shells are marked finished.
-
-        Uses iteration, limited by two parameters:
-            max_n: max number of exponents in shell
-            target: threshold for objective function
-
-    Additional attributes:
-        shells (list): list of ([A_vals], n) parameter tuples
-        shell_done (list): list of flags for whether shell is finished (0) or not (1)
-        target (float): threshold for optimization delta
-        max_n_a (int): Maximum number of legendre values to pass as a
-        n (int): number of primitives in shell expansion
-        l (int): angular momentum shell to do
+    Attributes:
+        target (float): tolerance above the CBS limit before a removal is
+            rejected
+        cbs_limit (float): complete-basis-set limit for the property
     """
 
     def __init__(
@@ -464,43 +361,12 @@ class AutoBasisReduceStrategy(Strategy):
         max_n_a: int = 6,
         n_exp_cutoff: int = 6,
     ):
-        super().__init__(eval_type=eval_type, pre=unit)
+        super().__init__(eval_type=eval_type, target=target, pre=unit)
         self.name = 'AutoBasisReduce'
-        self.target = target
-        self.guess = None
-        self.guess_params = {}
-        self.params = {}
-        self.cbs_limit = None
         self.skip_init = False
 
-    def as_dict(self) -> dict[str, Any]:
-        """Returns MSONable dictionary of object"""
-        d = super().as_dict()
-        d["@module"] = type(self).__module__
-        d["@class"] = type(self).__name__
-        d["target"] = self.target
-        d["cbs_limit"] = self.cbs_limit
-        return d
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> object:
-        """Creates the strategy from an MSONable dictionary"""
-        strategy = Strategy.from_dict(d)
-        instance = cls(
-            eval_type=d.get("eval_type", 'energy'),
-            target=d.get("target", 1e-5),
-        )
-        instance.name = strategy.name
-        instance.params = strategy.params
-        instance.first_run = strategy.first_run
-        instance._step = strategy._step
-        instance.last_objective = strategy.last_objective
-        instance.delta_objective = strategy.delta_objective
-        instance.cbs_limit = d.get("cbs_limit", None)
-        return instance
-
     def initialise(self, basis: InternalBasis, element: str):
-        """Initialises the strategy (does nothing in default)
+        """Resets per-run state and snapshots the starting basis.
 
         Arguments:
             basis: internal basis dictionary
@@ -520,38 +386,6 @@ class AutoBasisReduceStrategy(Strategy):
         self.old_exps = [None] * len(basis[element])
         if self.cbs_limit is None:
             raise ValueError('CBS limit not set. This can be set with the .set_cbs_limit method.')
-
-    def set_cbs_limit(self, cbs_limit: float):
-        """Sets the CBS limit for the strategy
-
-        Arguments:
-            cbs_limit: the CBS limit for the strategy
-        """
-        self.cbs_limit = cbs_limit
-
-    def get_active(self, basis: InternalBasis, element: str) -> np.ndarray:
-        """Arguments:
-             basis: internal basis dictionary
-             element: symbol of the atom being optimized
-
-        Returns:
-             the set of exponents currently being optimised
-        """
-        elbasis = basis[element]
-        x = elbasis[self._step].exps
-        return self.pre(x, **self.pre.params)
-
-    def set_active(self, values: np.ndarray, basis: InternalBasis, element: str):
-        """Sets the currently active exponents to the given values.
-
-        Arguments:
-            values (list): list of new exponents
-            basis: internal basis dictionary
-            element: symbol of atom being optimized
-        """
-        elbasis = basis[element]
-        y = np.array(values)
-        elbasis[self._step].exps = self.pre.inverse(y, **self.pre.params)
 
     def next(
         self,
@@ -621,40 +455,17 @@ class AutoBasisReduceStrategy(Strategy):
             return True
 
 
-class AutoBasisReduceStrategyAll(Strategy):
-    """
+class AutoBasisReduceStrategyAll(AutoBasisStrategy):
+    """Reduces an atomic basis, re-optimising every shell after each removal.
 
-    Algorithm:
-        Evaluate: energy (can change to any RMSE-compatible property)
-        Loss: root-mean-square error
-        Guess: null, uses _INITIAL_GUESS above
-        Pre-conditioner: None
+    Like :class:`AutoBasisReduceStrategy`, but after removing an exponent it
+    cycles through and re-optimises all shells before evaluating whether the
+    removal was acceptable, marking a shell done once a removal is rejected.
 
-        Initialisation:
-            - Find minimum no. of shells needed
-            - max_l >= min_l
-            - generate initial parameters for each shell
-
-        First run:
-            - optimize parameters for each shell once, sequentially
-
-        Next shell in list not marked finished:
-            - re-optimise
-            - below threshold or n=max_n: mark finished
-            - above threshold: increment n
-        Repeat until all shells are marked finished.
-
-        Uses iteration, limited by two parameters:
-            max_n: max number of exponents in shell
-            target: threshold for objective function
-
-    Additional attributes:
-        shells (list): list of ([A_vals], n) parameter tuples
-        shell_done (list): list of flags for whether shell is finished (0) or not (1)
-        target (float): threshold for optimization delta
-        max_n_a (int): Maximum number of legendre values to pass as a
-        n (int): number of primitives in shell expansion
-        l (int): angular momentum shell to do
+    Attributes:
+        target (float): tolerance above the CBS limit before a removal is
+            rejected
+        cbs_limit (float): complete-basis-set limit for the property
     """
 
     def __init__(
@@ -666,43 +477,12 @@ class AutoBasisReduceStrategyAll(Strategy):
         max_n_a: int = 6,
         n_exp_cutoff: int = 6,
     ):
-        super().__init__(eval_type=eval_type, pre=unit)
+        super().__init__(eval_type=eval_type, target=target, pre=unit)
         self.name = 'AutoBasisReduceALl'
-        self.target = target
-        self.guess = None
-        self.guess_params = {}
-        self.params = {}
-        self.cbs_limit = None
         self.run_all = False
 
-    def as_dict(self) -> dict[str, Any]:
-        """Returns MSONable dictionary of object"""
-        d = super().as_dict()
-        d["@module"] = type(self).__module__
-        d["@class"] = type(self).__name__
-        d["target"] = self.target
-        d["cbs_limit"] = self.cbs_limit
-        return d
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> object:
-        """Creates the strategy from an MSONable dictionary"""
-        strategy = Strategy.from_dict(d)
-        instance = cls(
-            eval_type=d.get("eval_type", 'energy'),
-            target=d.get("target", 1e-5),
-        )
-        instance.name = strategy.name
-        instance.params = strategy.params
-        instance.first_run = strategy.first_run
-        instance._step = strategy._step
-        instance.last_objective = strategy.last_objective
-        instance.delta_objective = strategy.delta_objective
-        instance.cbs_limit = d.get("cbs_limit", None)
-        return instance
-
     def initialise(self, basis: InternalBasis, element: str):
-        """Initialises the strategy (does nothing in default)
+        """Resets per-run state and snapshots the starting basis.
 
         Arguments:
             basis: internal basis dictionary
@@ -722,38 +502,6 @@ class AutoBasisReduceStrategyAll(Strategy):
         self.old_exps = [None] * len(basis[element])
         if self.cbs_limit is None:
             raise ValueError('CBS limit not set. This can be set with the .set_cbs_limit method.')
-
-    def set_cbs_limit(self, cbs_limit: float):
-        """Sets the CBS limit for the strategy
-
-        Arguments:
-            cbs_limit: the CBS limit for the strategy
-        """
-        self.cbs_limit = cbs_limit
-
-    def get_active(self, basis: InternalBasis, element: str) -> np.ndarray:
-        """Arguments:
-             basis: internal basis dictionary
-             element: symbol of the atom being optimized
-
-        Returns:
-             the set of exponents currently being optimised
-        """
-        elbasis = basis[element]
-        x = elbasis[self._step].exps
-        return self.pre(x, **self.pre.params)
-
-    def set_active(self, values: np.ndarray, basis: InternalBasis, element: str):
-        """Sets the currently active exponents to the given values.
-
-        Arguments:
-            values (list): list of new exponents
-            basis: internal basis dictionary
-            element: symbol of atom being optimized
-        """
-        elbasis = basis[element]
-        y = np.array(values)
-        elbasis[self._step].exps = self.pre.inverse(y, **self.pre.params)
 
     def next(
         self,
