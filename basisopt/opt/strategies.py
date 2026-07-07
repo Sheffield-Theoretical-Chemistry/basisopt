@@ -64,6 +64,10 @@ class Strategy(MSONable):
         self.last_objective = 0
         self.delta_objective = 0
         self.first_run = True
+        # Optional convergence target. Auto-basis strategies set this; the base
+        # default of None lets Optimizer/Minimizer test `strategy.target` without
+        # every strategy having to define it.
+        self.target = None
 
         self.basis_type = "orbital"
         self.orbital_basis = None
@@ -152,6 +156,7 @@ class Strategy(MSONable):
             "delta_objective": self.delta_objective,
             "first_run": self.first_run,
             "basis_type": self.basis_type,
+            "target": self.target,
         }
         if self.orbital_basis:
             d["orbital_basis"] = basis_to_dict(self.orbital_basis)
@@ -173,6 +178,7 @@ class Strategy(MSONable):
         instance.first_run = d.get("first_run", True)
         instance.basis_type = d.get("basis_type", "orbital")
         instance.orbital_basis = d.get("orbital_basis", None)
+        instance.target = d.get("target", None)
         bo_logger.warning(
             "Loading a Strategy from json uses default preconditioner and guess functions"
         )

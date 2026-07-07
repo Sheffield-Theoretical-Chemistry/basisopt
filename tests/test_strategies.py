@@ -38,6 +38,15 @@ def test_default_strategy_progression(dummy_backend):
     assert strategy._step == 2
 
 
+def test_default_strategy_has_target_attribute(dummy_backend):
+    """Base Strategy exposes a `target` (None) so Optimizer/Minimizer can read it."""
+    strategy = Strategy()
+    assert strategy.target is None
+    strategy.target = 1e-5
+    restored = Strategy.from_dict(strategy.as_dict())
+    assert restored.target == 1e-5
+
+
 # --------------------------------------------------------------------------- #
 # AutoBasisFree
 # --------------------------------------------------------------------------- #
