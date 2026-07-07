@@ -106,14 +106,10 @@ def test_collective_minimize_sequential(dummy_backend):
 @pytest.mark.parametrize(
     "cls", [AutoBasisFree, AutoBasisReduceStrategy, AutoBasisReduceStrategyAll]
 )
-@pytest.mark.xfail(
-    reason="C2: AutoBasis*.as_dict reads self.shells/max_n/max_l which __init__ "
-    "never sets -> AttributeError",
-    strict=True,
-)
 def test_autobasis_serialization_roundtrip(dummy_backend, cls):
     strategy = cls(target=1e-5)
     strategy.set_cbs_limit(-2.0)
     d = strategy.as_dict()
     restored = cls.from_dict(d)
     assert restored.target == strategy.target
+    assert restored.cbs_limit == strategy.cbs_limit

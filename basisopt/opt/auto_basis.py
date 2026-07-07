@@ -76,22 +76,17 @@ class AutoBasisFree(Strategy):
         d = super().as_dict()
         d["@module"] = type(self).__module__
         d["@class"] = type(self).__name__
-        d["shells"] = self.shells
-        d["shell_done"] = self.shell_done
         d["target"] = self.target
-        d["max_n"] = self.max_n
-        d["max_l"] = self.max_l
+        d["cbs_limit"] = self.cbs_limit
         return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> object:
-        """Creates LegendreStrategy from MSONable dictionary"""
+        """Creates the strategy from an MSONable dictionary"""
         strategy = Strategy.from_dict(d)
         instance = cls(
             eval_type=d.get("eval_type", 'energy'),
             target=d.get("target", 1e-5),
-            max_n=d.get("max_n", 18),
-            max_l=d.get("max_l", -1),
         )
         instance.name = strategy.name
         instance.params = strategy.params
@@ -99,8 +94,7 @@ class AutoBasisFree(Strategy):
         instance._step = strategy._step
         instance.last_objective = strategy.last_objective
         instance.delta_objective = strategy.delta_objective
-        instance.shells = d.get("shells", [])
-        instance.shell_done = d.get("shell_done", [])
+        instance.cbs_limit = d.get("cbs_limit", None)
         return instance
 
     def initialise(self, basis: InternalBasis, element: str):
@@ -261,22 +255,17 @@ class AutoBasisLegendre(Strategy):
         d = super().as_dict()
         d["@module"] = type(self).__module__
         d["@class"] = type(self).__name__
-        d["shells"] = self.shells
-        d["shell_done"] = self.shell_done
         d["target"] = self.target
-        d["max_n"] = self.max_n
-        d["max_l"] = self.max_l
+        d["cbs_limit"] = self.cbs_limit
         return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> object:
-        """Creates LegendreStrategy from MSONable dictionary"""
+        """Creates the strategy from an MSONable dictionary"""
         strategy = Strategy.from_dict(d)
         instance = cls(
             eval_type=d.get("eval_type", 'energy'),
             target=d.get("target", 1e-5),
-            max_n=d.get("max_n", 18),
-            max_l=d.get("max_l", -1),
         )
         instance.name = strategy.name
         instance.params = strategy.params
@@ -284,8 +273,7 @@ class AutoBasisLegendre(Strategy):
         instance._step = strategy._step
         instance.last_objective = strategy.last_objective
         instance.delta_objective = strategy.delta_objective
-        instance.shells = d.get("shells", [])
-        instance.shell_done = d.get("shell_done", [])
+        instance.cbs_limit = d.get("cbs_limit", None)
         return instance
 
     def set_cbs_limit(self, cbs_limit: float):
@@ -486,22 +474,17 @@ class AutoBasisReduceStrategyOld(Strategy):
         d = super().as_dict()
         d["@module"] = type(self).__module__
         d["@class"] = type(self).__name__
-        d["shells"] = self.shells
-        d["shell_done"] = self.shell_done
         d["target"] = self.target
-        d["max_n"] = self.max_n
-        d["max_l"] = self.max_l
+        d["cbs_limit"] = self.cbs_limit
         return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> object:
-        """Creates LegendreStrategy from MSONable dictionary"""
+        """Creates the strategy from an MSONable dictionary"""
         strategy = Strategy.from_dict(d)
         instance = cls(
             eval_type=d.get("eval_type", 'energy'),
             target=d.get("target", 1e-5),
-            max_n=d.get("max_n", 18),
-            max_l=d.get("max_l", -1),
         )
         instance.name = strategy.name
         instance.params = strategy.params
@@ -509,8 +492,7 @@ class AutoBasisReduceStrategyOld(Strategy):
         instance._step = strategy._step
         instance.last_objective = strategy.last_objective
         instance.delta_objective = strategy.delta_objective
-        instance.shells = d.get("shells", [])
-        instance.shell_done = d.get("shell_done", [])
+        instance.cbs_limit = d.get("cbs_limit", None)
         return instance
 
     def initialise(self, basis: InternalBasis, element: str):
@@ -712,22 +694,17 @@ class AutoBasisReduceStrategy(Strategy):
         d = super().as_dict()
         d["@module"] = type(self).__module__
         d["@class"] = type(self).__name__
-        d["shells"] = self.shells
-        d["shell_done"] = self.shell_done
         d["target"] = self.target
-        d["max_n"] = self.max_n
-        d["max_l"] = self.max_l
+        d["cbs_limit"] = self.cbs_limit
         return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> object:
-        """Creates LegendreStrategy from MSONable dictionary"""
+        """Creates the strategy from an MSONable dictionary"""
         strategy = Strategy.from_dict(d)
         instance = cls(
             eval_type=d.get("eval_type", 'energy'),
             target=d.get("target", 1e-5),
-            max_n=d.get("max_n", 18),
-            max_l=d.get("max_l", -1),
         )
         instance.name = strategy.name
         instance.params = strategy.params
@@ -735,8 +712,7 @@ class AutoBasisReduceStrategy(Strategy):
         instance._step = strategy._step
         instance.last_objective = strategy.last_objective
         instance.delta_objective = strategy.delta_objective
-        instance.shells = d.get("shells", [])
-        instance.shell_done = d.get("shell_done", [])
+        instance.cbs_limit = d.get("cbs_limit", None)
         return instance
 
     def initialise(self, basis: InternalBasis, element: str):
@@ -920,22 +896,17 @@ class AutoBasisReduceStrategyAll(Strategy):
         d = super().as_dict()
         d["@module"] = type(self).__module__
         d["@class"] = type(self).__name__
-        d["shells"] = self.shells
-        d["shell_done"] = self.shell_done
         d["target"] = self.target
-        d["max_n"] = self.max_n
-        d["max_l"] = self.max_l
+        d["cbs_limit"] = self.cbs_limit
         return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> object:
-        """Creates LegendreStrategy from MSONable dictionary"""
+        """Creates the strategy from an MSONable dictionary"""
         strategy = Strategy.from_dict(d)
         instance = cls(
             eval_type=d.get("eval_type", 'energy'),
             target=d.get("target", 1e-5),
-            max_n=d.get("max_n", 18),
-            max_l=d.get("max_l", -1),
         )
         instance.name = strategy.name
         instance.params = strategy.params
@@ -943,8 +914,7 @@ class AutoBasisReduceStrategyAll(Strategy):
         instance._step = strategy._step
         instance.last_objective = strategy.last_objective
         instance.delta_objective = strategy.delta_objective
-        instance.shells = d.get("shells", [])
-        instance.shell_done = d.get("shell_done", [])
+        instance.cbs_limit = d.get("cbs_limit", None)
         return instance
 
     def initialise(self, basis: InternalBasis, element: str):
