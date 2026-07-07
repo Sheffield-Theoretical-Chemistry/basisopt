@@ -19,6 +19,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 keywords = ["quantum", "chemistry", "optimization", "basis sets"]
+requires-python = ">=3.9,<3.12"
 dependencies = [
     "numpy",
     "colorlog>=6.7.0",
@@ -37,10 +38,7 @@ dependencies = [
 Documentation = "https://example.com/project-docs"
 Source = "https://github.com/Sheffield-Theoretical-Chemistry/basisflow"
 
-[options]
-python_requires = ">=3.9,<3.12"
-
-[options.extras_require]
+[project.optional-dependencies]
 dev = [
     "pytest>=7.2.2",
     "black>=23.1.0",
