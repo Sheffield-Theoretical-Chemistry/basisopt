@@ -111,11 +111,6 @@ def test_autobasislegendre_state_machine(dummy_backend):
     assert strategy.next(basis, "o", 0.0) is False
 
 
-@pytest.mark.xfail(
-    reason="C3: AutoBasisLegendre.__init__ never sets self.legendre_params, "
-    "so initialise() without a manual assignment raises AttributeError",
-    strict=True,
-)
 def test_autobasislegendre_default_initialise(dummy_backend):
     """Default construction should fall back to the built-in Legendre coeffs."""
     strategy = AutoBasisLegendre(target=1e-6, n_coefs=(4, 3))

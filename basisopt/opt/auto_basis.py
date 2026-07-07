@@ -248,6 +248,9 @@ class AutoBasisLegendre(Strategy):
         self.guess_params = {}
         self.params = {}
         self.n_prim = n_coefs
+        # Legendre A-coefficients per shell; if left as None, initialise() falls
+        # back to the built-in _ATOMIC_LEGENDRE_COEFFS for the element.
+        self.legendre_params = None
         self.cbs_limit = None
 
     def as_dict(self) -> dict[str, Any]:
