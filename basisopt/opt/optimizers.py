@@ -1,8 +1,4 @@
-import csv
-import os
 from collections.abc import Iterable
-from datetime import datetime
-from pathlib import Path
 from typing import Any, Callable, Optional
 
 import numpy as np
@@ -17,8 +13,6 @@ from basisopt.util import bo_logger, format_with_prefix, get_composition
 
 from .objectives import default_min_loss, default_opt_loss
 from .opt_logging import BasisOptimizationLogger
-
-# from .contraction import ContractionStrategy
 from .regularisers import Regulariser
 from .strategies import Strategy
 
