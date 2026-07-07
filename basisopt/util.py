@@ -2,6 +2,7 @@
 import copy
 import json
 import logging
+import math
 from typing import Any
 
 import numpy as np
@@ -84,7 +85,7 @@ def fit_poly(
         dx = crit_points[0]
         re = xref + dx  # Equilibrium geometry
         # Calculate 0th - nth Taylor series coefficients at true minimum
-        pt = [p.deriv(i)(dx) / np.math.factorial(i) for i in range(n + 1)]
+        pt = [p.deriv(i)(dx) / math.factorial(i) for i in range(n + 1)]
 
     # Return fitted polynomial, x-shift, equilibrium bond length,
     # and Taylor series coefficients
