@@ -477,14 +477,26 @@ class MoleculeLoader:
         """Iterate over the molecules in the loader"""
         return iter(self._molecules.values())
 
-    def run_calculations(self, params: dict, objective=None):
+    def run_calculations(self, params: dict, objective=None, clean: bool = True):
         """
-        Run calculations on all molecules in the loader
-        If an objective function is provided, return the objective value from all molecules
+        Run calculations on all molecules in the loader.
+        If an objective function is provided, return the objective value from all molecules.
         """
         wrapper = api.get_backend()
-        for mol in self._molecules.values():
-            api.run_calculation(mol=mol, params=params)
-            mol.add_result('energy', wrapper.get_value('energy'))
+        n = len(self)
+        for ix, mol in enumerate(self._molecules.values()):
+            try:
+                bo_logger.info(f"Running calculation for molecule {mol.name} (#{ix} of {n})")
+                api.run_calculation(mol=mol, params=params)
+                mol.add_result('energy', wrapper.get_value('energy'))
+            except Exception as e:
+                bo_logger.error(f"Calculation failed for molecule {mol.name}: {e}")
+            finally:
+                # Backend-agnostic cleanup between molecules; Psi4Wrapper.clean() clears
+                # psi4 timers/state, and it is a safe no-op for other backends.
+                wrapper.clean()
+
+        if clean:
+            wrapper.clean()
         if objective:
             return objective(self._molecules.values())
