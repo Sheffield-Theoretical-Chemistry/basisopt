@@ -13,15 +13,18 @@ from basisopt.opt.auto_basis import (
     AutoBasisReduceStrategy,
     AutoBasisReduceStrategyAll,
 )
+from basisopt.opt.contraction import ContractionStrategy
 from basisopt.opt.optimizers import (
     atom_auto,
     atom_auto_reduce,
     collective_minimize,
     collective_optimize,
+    contraction_optimize,
     optimize,
 )
 from basisopt.opt.strategies import Strategy
 from tests.data.factories import make_basis, make_molecule
+from tests.data.shells import get_vdz_internal
 
 
 # --------------------------------------------------------------------------- #
@@ -73,6 +76,21 @@ def test_atom_auto_reduce_all(dummy_backend):
     strategy.set_cbs_limit(-3.0)
     results = atom_auto_reduce(mol, element="H", strategy=strategy)
     assert isinstance(results, dict)
+
+
+# --------------------------------------------------------------------------- #
+# _atomic_contract via contraction_optimize()
+# --------------------------------------------------------------------------- #
+def test_contraction_optimize_structure(dummy_backend):
+    mol = make_molecule(("H", "H"), method="linear", basis=get_vdz_internal())
+    # contraction_optimize requires an uncontracted-energy reference
+    mol.add_reference("uncontracted_energy", -1.0)
+    results = contraction_optimize(
+        mol, ContractionStrategy(target=1e-5), element="H", opt_params={"options": {"maxiter": 2}}
+    )
+    assert isinstance(results, dict)
+    # at least one contraction function was optimized
+    assert len(results) >= 1
 
 
 # --------------------------------------------------------------------------- #
