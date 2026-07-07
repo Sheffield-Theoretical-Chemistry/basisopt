@@ -489,6 +489,69 @@ def atom_auto_reduce(
         )
 
 
+def _collective(
+    molecules: list[Molecule],
+    basis: InternalBasis,
+    opt_data: list[OptData],
+    npass: int,
+    parallel: bool,
+    ray_params: dict,
+    *,
+    contribution: Callable[[Molecule, Any, Strategy, str], float],
+    normalize: bool = False,
+    accumulate_total: bool = False,
+) -> OptCollection:
+    """Shared driver for the collective_* optimizers.
+
+    Optimizes each atomic basis in ``opt_data`` in turn, ``npass`` times. The
+    per-molecule ``contribution(mol, value, strategy, element)`` records the
+    result on the molecule and returns its additive contribution to the
+    objective. ``normalize`` divides the summed objective by the number of
+    molecules; ``accumulate_total`` accumulates the logged pass total across
+    elements instead of overwriting it.
+    """
+    results = {}
+    for i in range(npass):
+        bo_logger.info("Collective pass %d", i + 1)
+        total = 0.0
+
+        # loop over elements in opt_data, and collect objective into total
+        ctr = 1
+        for el, alg, strategy, reg, params in opt_data:
+
+            def objective(x, el=el, strategy=strategy, reg=reg):
+                """Set exponents, compute objective for every molecule in set.
+                Regularisation only applied once at end.
+                """
+                strategy.set_active(x, basis, el)
+                for mol in molecules:
+                    mol.basis = basis
+
+                run_results = api.run_all(
+                    evaluate=strategy.eval_type,
+                    mols=molecules,
+                    params=strategy.params,
+                    parallel=parallel,
+                    ray_params=ray_params,
+                )
+                local_total = 0.0
+                for mol in molecules:
+                    local_total += contribution(mol, run_results[mol.name], strategy, el)
+                out = local_total + reg(x)
+                return out / len(molecules) if normalize else out
+
+            strategy.initialise(basis, el)
+            res = _atomic_opt(basis, el, alg, strategy, params, objective)
+            if accumulate_total:
+                total += strategy.last_objective
+            else:
+                total = strategy.last_objective
+            results[f"pass{i}_opt{ctr}"] = res
+            ctr += 1
+        bo_logger.info("Collective objective: %f", total)
+    return results
+
+
 def collective_optimize(
     molecules: list[Molecule],
     basis: InternalBasis,
@@ -516,46 +579,14 @@ def collective_optimize(
     Raises:
           FailedCalculation
     """
-    results = {}
-    for i in range(npass):
-        bo_logger.info("Collective pass %d", i + 1)
-        total = 0.0
+    def contribution(mol, value, strategy, el):
+        mol.add_result(strategy.eval_type + "_" + el.title(), value)
+        return np.linalg.norm(value - mol.get_reference(strategy.eval_type))
 
-        # loop over elements in opt_data, and collect objective into total
-        ctr = 1
-        for el, alg, strategy, reg, params in opt_data:
-
-            def objective(x):
-                """Set exponents, compute objective for every molecule in set
-                Regularisation only applied once at end
-                """
-                strategy.set_active(x, basis, el)
-                local_total = 0.0
-                for mol in molecules:
-                    mol.basis = basis
-
-                results = api.run_all(
-                    evaluate=strategy.eval_type,
-                    mols=molecules,
-                    params=strategy.params,
-                    parallel=parallel,
-                    ray_params=ray_params,
-                )
-                for mol in molecules:
-                    value = results[mol.name]
-                    name = strategy.eval_type + "_" + el.title()
-                    mol.add_result(name, value)
-                    result = value - mol.get_reference(strategy.eval_type)
-                    local_total += np.linalg.norm(result)
-                return local_total + reg(x)
-
-            strategy.initialise(basis, el)
-            res = _atomic_opt(basis, el, alg, strategy, params, objective)
-            total += strategy.last_objective
-            results[f"pass{i}_opt{ctr}"] = res
-            ctr += 1
-        bo_logger.info("Collective objective: %f", total)
-    return results
+    return _collective(
+        molecules, basis, opt_data, npass, parallel, ray_params,
+        contribution=contribution, accumulate_total=True,
+    )
 
 
 def collective_minimize(
@@ -585,46 +616,13 @@ def collective_minimize(
     Raises:
           FailedCalculation
     """
-    results = {}
-    for i in range(npass):
-        bo_logger.info("Collective pass %d", i + 1)
-        total = 0.0
+    def contribution(mol, value, strategy, el):
+        mol.add_result(strategy.eval_type + "_" + el.title(), value)
+        return value / mol.nelectrons()
 
-        # loop over elements in opt_data, and collect objective into total
-        ctr = 1
-        for el, alg, strategy, reg, params in opt_data:
-
-            def objective(x):
-                """Set exponents, compute objective for every molecule in set
-                Regularisation only applied once at end
-                """
-                strategy.set_active(x, basis, el)
-                local_total = 0.0
-                for mol in molecules:
-                    mol.basis = basis
-
-                results = api.run_all(
-                    evaluate=strategy.eval_type,
-                    mols=molecules,
-                    params=strategy.params,
-                    parallel=parallel,
-                    ray_params=ray_params,
-                )
-                for mol in molecules:
-                    value = results[mol.name]
-                    name = strategy.eval_type + "_" + el.title()
-                    mol.add_result(name, value)
-                    result = value / mol.nelectrons()
-                    local_total += result
-                return local_total + reg(x)
-
-            strategy.initialise(basis, el)
-            res = _atomic_opt(basis, el, alg, strategy, params, objective)
-            total = strategy.last_objective
-            results[f"pass{i}_opt{ctr}"] = res
-            ctr += 1
-        bo_logger.info("Collective objective: %f", total)
-    return results
+    return _collective(
+        molecules, basis, opt_data, npass, parallel, ray_params, contribution=contribution
+    )
 
 
 def _atomic_contract(
@@ -740,46 +738,15 @@ def collective_polarize(
     Raises:
           FailedCalculation
     """
-    results = {}
-    for i in range(npass):
-        bo_logger.info("Collective pass %d", i + 1)
-        total = 0.0
+    def contribution(mol, value, strategy, el):
+        polarisation = abs(value - mol.cbs_limit)
+        mol.add_result(strategy.eval_type + "_" + el.title(), polarisation)
+        return polarisation / mol.nelectrons()
 
-        # loop over elements in opt_data, and collect objective into total
-        ctr = 1
-        for el, alg, strategy, reg, params in opt_data:
-
-            def objective(x):
-                """Set exponents, compute objective for every molecule in set
-                Regularisation only applied once at end
-                """
-                strategy.set_active(x, basis, el)
-                local_total = 0.0
-                for mol in molecules:
-                    mol.basis = basis
-
-                results = api.run_all(
-                    evaluate=strategy.eval_type,
-                    mols=molecules,
-                    params=strategy.params,
-                    parallel=parallel,
-                    ray_params=ray_params,
-                )
-                for mol in molecules:
-                    value = abs(results[mol.name] - mol.cbs_limit)
-                    name = strategy.eval_type + "_" + el.title()
-                    mol.add_result(name, value)
-                    result = value / mol.nelectrons()
-                    local_total += result
-                return (local_total + reg(x)) / len(molecules)
-
-            strategy.initialise(basis, el)
-            res = _atomic_opt(basis, el, alg, strategy, params, objective)
-            total = strategy.last_objective
-            results[f"pass{i}_opt{ctr}"] = res
-            ctr += 1
-        bo_logger.info("Collective objective: %f", total)
-    return results
+    return _collective(
+        molecules, basis, opt_data, npass, parallel, ray_params,
+        contribution=contribution, normalize=True,
+    )
 
 
 class Optimizer:

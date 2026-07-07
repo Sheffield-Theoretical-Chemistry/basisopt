@@ -19,6 +19,7 @@ from basisopt.opt.optimizers import (
     atom_auto_reduce,
     collective_minimize,
     collective_optimize,
+    collective_polarize,
     contraction_optimize,
     optimize,
 )
@@ -111,6 +112,16 @@ def test_collective_minimize_sequential(dummy_backend):
     opt_data = [("h", "l-bfgs-b", Strategy(), lambda x: 0, {})]
     results = collective_minimize([mol], basis, opt_data=opt_data, npass=1, parallel=False)
     assert results
+
+
+def test_collective_polarize_sequential(dummy_backend):
+    mol = make_molecule(("H", "H"), method="linear", cbs_limit=-2.5)
+    basis = mol.basis
+    opt_data = [("h", "l-bfgs-b", Strategy(), lambda x: 0, {})]
+    results = collective_polarize([mol], basis, opt_data=opt_data, npass=1, parallel=False)
+    assert results
+    # polarize stores abs(value - cbs_limit) as the per-molecule result
+    assert mol.get_result("energy_H") == pytest.approx(abs(-2.0 - (-2.5)))
 
 
 # --------------------------------------------------------------------------- #
