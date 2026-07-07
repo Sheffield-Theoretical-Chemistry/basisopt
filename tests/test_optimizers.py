@@ -66,11 +66,6 @@ def test_atom_auto_reduce_removes_and_restores(dummy_backend):
     assert strategy.n_exps_removed == [0, 0]
 
 
-@pytest.mark.xfail(
-    reason="C4: AutoBasisReduceStrategyAll.next reads `ranks` in a branch where "
-    "it was never defined (NameError)",
-    strict=False,
-)
 def test_atom_auto_reduce_all(dummy_backend):
     basis = make_basis("h", (("s", (9.0, 3.0, 1.0, 0.3)), ("p", (1.5, 0.4))))
     mol = make_molecule(("H", "H"), method="linear", basis=basis)

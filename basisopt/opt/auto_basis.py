@@ -1017,15 +1017,16 @@ class AutoBasisReduceStrategyAll(Strategy):
                     self.eval_type,
                     self.params,
                 )
+                removed_index = ranks[self._step][0]
+                self._removed_index = removed_index
                 self.old_exps[self._step] = basis[element][self._step].exps
-                new_exps = np.delete(basis[element][self._step].exps, ranks[self._step][0])
+                new_exps = np.delete(basis[element][self._step].exps, removed_index)
                 self.set_active(new_exps, basis, element)
                 uncontract_shell(basis[element][self._step])
                 self._just_removed = self._step
                 self.run_all = True
-                # bo_logger.info(f"Removed exponent {basis[element][self._step].exps[ranks[self._step][0]]} from shell {basis[element][self._step].l}")
                 bo_logger.info(
-                    f"Removed exponent {ranks[self._step][0]} from shell {basis[element][self._step].l}"
+                    f"Removed exponent {removed_index} from shell {basis[element][self._step].l}"
                 )
 
                 return sum(self.shells_done) != 0
@@ -1034,7 +1035,8 @@ class AutoBasisReduceStrategyAll(Strategy):
                     self.set_active(self.old_exps[self._step], basis, element)
                     uncontract_shell(basis[element][self._step])
                     bo_logger.info(
-                        f"Re-adding exponent {ranks[self._step][0]} to shell {basis[element][self._step].l}"
+                        f"Re-adding exponent {self._removed_index} to shell "
+                        f"{basis[element][self._step].l}"
                     )
                     self.shells_done[self._step] = 0
                     self._step += 1
