@@ -83,11 +83,6 @@ def test_atom_auto_reduce_all(dummy_backend):
 # --------------------------------------------------------------------------- #
 # collective_* (sequential path)
 # --------------------------------------------------------------------------- #
-@pytest.mark.xfail(
-    reason="C1: run_all sequential path dereferences ray_params['backend'] with "
-    "ray_params=None -> TypeError",
-    strict=True,
-)
 def test_collective_optimize_sequential(dummy_backend):
     mol = make_molecule(("H", "H"), method="linear")
     basis = mol.basis
@@ -97,7 +92,6 @@ def test_collective_optimize_sequential(dummy_backend):
     assert results
 
 
-@pytest.mark.xfail(reason="C1: run_all sequential path TypeError", strict=True)
 def test_collective_minimize_sequential(dummy_backend):
     mol = make_molecule(("H", "H"), method="linear")
     basis = mol.basis

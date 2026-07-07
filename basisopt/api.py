@@ -286,13 +286,14 @@ def run_all(
             if value is not None:
                 results[name] = value
     else:
-        # Sequential processing
-        for m in mols:
+        # Sequential processing: use the already-configured backend and scratch
+        # directory unless ray_params explicitly overrides them (previously this
+        # dereferenced ray_params['backend'] unconditionally and raised TypeError
+        # whenever ray_params was None, e.g. every non-parallel collective_* run).
+        if ray_params:
             set_backend(ray_params['backend'], verbose=False)
-            if ray_params:
-                set_tmp_dir(ray_params['tmp_dir'], verbose=False)
-            else:
-                set_tmp_dir('./tmp/', verbose=False)
+            set_tmp_dir(ray_params['tmp_dir'], verbose=False)
+        for m in mols:
             try:
                 name, value = _one_job(m, evaluate=evaluate, params=params)
                 results[name] = value
