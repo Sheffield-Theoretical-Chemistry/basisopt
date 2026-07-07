@@ -57,6 +57,36 @@ def test_reduce_strategy_uses_standard_next_signature(dummy_backend):
     assert strategy.molecule is sentinel
 
 
+def test_reduce_strategy_selects_min_error_across_jagged_shells(dummy_backend, monkeypatch):
+    """The globally least-important exponent must be found even when shells have
+    unequal sizes. Regression for the flat-argmin/unravel mismap that indexed
+    past a shell's length (crashed on real bases like Ne = 9s4p1d)."""
+    import basisopt.opt.auto_basis as ab
+
+    # jagged basis: 3 s, 2 p, 1 d
+    basis = make_basis("h", (("s", (5.0, 1.0, 0.2)), ("p", (1.5, 0.3)), ("d", (0.8,))))
+    strategy = AutoBasisReduceStrategy(target=1e-4)
+    strategy.set_cbs_limit(-1.0)
+    strategy.initialise(basis, "h")
+
+    # step through the initial sweep over the three shells
+    assert strategy.next(basis, "h", -0.5) is True  # -1 -> 0
+    assert strategy.next(basis, "h", -0.5) is True  # 0 -> 1
+    assert strategy.next(basis, "h", -0.5) is True  # 1 -> 2
+
+    # global minimum error is in the LAST (d) shell; with the old flat-argmin +
+    # (n_shells, max_len) unravel this mismapped onto the p shell and raised
+    # IndexError.
+    errors = [np.array([0.9, 0.8, 0.7]), np.array([0.6, 0.5]), np.array([0.1])]
+    ranks = [np.argsort(e) for e in errors]
+    monkeypatch.setattr(ab, "rank_mol_basis_cbs", lambda *a, **k: (errors, ranks, None, None))
+
+    n_d_before = len(basis["h"][2].exps)
+    assert strategy.next(basis, "h", -0.5) is True  # removal step
+    assert strategy._step == 2  # removed from the d shell
+    assert len(basis["h"][2].exps) == n_d_before - 1
+
+
 def test_default_strategy_has_target_attribute(dummy_backend):
     """Base Strategy exposes a `target` (None) so Optimizer/Minimizer can read it."""
     strategy = Strategy()

@@ -424,18 +424,23 @@ class AutoBasisReduceStrategy(AutoBasisStrategy):
                 self.eval_type,
                 self.params,
             )
-            min_index_np = np.unravel_index(
-                np.argmin([item for sublist in errors for item in sublist]),
-                (len(errors), max(len(sublist) for sublist in errors)),
+            # Find the (shell, exponent) with the globally smallest error.
+            # The shells can have different numbers of exponents, so index the
+            # jagged `errors` directly rather than unravelling a flat argmin into
+            # a rectangular (n_shells, max_len) grid, which mismapped the index
+            # for unequal shell sizes and could point past a shell's length.
+            min_shell, min_exp = min(
+                ((si, ei) for si, sub in enumerate(errors) for ei in range(len(sub))),
+                key=lambda idx: errors[idx[0]][idx[1]],
             )
 
-            self._step = min_index_np[0]
+            self._step = min_shell
             self.old_exps[self._step] = basis[element][self._step].exps
-            new_exps = np.delete(basis[element][self._step].exps, min_index_np[1])
+            new_exps = np.delete(basis[element][self._step].exps, min_exp)
             self.set_active(new_exps, basis, element)
             uncontract_shell(basis[element][self._step])
             bo_logger.info(
-                f"Removing exponent {min_index_np[1]} from shell {basis[element][self._step].l}"
+                f"Removing exponent {min_exp} from shell {basis[element][self._step].l}"
             )
             self._just_removed = True
             self.n_exps_removed[self._step] += 1
