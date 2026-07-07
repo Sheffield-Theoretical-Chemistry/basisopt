@@ -59,6 +59,7 @@ class Shell(MSONable):
         instance.l = d.get("l", "s")
         instance.exps = d.get("exps", np.array([]))
         instance.coefs = d.get("coefs", [])
+        instance.leg_params = d.get("leg_params", ())
         return instance
 
     def compute(self, x: float, y: float, z: float, i: int = 0, m: int = 0) -> float:

@@ -13,6 +13,24 @@ def test_default_shell():
     assert new_shell.exps.size == 0
 
 
+def test_shell_dict_roundtrip_preserves_leg_params():
+    import numpy as np
+
+    shell = boc.Shell()
+    shell.l = "s"
+    shell.exps = np.array([5.0, 1.0, 0.2])
+    shell.coefs = [np.array([1.0, 0.0, 0.0])]
+    shell.leg_params = (np.array([1.6, -5.1, 0.05]), 3)
+
+    restored = boc.Shell.from_dict(shell.as_dict())
+    assert restored.l == "s"
+    assert restored.exps.size == 3
+    # leg_params must survive the round-trip (previously dropped by from_dict)
+    assert len(restored.leg_params) == 2
+    assert almost_equal(np.sum(np.abs(np.asarray(restored.leg_params[0]) - shell.leg_params[0])), 0.0)
+    assert restored.leg_params[1] == 3
+
+
 def test_shell_compute():
     hbas = shell_data.get_vdz_internal()
     for ix, s in enumerate(hbas["h"]):
