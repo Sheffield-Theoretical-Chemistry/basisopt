@@ -10,7 +10,11 @@ calculation is needed to drive the state machines.
 import numpy as np
 import pytest
 
-from basisopt.opt.auto_basis import AutoBasisFree, AutoBasisLegendre
+from basisopt.opt.auto_basis import (
+    AutoBasisFree,
+    AutoBasisLegendre,
+    AutoBasisReduceStrategy,
+)
 from basisopt.opt.strategies import Strategy
 from tests.data.factories import make_basis
 
@@ -36,6 +40,21 @@ def test_default_strategy_progression(dummy_backend):
     # step reaches len(basis['h']) == 2 -> finished
     assert strategy.next(basis, "h", 1.0) is False
     assert strategy._step == 2
+
+
+def test_reduce_strategy_uses_standard_next_signature(dummy_backend):
+    """Reduce strategies get the molecule via set_context, not a wide next()."""
+    import inspect
+
+    strategy = AutoBasisReduceStrategy(target=1e-6)
+    # standard 3-arg next signature (self, basis, element, objective)
+    params = list(inspect.signature(strategy.next).parameters)
+    assert params == ["basis", "element", "objective"]
+    # context stash
+    assert strategy.molecule is None
+    sentinel = object()
+    strategy.set_context(molecule=sentinel)
+    assert strategy.molecule is sentinel
 
 
 def test_default_strategy_has_target_attribute(dummy_backend):

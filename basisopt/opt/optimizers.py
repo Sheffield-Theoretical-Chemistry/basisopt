@@ -384,10 +384,13 @@ def _atomic_opt_auto_reduce(
         + format_with_prefix(objective_value - strategy.cbs_limit, 'E\u2095')
     )
 
-    # Keep going until strategy says stop
+    # Keep going until strategy says stop. The reduce strategies need the
+    # molecule for ranking; provide it via set_context so next() keeps the
+    # standard (basis, element, objective) signature.
+    strategy.set_context(molecule=molecule)
     results = {}
     ctr = 1
-    while strategy.next(molecule, strategy.params, basis, element, objective_value):
+    while strategy.next(basis, element, objective_value):
         bo_logger.info("Doing step %d", strategy._step + 1)
         guess = strategy.get_active(basis, element)
         if len(guess) > 0:

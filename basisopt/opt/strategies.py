@@ -68,6 +68,11 @@ class Strategy(MSONable):
         # default of None lets Optimizer/Minimizer test `strategy.target` without
         # every strategy having to define it.
         self.target = None
+        # Transient per-run context (the Molecule being optimized). Set by the
+        # driver via set_context so strategies that need the molecule inside
+        # next() (e.g. reduction strategies calling rank_mol_basis_cbs) do not
+        # have to widen the next() signature. Not serialized.
+        self.molecule = None
 
         self.basis_type = "orbital"
         self.orbital_basis = None
@@ -122,6 +127,17 @@ class Strategy(MSONable):
         elbasis = basis[element]
         y = np.array(values)
         elbasis[self._step].exps = self.pre.inverse(y, **self.pre.params)
+
+    def set_context(self, molecule=None):
+        """Stashes per-run context (the Molecule being optimized).
+
+        Called once by the driver before the optimization loop. Strategies that
+        need the molecule inside ``next()`` (e.g. reduction strategies that call
+        ``rank_mol_basis_cbs``) read ``self.molecule`` rather than taking the
+        molecule as a ``next()`` argument. This keeps a single ``next()``
+        signature across all strategies. Transient; not serialized.
+        """
+        self.molecule = molecule
 
     def next(self, basis: InternalBasis, element: str, objective: float) -> bool:
         """Moves the strategy forward a step (see algorithm)

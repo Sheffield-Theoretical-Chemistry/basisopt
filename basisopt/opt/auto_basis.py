@@ -6,7 +6,6 @@ import numpy as np
 from basisopt.basis.basis import legendre_expansion, uncontract_shell
 from basisopt.containers import InternalBasis, Shell
 from basisopt.data import _ATOMIC_LEGENDRE_COEFFS, INV_AM_DICT
-from basisopt.molecule import Molecule
 from basisopt.testing.rank import rank_mol_basis_cbs
 from basisopt.util import bo_logger, get_composition
 
@@ -387,15 +386,12 @@ class AutoBasisReduceStrategy(AutoBasisStrategy):
         if self.cbs_limit is None:
             raise ValueError('CBS limit not set. This can be set with the .set_cbs_limit method.')
 
-    def next(
-        self,
-        molecule: Molecule,
-        backend_params: dict,
-        basis: InternalBasis,
-        element: str,
-        objective: float,
-    ) -> bool:
+    def next(self, basis: InternalBasis, element: str, objective: float) -> bool:
         """Moves the strategy forward a step (see algorithm)
+
+        The Molecule needed for ranking is read from ``self.molecule`` (set by
+        the driver via ``set_context``), so this matches the standard three-
+        argument ``next`` signature.
 
         Arguments:
             basis: internal basis dictionary
@@ -422,7 +418,7 @@ class AutoBasisReduceStrategy(AutoBasisStrategy):
 
         if not self._just_removed:
             errors, ranks, _, _ = rank_mol_basis_cbs(
-                molecule,
+                self.molecule,
                 element,
                 self.cbs_limit,
                 self.eval_type,
@@ -503,15 +499,12 @@ class AutoBasisReduceStrategyAll(AutoBasisStrategy):
         if self.cbs_limit is None:
             raise ValueError('CBS limit not set. This can be set with the .set_cbs_limit method.')
 
-    def next(
-        self,
-        molecule: Molecule,
-        backend_params: dict,
-        basis: InternalBasis,
-        element: str,
-        objective: float,
-    ) -> bool:
+    def next(self, basis: InternalBasis, element: str, objective: float) -> bool:
         """Moves the strategy forward a step (see algorithm)
+
+        The Molecule needed for ranking is read from ``self.molecule`` (set by
+        the driver via ``set_context``), so this matches the standard three-
+        argument ``next`` signature.
 
         Arguments:
             basis: internal basis dictionary
@@ -536,7 +529,7 @@ class AutoBasisReduceStrategyAll(AutoBasisStrategy):
 
             if self._just_removed != self._step:
                 errors, ranks, _, _ = rank_mol_basis_cbs(
-                    molecule,
+                    self.molecule,
                     element,
                     self.cbs_limit,
                     self.eval_type,
