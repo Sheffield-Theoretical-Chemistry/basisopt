@@ -261,7 +261,7 @@ def rank_mol_basis_cbs(
     """
     element = element.lower()
     if api.run_calculation(evaluate=eval_type, mol=mol, params=backend_params) != 0:
-        raise Exception('Failed calculation')
+        raise FailedCalculation
     new_mol = copy.deepcopy(mol)
     reference_energy = api.get_backend().get_value(eval_type)
     dE_CBS_INITIAL = reference_energy - cbs_limit
