@@ -5,7 +5,21 @@ from typing import Any
 import numpy as np
 from monty.json import MSONable
 from scipy.optimize import OptimizeResult
-from scipy.special import sph_harm
+
+try:  # SciPy < 1.15
+    from scipy.special import sph_harm
+except ImportError:  # SciPy >= 1.17 removed sph_harm in favour of sph_harm_y
+    from scipy.special import sph_harm_y
+
+    def sph_harm(m, n, theta, phi):
+        """Compatibility shim for the removed ``scipy.special.sph_harm``.
+
+        The old ``sph_harm(m, n, theta, phi)`` took ``theta`` as the azimuthal
+        angle and ``phi`` as the polar angle; ``sph_harm_y(n, m, theta, phi)``
+        uses the opposite (physics) convention, so the two trailing angles are
+        swapped here to give identical values.
+        """
+        return sph_harm_y(n, m, phi, theta)
 
 from . import data
 from .exceptions import DataNotFound, InvalidResult
