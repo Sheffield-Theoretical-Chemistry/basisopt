@@ -57,7 +57,6 @@ WTParams = list[tuple[float, float, float, float, int]]
     a float of the delta parameter;
     an int of the total number of primitive exponents"""
 
-"""Dictionary with pre-optimised Legendre polynomial expansions for atoms"""
 _LEGENDRE_DATA = {
     'H': [
         [
@@ -352,6 +351,10 @@ _LEGENDRE_DATA = {
         ],
     ],
 }
+"""Dictionary with pre-optimised Legendre polynomial expansions for atoms.
+
+Keyed by element symbol; each value is a list (one entry per angular-momentum
+shell) of Legendre A-coefficient lists. Consumed by :func:`get_legendre_params`."""
 
 LegParams = list[tuple[tuple, int]]
 
@@ -579,3 +582,10 @@ _ATOMIC_LEGENDRE_COEFFS = {
         ],  # 3 functions initial guess
     ]
 }
+"""Default Legendre A-coefficient guesses used by ``AutoBasisLegendre`` when no
+``legendre_params`` are supplied.
+
+Keyed by element symbol; each value is a list of per-shell A-coefficient lists
+(the trailing comment on each marks the expansion it was fitted to). Only ``'O'``
+is currently tabulated, so the default path raises for other elements unless
+coefficients are passed explicitly."""
