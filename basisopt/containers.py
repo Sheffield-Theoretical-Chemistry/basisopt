@@ -13,10 +13,11 @@ except ImportError:  # SciPy >= 1.17 removed sph_harm in favour of sph_harm_y
     def sph_harm(m, n, theta, phi):
         """Compatibility shim for the removed ``scipy.special.sph_harm``.
 
-        The old ``sph_harm(m, n, theta, phi)`` took ``theta`` as the azimuthal
-        angle and ``phi`` as the polar angle; ``sph_harm_y(n, m, theta, phi)``
-        uses the opposite (physics) convention, so the two trailing angles are
-        swapped here to give identical values.
+        Per the SciPy docs, the old ``sph_harm(m, n, theta, phi)`` took ``theta``
+        as the azimuthal angle and ``phi`` as the polar angle, whereas the
+        replacement ``sph_harm_y(n, m, theta, phi)`` uses the opposite (physics)
+        convention (``theta`` polar, ``phi`` azimuthal). The two trailing angles
+        are therefore swapped here so callers keep the old signature/values.
         """
         return sph_harm_y(n, m, phi, theta)
 
@@ -76,7 +77,13 @@ class Shell(MSONable):
         return instance
 
     def compute(self, x: float, y: float, z: float, i: int = 0, m: int = 0) -> float:
-        """Computes the value of the (spherical) GTO at a given point
+        """Computes the value of the (spherical) GTO at a given point.
+
+        The unnormalised spherical-harmonic Gaussian is
+            chi_{l,m}(r) = r**l * (sum_i c_i exp(-a_i r**2)) * Y_l^m(theta, phi),
+        i.e. a radial Gaussian contraction times a spherical harmonic (see
+        Helgaker, Jorgensen & Olsen, *Molecular Electronic-Structure Theory*
+        (2000), Sec. 6.6; Schlegel & Frisch, Int. J. Quantum Chem. 54, 83 (1995)).
 
         Arguments:
             x, y, z (float): coordinates relative to center of GTO
@@ -85,6 +92,12 @@ class Shell(MSONable):
 
         Returns:
             The unnormalised value of the GTO at (x, y, z)
+
+        Notes:
+            Spherical coordinates follow the physics/ISO 80000-2 convention
+            (Arfken & Weber, *Mathematical Methods for Physicists*): theta is the
+            polar angle from +z, phi the azimuthal angle. Verified against the
+            tabulated Y_l^m for l = 0, 1, 2 in tests/test_containers.py.
         """
         # bounds checking
         lval = data.AM_DICT[self.l]
@@ -92,11 +105,14 @@ class Shell(MSONable):
         if i >= len(self.coefs):
             i = 0
 
-        # Convert to spherical coords
-        r2 = x * x + y * y
-        theta = np.arctan2(z, r2)
-        r2 += z * z
+        # Convert to spherical coords. theta is the polar angle measured from
+        # the +z axis (colatitude, [0, pi]); phi is the azimuthal angle in the
+        # xy-plane. The cylindrical radius is sqrt(x^2 + y^2), so the polar
+        # angle is arctan2(sqrt(x^2 + y^2), z).
+        rho2 = x * x + y * y
+        r2 = rho2 + z * z
         r = np.sqrt(r2)
+        theta = np.arctan2(np.sqrt(rho2), z)
         phi = np.arctan2(y, x)
 
         # Compute radial value
@@ -105,8 +121,10 @@ class Shell(MSONable):
             radial_part += c * np.exp(-al * r2)
         radial_part *= r ** (lval)
 
-        # Combine with angular value
-        angular_part = np.real(sph_harm(m, lval, theta, phi))
+        # Combine with angular value. sph_harm (and the shim above) follows the
+        # old scipy signature sph_harm(m, l, azimuthal, polar), so phi comes
+        # before theta.
+        angular_part = np.real(sph_harm(m, lval, phi, theta))
         return radial_part * angular_part
 
 

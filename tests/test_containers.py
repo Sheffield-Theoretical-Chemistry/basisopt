@@ -31,12 +31,109 @@ def test_shell_dict_roundtrip_preserves_leg_params():
     assert restored.leg_params[1] == 3
 
 
-def test_shell_compute():
-    hbas = shell_data.get_vdz_internal()
-    for ix, s in enumerate(hbas["h"]):
-        for c, v in shell_data._compute_values:
-            value = s.compute(*c)
-            assert almost_equal(value, v[ix], thresh=1e-10)
+_COMPUTE_POINTS = [
+    (0.5, 0.0, 0.0),
+    (0.0, 0.5, 0.0),
+    (0.0, 0.0, 0.5),
+    (-1.0, 0.0, 0.5),
+    (2.0, 0.2, -2.0),
+    (5.0, 1.0, -0.5),
+    (0.3, -0.7, 1.1),
+]
+
+
+def _s_closed(shell, x, y, z, i):
+    """Closed-form unnormalised s (l=0) GTO: (sum c_k e^{-a_k r^2}) * Y_0^0."""
+    import numpy as np
+
+    r2 = x * x + y * y + z * z
+    radial = np.sum(shell.coefs[i] * np.exp(-shell.exps * r2))
+    return radial * (1.0 / (2.0 * np.sqrt(np.pi)))
+
+
+def _p_closed(shell, x, y, z, m):
+    """Closed-form unnormalised p (l=1) GTO for the m used by Shell.compute.
+
+    radial = r * (sum c_k e^{-a_k r^2}); the real spherical harmonics give
+    m=0 -> sqrt(3/4pi) cos(theta) (i.e. proportional to z), and
+    m=+/-1 -> -/+ sqrt(3/8pi) sin(theta) cos(phi) (proportional to x).
+    """
+    import numpy as np
+
+    r2 = x * x + y * y + z * z
+    radial = np.sum(shell.coefs[0] * np.exp(-shell.exps * r2))  # r cancels the 1/r
+    if m == 0:
+        return radial * np.sqrt(3.0 / (4.0 * np.pi)) * z
+    sign = -1.0 if m > 0 else 1.0
+    return radial * sign * np.sqrt(3.0 / (8.0 * np.pi)) * x
+
+
+def test_shell_compute_matches_closed_form():
+    """Shell.compute must reproduce analytic spherical GTO values.
+
+    Regression: the polar angle was built from the squared cylindrical radius
+    with the arctan2 arguments swapped, and the azimuthal/polar angles were
+    handed to sph_harm in the wrong order - so e.g. a p(m=0) orbital picked up
+    x-dependence instead of z-dependence. These check against the closed forms.
+    """
+    s_shell, p_shell = shell_data.get_vdz_internal()["h"]
+
+    for x, y, z in _COMPUTE_POINTS:
+        for i in range(len(s_shell.coefs)):
+            assert almost_equal(s_shell.compute(x, y, z, i=i), _s_closed(s_shell, x, y, z, i))
+        for m in (-1, 0, 1):
+            assert almost_equal(
+                p_shell.compute(x, y, z, m=m), _p_closed(p_shell, x, y, z, m)
+            )
+
+
+def test_shell_compute_s_is_rotationally_invariant():
+    """An s (l=0) GTO depends only on |r|, so points at equal radius match."""
+    import numpy as np
+
+    s_shell = shell_data.get_vdz_internal()["h"][0]
+    r = 0.5
+    on_axis = [s_shell.compute(*p) for p in ((r, 0, 0), (0, r, 0), (0, 0, r))]
+    diagonal = s_shell.compute(*(r / np.sqrt(3),) * 3)
+    for v in on_axis[1:] + [diagonal]:
+        assert almost_equal(v, on_axis[0])
+
+
+def test_shell_compute_pz_vanishes_in_z_plane():
+    """A p(m=0) orbital (~ z) is identically zero anywhere in the z=0 plane."""
+    p_shell = shell_data.get_vdz_internal()["h"][1]
+    for x, y in ((0.5, 0.0), (0.0, 0.5), (1.0, 1.0), (-2.0, 3.0)):
+        assert almost_equal(p_shell.compute(x, y, 0.0, m=0), 0.0)
+
+
+def _d_solid_harmonic(m, x, y, z):
+    """r^2 * Re(Y_2^m), the tabulated solid-harmonic polynomials (Condon-Shortley)."""
+    import numpy as np
+
+    r2 = x * x + y * y + z * z
+    if m == 0:
+        return 0.25 * np.sqrt(5.0 / np.pi) * (3.0 * z * z - r2)
+    if abs(m) == 1:
+        return (-1.0 if m > 0 else 1.0) * 0.5 * np.sqrt(15.0 / (2.0 * np.pi)) * x * z
+    return 0.25 * np.sqrt(15.0 / (2.0 * np.pi)) * (x * x - y * y)  # |m| == 2
+
+
+def test_shell_compute_d_matches_solid_harmonics():
+    """l=2 must reproduce the tabulated Y_2^m shapes (3z^2-r^2, xz, x^2-y^2),
+    checking angle handling and sph_harm argument order beyond the p case."""
+    import numpy as np
+
+    d_shell = boc.Shell()
+    d_shell.l = "d"
+    d_shell.exps = np.array([0.5])
+    d_shell.coefs = [np.array([1.0])]
+
+    for x, y, z in _COMPUTE_POINTS:
+        radial = float(np.exp(-0.5 * (x * x + y * y + z * z)))  # r^2 absorbed into the harmonic
+        for m in (-2, -1, 0, 1, 2):
+            assert almost_equal(
+                d_shell.compute(x, y, z, m=m), radial * _d_solid_harmonic(m, x, y, z)
+            )
 
 
 def test_basis_dict():
