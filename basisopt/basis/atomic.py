@@ -136,13 +136,16 @@ class AtomicBasis(Basis):
     def element(self, name: str):
         try:
             self._element = MDElement(name.title())
-            self._symbol = name.lower()
-            self._molecule.name = name + "_atom"
-            self._molecule._atom_names = [name]
-            self._molecule._coords = [np.array([0.0, 0.0, 0.0])]
-            self.results.name = self._molecule.name
-        except Exception:
-            bo_logger.error("Please enter a valid element")
+        except ValueError:
+            # only an unknown element is expected here; leave _element as None
+            # (guarded later by @needs_element) rather than masking real errors
+            bo_logger.error("Please enter a valid element, got '%s'", name)
+            return
+        self._symbol = name.lower()
+        self._molecule.name = name + "_atom"
+        self._molecule._atom_names = [name]
+        self._molecule._coords = [np.array([0.0, 0.0, 0.0])]
+        self.results.name = self._molecule.name
 
     @property
     def charge(self) -> int:
