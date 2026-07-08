@@ -344,7 +344,7 @@ def atom_auto(
             molecule.add_result(strategy.eval_type, energy)
 
             # Log the evaluation with CBS limit
-            logger.log(energy, basis, element, cbs_limit=strategy.cbs_limit)
+            logger.log(energy, basis, element, reference=strategy.cbs_limit)
 
             return energy
 
@@ -472,7 +472,7 @@ def atom_auto_reduce(
             molecule.add_result(strategy.eval_type, energy)
 
             # Log the evaluation with CBS limit
-            logger.log(energy, basis, element, cbs_limit=strategy.cbs_limit)
+            logger.log(energy, basis, element, reference=strategy.cbs_limit)
 
             return energy
 
@@ -801,7 +801,7 @@ class Optimizer:
 
         # Log the evaluation if logger is provided
         if logger is not None:
-            logger.log(result, self.basis, self.active_element, cbs_limit=self.strategy.target)
+            logger.log(result, self.basis, self.active_element, reference=self.strategy.target)
 
         return result
 
@@ -820,7 +820,7 @@ class Optimizer:
 
         # Log the evaluation if logger is provided
         if logger is not None:
-            logger.log(result, self.basis, self.active_element, cbs_limit=self.strategy.target)
+            logger.log(result, self.basis, self.active_element, reference=self.strategy.target)
 
         return result
 
@@ -846,6 +846,7 @@ class Optimizer:
             flush_interval=self.flush_interval,
             enabled=self.log_minimisation,
             session_id=self.log_session_id,
+            reference_label="dE_target",
         ) as logger:
             if self.parallel:
                 api.set_parallel(True, self.nprocs)

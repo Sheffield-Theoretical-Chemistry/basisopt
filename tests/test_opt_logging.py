@@ -28,7 +28,7 @@ def test_disabled_logger_writes_nothing(tmp_path):
     with BasisOptimizationLogger(
         basis=basis, element="h", strategy_name="test", log_dir=str(tmp_path), enabled=False
     ) as logger:
-        logger.log(-1.0, basis, "h", cbs_limit=0.0)
+        logger.log(-1.0, basis, "h", reference=0.0)
 
     assert _csv_files(str(tmp_path)) == []
     # a disabled logger must not touch its counters either
@@ -42,7 +42,7 @@ def test_no_npy_files_created(tmp_path):
     with BasisOptimizationLogger(
         basis=basis, element="h", strategy_name="test", log_dir=str(tmp_path), session_id="s1"
     ) as logger:
-        logger.log(-1.0, basis, "h", cbs_limit=0.0)
+        logger.log(-1.0, basis, "h", reference=0.0)
 
     assert glob.glob(os.path.join(str(tmp_path), "*.npy")) == []
     assert len(_csv_files(str(tmp_path))) == 1
@@ -57,8 +57,8 @@ def test_header_and_rows(tmp_path):
         log_dir=str(tmp_path),
         session_id="s2",
     ) as logger:
-        logger.log(-2.0, basis, "h", cbs_limit=-1.5)
-        logger.log(-2.5, basis, "h", cbs_limit=-1.5)
+        logger.log(-2.0, basis, "h", reference=-1.5)
+        logger.log(-2.5, basis, "h", reference=-1.5)
 
     (path,) = _csv_files(str(tmp_path))
     rows = _read_csv(path)
@@ -77,14 +77,34 @@ def test_header_and_rows(tmp_path):
     assert rows[2][0] == "2"
 
 
+def test_reference_label_is_configurable(tmp_path):
+    # Optimizer/Minimizer log energy relative to a target, not a CBS limit, so
+    # the difference column must be labelled accordingly rather than "dE_CBS".
+    basis = make_basis("h", config=(("s", (1.0,)),))
+    with BasisOptimizationLogger(
+        basis=basis,
+        element="h",
+        strategy_name="s",
+        log_dir=str(tmp_path),
+        session_id="label",
+        reference_label="dE_target",
+    ) as logger:
+        logger.log(-1.0, basis, "h", reference=-0.5)
+
+    (path,) = _csv_files(str(tmp_path))
+    rows = _read_csv(path)
+    assert rows[0][:4] == ["eval_num", "strategy", "energy", "dE_target"]
+    assert abs(float(rows[1][3]) - (-1.0 - -0.5)) < 1e-12
+
+
 def test_composition_change_flushes_and_opens_new_file(tmp_path):
     small = make_basis("h", config=(("s", (1.0, 2.0)),))
     grown = make_basis("h", config=(("s", (1.0, 2.0, 3.0)),))
     with BasisOptimizationLogger(
         basis=small, element="h", strategy_name="s", log_dir=str(tmp_path), session_id="s3"
     ) as logger:
-        logger.log(-1.0, small, "h", cbs_limit=0.0)
-        logger.log(-1.0, grown, "h", cbs_limit=0.0)  # composition change -> new file
+        logger.log(-1.0, small, "h", reference=0.0)
+        logger.log(-1.0, grown, "h", reference=0.0)  # composition change -> new file
 
     files = _csv_files(str(tmp_path))
     assert len(files) == 2
@@ -99,14 +119,14 @@ def test_resume_continues_eval_counter(tmp_path):
     with BasisOptimizationLogger(
         basis=basis, element="h", strategy_name="s", log_dir=str(tmp_path), session_id="resume"
     ) as logger:
-        logger.log(-1.0, basis, "h", cbs_limit=0.0)
-        logger.log(-1.0, basis, "h", cbs_limit=0.0)
+        logger.log(-1.0, basis, "h", reference=0.0)
+        logger.log(-1.0, basis, "h", reference=0.0)
 
     # a second logger sharing the session_id (hence the same file) resumes
     with BasisOptimizationLogger(
         basis=basis, element="h", strategy_name="s", log_dir=str(tmp_path), session_id="resume"
     ) as logger:
-        logger.log(-1.0, basis, "h", cbs_limit=0.0)
+        logger.log(-1.0, basis, "h", reference=0.0)
 
     (path,) = _csv_files(str(tmp_path))
     rows = _read_csv(path)
@@ -124,11 +144,11 @@ def test_flush_interval(tmp_path):
         session_id="flush",
         flush_interval=2,
     )
-    logger.log(-1.0, basis, "h", cbs_limit=0.0)
+    logger.log(-1.0, basis, "h", reference=0.0)
     # below the interval: buffered, not yet written
     (path,) = _csv_files(str(tmp_path))
     assert len(_read_csv(path)) == 1  # header only
-    logger.log(-1.0, basis, "h", cbs_limit=0.0)
+    logger.log(-1.0, basis, "h", reference=0.0)
     # hitting the interval flushes both buffered rows
     assert len(_read_csv(path)) == 3
     logger.finalize()

@@ -24,6 +24,7 @@ class BasisOptimizationLogger:
         flush_interval: int = 50,
         enabled: bool = True,
         session_id: Optional[str] = None,
+        reference_label: str = "dE_CBS",
     ):
         """
         Initialize the logger
@@ -39,6 +40,10 @@ class BasisOptimizationLogger:
             enabled: if False, logger does nothing (for easy enable/disable)
             session_id: unique identifier for this optimization session; if None, creates new timestamp
                        Use the same session_id across multiple logger instances to share files
+            reference_label: header for the energy-difference column. The energy
+                       is logged relative to the `reference` passed to `log`;
+                       callers that pass a CBS limit keep the default "dE_CBS",
+                       while those passing a target energy use e.g. "dE_target"
         """
         self.enabled = enabled
         if not enabled:
@@ -50,6 +55,7 @@ class BasisOptimizationLogger:
         self.basis_type = basis_type
         self.eval_type = eval_type
         self.flush_interval = flush_interval
+        self.reference_label = reference_label
 
         # Setup base directory
         if log_dir is None:
@@ -88,7 +94,7 @@ class BasisOptimizationLogger:
 
     def _create_column_names(self, basis: dict, element: str) -> List[str]:
         """Create column names for current basis composition"""
-        columns = ['eval_num', 'strategy', 'energy', 'dE_CBS']
+        columns = ['eval_num', 'strategy', 'energy', self.reference_label]
         for shell in basis[element]:
             for i in range(len(shell.exps)):
                 columns.append(f'{shell.l}{i+1}')
@@ -126,14 +132,15 @@ class BasisOptimizationLogger:
 
         bo_logger.info(f"Logging to: {self.current_csv_path}")
 
-    def log(self, energy: float, basis: dict, element: str, cbs_limit: Optional[float] = None):
+    def log(self, energy: float, basis: dict, element: str, reference: Optional[float] = None):
         """Log a single evaluation
 
         Arguments:
             energy: computed energy value
             basis: basis dictionary
             element: atomic symbol
-            cbs_limit: CBS limit for computing dE_CBS (if None, uses 0.0)
+            reference: reference energy for the difference column (a CBS limit or
+                a target energy, per `reference_label`); if None, the column is 0.0
         """
         if not self.enabled:
             return
@@ -155,10 +162,10 @@ class BasisOptimizationLogger:
         self.total_eval_counter += 1
         self.file_eval_counter += 1
 
-        # Calculate dE_CBS
-        dE_CBS = energy - cbs_limit if cbs_limit is not None else 0.0
+        # Energy relative to the reference (CBS limit or target)
+        delta = energy - reference if reference is not None else 0.0
 
-        row = [self.file_eval_counter, self.strategy_name, energy, dE_CBS]
+        row = [self.file_eval_counter, self.strategy_name, energy, delta]
 
         # Append all exponents from all shells
         for shell in basis[element]:
