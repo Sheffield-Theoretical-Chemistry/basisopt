@@ -67,8 +67,8 @@ class LegendrePairsHybrid(Strategy):
     ):
         super().__init__(eval_type=eval_type, pre=unit)
         self.name = 'LegendrePairsHybrid'
-        self.shell = []
-        self.shell_done = []
+        self.shells = []
+        self.shells_done = []
         self.target = target
         self.guess = None
         self.guess_params = {}
@@ -77,8 +77,6 @@ class LegendrePairsHybrid(Strategy):
         self.max_n_a = max_n_a
         self.l = l
         self.n_exp_cutoff = n_exp_cutoff
-        self.npasses = None
-        self.force_pass = False
         self._just_added = False
         self.initialised = None
         self.ignore_database = False
@@ -214,7 +212,7 @@ class LegendrePairsHybrid(Strategy):
         self.last_objective = objective
         carry_on = True
         (A_vals, n) = self.shells[self._step][0]
-        if type(self.max_n_a) == tuple or type(self.max_n_a) == list:
+        if isinstance(self.max_n_a, (tuple, list)):
             max_n_a = self.max_n_a[self._step]
         else:
             max_n_a = self.max_n_a
