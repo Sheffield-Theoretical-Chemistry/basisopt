@@ -221,6 +221,12 @@ class AutoBasisLegendre(AutoBasisStrategy):
             bo_logger.warning(
                 'No Legendre parameters set. Using default parameters. This may result in poorly conditioned expansions.'
             )
+            if element.capitalize() not in _ATOMIC_LEGENDRE_COEFFS:
+                raise ValueError(
+                    f"No built-in Legendre coefficients for '{element}'. Available: "
+                    f"{sorted(_ATOMIC_LEGENDRE_COEFFS)}. Set them explicitly via the "
+                    f"strategy's `legendre_params` attribute."
+                )
             self._initial_guess = _ATOMIC_LEGENDRE_COEFFS[element.capitalize()]
             self._shells = [(A_vals, n) for A_vals, n in zip(self._initial_guess, self.n_prim)]
         if not isinstance(basis, dict):

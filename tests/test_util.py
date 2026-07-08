@@ -3,7 +3,7 @@ import pandas as pd
 
 from basisopt.basis.basis import uncontract_shell
 from basisopt.containers import Shell
-from basisopt.data import get_even_temper_params
+from basisopt.data import get_even_temper_params, get_legendre_params
 from basisopt.util import fit_poly, get_composition, read_json
 
 
@@ -29,6 +29,13 @@ def test_get_even_temper():
     # even_tempered_data is currently empty
     result = get_even_temper_params()
     assert len(result) == 0
+
+
+def test_get_legendre_params_accepts_accuracy():
+    # regression: set_legendre passes accuracy=, which used to be an unexpected kwarg
+    result = get_legendre_params(atom="O", accuracy=1e-5)
+    assert len(result) > 0
+    assert get_legendre_params(atom="Zzz", accuracy=1e-5) == []
 
 
 def _shell(l, n_exps, n_coefs):

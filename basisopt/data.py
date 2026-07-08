@@ -408,9 +408,14 @@ def get_even_temper_params(atom: str = "H", accuracy: float = 1e-5) -> ETParams:
         return []
 
 
-def get_legendre_params(atom: str = "H") -> LegParams:
+def get_legendre_params(atom: str = "H", accuracy: float = 1e-5) -> LegParams:
     """Searches for the relevant Legendre polynomial-based expansion
-    from _LEGENDRE_DATA
+    from _LEGENDRE_DATA.
+
+    Unlike the even/well-tempered tables, _LEGENDRE_DATA is not tiered by
+    accuracy; ``accuracy`` is accepted for signature parity with
+    ``get_even_temper_params``/``get_well_temper_params`` (and with the
+    ``AtomicBasis.set_legendre`` caller) and is currently unused.
     """
     if atom in _LEGENDRE_DATA:
         return _LEGENDRE_DATA[atom]

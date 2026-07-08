@@ -176,3 +176,11 @@ def test_autobasislegendre_default_initialise(dummy_backend):
     basis = {}
     strategy.initialise(basis, "o")
     assert "o" in basis
+
+
+def test_autobasislegendre_missing_element_raises(dummy_backend):
+    """Default path for an untabulated element gives a clear error, not KeyError."""
+    strategy = AutoBasisLegendre(target=1e-6, n_coefs=(4, 3))
+    strategy.set_cbs_limit(0.0)
+    with pytest.raises(ValueError, match="No built-in Legendre coefficients"):
+        strategy.initialise({}, "h")
