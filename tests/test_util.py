@@ -1,7 +1,10 @@
+import numpy as np
 import pandas as pd
 
+from basisopt.basis.basis import uncontract_shell
+from basisopt.containers import Shell
 from basisopt.data import get_even_temper_params
-from basisopt.util import fit_poly, read_json
+from basisopt.util import fit_poly, get_composition, read_json
 
 
 def test_read_json():
@@ -26,3 +29,26 @@ def test_get_even_temper():
     # even_tempered_data is currently empty
     result = get_even_temper_params()
     assert len(result) == 0
+
+
+def _shell(l, n_exps, n_coefs):
+    shell = Shell()
+    shell.l = l
+    shell.exps = np.arange(1.0, n_exps + 1.0)
+    if n_coefs == n_exps:
+        uncontract_shell(shell)
+    else:
+        shell.coefs = [np.ones(n_exps) for _ in range(n_coefs)]
+    return shell
+
+
+def test_get_composition_uncontracted():
+    # one coefficient per exponent -> plain primitive string
+    basis = {"h": [_shell("s", 3, 3), _shell("p", 2, 2)]}
+    assert get_composition(basis, "H") == "3s2p"
+
+
+def test_get_composition_contracted():
+    # fewer coefficient vectors than exponents -> arrow notation
+    basis = {"h": [_shell("s", 4, 2), _shell("p", 2, 1)]}
+    assert get_composition(basis, "H") == "(4s2p) -> [2s1p]"

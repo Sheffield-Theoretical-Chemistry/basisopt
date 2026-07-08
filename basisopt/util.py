@@ -127,12 +127,19 @@ def format_with_prefix(value: float, unit: str, dp: int = 3) -> str:
 
 
 def get_composition(basis, element):
-    prim_conf = ''.join([f"{len(shell.exps)}{shell.l}" for shell in basis[element.lower()]])
-    contracted_conf = ''.join([f"{len(shell.coefs)}{shell.l}" for shell in basis[element.lower()]])
+    """Returns a human-readable composition string for an element's basis.
+
+    Uncontracted bases (one coefficient per exponent) render as e.g. ``9s4p1d``;
+    genuinely contracted bases render with the arrow notation
+    ``(9s4p1d) -> [3s2p1d]``, where the primitive count comes from the number of
+    exponents and the contracted count from the number of coefficient vectors.
+    """
+    shells = basis[element.lower()]
+    prim_conf = ''.join([f"{len(shell.exps)}{shell.l}" for shell in shells])
+    contracted_conf = ''.join([f"{len(shell.coefs)}{shell.l}" for shell in shells])
     if prim_conf != contracted_conf:
-        return prim_conf
-    else:
         return f"({prim_conf}) -> [{contracted_conf}]"
+    return prim_conf
 
 
 def inside_out(basis_coefficients, inside_out=True):
