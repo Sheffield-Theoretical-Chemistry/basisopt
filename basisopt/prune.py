@@ -25,6 +25,13 @@ def argsort_inhomogeneous_3d_array(array):
 
 
 def rank_basis(mol, element, params):
+    """Rank every contraction coefficient in ``element``'s basis by importance.
+
+    Distinct from ``testing.rank``'s exponent-dropping ranking: this path zeroes
+    contraction *coefficients* (via ``util.rank_shell_contractions``) and is used
+    by ``prune_element``. Returns ``(energies, errors, ranked_idx, sorted_errors)``;
+    ``prune_element`` consumes only the last two.
+    """
     energies = []
     errors = []
     for shell in mol.basis[element.lower()]:
