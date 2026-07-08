@@ -1,5 +1,4 @@
 import copy
-import pickle
 from typing import Any, Optional, Union
 
 import numpy as np
@@ -10,7 +9,7 @@ from basisopt import data
 from basisopt.containers import InternalBasis, Result, Shell
 from basisopt.data import ETParams, LegParams, WTParams
 from basisopt.testing import Test
-from basisopt.util import bo_logger, dict_decode
+from basisopt.util import bo_logger, dict_decode, read_json, write_json
 
 
 def uncontract_shell(shell: Shell):
@@ -199,19 +198,12 @@ class Basis(MSONable):
         self._molecule = None
 
     def save(self, filename: str):
-        """Pickles the Basis object into a binary file"""
-        with open(filename, "wb") as f:
-            pickle.dump(self, f)
-            f.close()
-        bo_logger.info("Dumped object of type %s to %s", type(self), filename)
+        """Saves the Basis to a JSON file (MSONable)"""
+        write_json(filename, self)
 
     def load(self, filename: str) -> object:
-        """Loads and returns a Basis object from a binary file pickle"""
-        with open(filename, "rb") as f:
-            pkl_data = pickle.load(f)
-            f.close()
-        bo_logger.info("Loaded object of type %s from %s", type(pkl_data), filename)
-        return pkl_data
+        """Loads and returns a Basis from a JSON file (MSONable)"""
+        return read_json(filename)
 
     def get_basis(self) -> InternalBasis:
         return self._molecule.basis

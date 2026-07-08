@@ -85,12 +85,34 @@ def test_fix_ratio():
 
 
 def test_basis_init():
-    pass
+    b = basis.Basis()
+    assert type(b.results).__name__ == "Result"
+    assert b.opt_results is None
+    assert b._tests == []
+    assert b._molecule is None
 
 
-def test_basis_load():
-    pass
+def test_basis_load(tmp_path):
+    # JSON (MSONable) save/load round-trip (Basis.as_dict needs a molecule)
+    from basisopt.molecule import Molecule
+
+    b = basis.Basis()
+    b._molecule = Molecule(name="test")
+    path = str(tmp_path / "basis.json")
+    b.save(path)
+
+    loaded = basis.Basis().load(path)
+    assert isinstance(loaded, basis.Basis)
+    assert loaded._molecule.name == "test"
+    assert loaded._tests == []
 
 
 def test_basis_tests():
-    pass
+    from basisopt.testing.test import Test
+
+    b = basis.Basis()
+    assert b.get_test("missing") is None
+    t = Test(name="my_test")
+    b.register_test(t)
+    assert b.get_test("my_test") is t
+    assert b.get_test("still_missing") is None

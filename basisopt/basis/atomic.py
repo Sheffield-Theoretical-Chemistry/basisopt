@@ -1,5 +1,4 @@
 import functools
-import pickle
 from typing import Any, Callable, Optional
 
 import numpy as np
@@ -15,7 +14,7 @@ from basisopt.opt.legendre import LegendreStrategy
 from basisopt.opt.optimizers import optimize
 from basisopt.opt.strategies import Strategy
 from basisopt.opt.welltemper import WellTemperedStrategy
-from basisopt.util import bo_logger
+from basisopt.util import bo_logger, write_json
 
 from . import zetatools as zt
 from .basis import Basis, even_temper_expansion, legendre_expansion, well_temper_expansion
@@ -88,11 +87,8 @@ class AtomicBasis(Basis):
                 self.multiplicity = mult
 
     def save(self, filename: str):
-        """Pickles the AtomicBasis object into a binary file"""
-        with open(filename, "wb") as f:
-            pickle.dump(self, f)
-            f.close()
-        bo_logger.info("Dumped object of type %s to %s", type(self), filename)
+        """Saves the AtomicBasis to a JSON file (MSONable)"""
+        write_json(filename, self)
 
     def as_dict(self) -> dict[str, Any]:
         """Returns MSONable dictionary of AtomicBasis"""

@@ -22,7 +22,8 @@ def logx_mean(shells):
 
 def test_log_normal_guess():
     # this has randomness so might fail?
-    o = AtomicBasis().load("tests/data/oxygen-unopt.obj")
+    o = AtomicBasis("O")
+    o.config = {"s": 2, "p": 3}
 
     # standard normal
     results = guesses.log_normal_guess(o)
@@ -48,11 +49,14 @@ def test_bse_guess():
         assert shells_are_equal(s1, s2)
 
 
-# def test_even_temper_guess():
-#     ne = AtomicBasis().load("tests/data/neon.obj")
-#     results = guesses.even_tempered_guess(ne)
-#     assert len(results) == 2
-#     assert len(results[0].exps) == 18
-#     assert len(results[1].exps) == 13
-#     assert almost_equal(results[0].exps[0], 0.243032, thresh=1e-6)
-#     assert almost_equal(results[1].exps[0], 0.121994, thresh=1e-6)
+def test_even_temper_guess():
+    # with et_params already set, even_tempered_guess expands them (no backend);
+    # even_temper_expansion((c, x, n)) yields n exponents starting at c
+    ne = AtomicBasis("Ne")
+    ne.et_params = [(0.243032, 1.8, 18), (0.121994, 1.9, 13)]
+    results = guesses.even_tempered_guess(ne)
+    assert len(results) == 2
+    assert len(results[0].exps) == 18
+    assert len(results[1].exps) == 13
+    assert almost_equal(results[0].exps[0], 0.243032, thresh=1e-6)
+    assert almost_equal(results[1].exps[0], 0.121994, thresh=1e-6)

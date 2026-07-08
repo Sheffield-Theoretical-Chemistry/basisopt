@@ -1,5 +1,4 @@
 # containers
-import pickle
 from typing import Any
 
 import numpy as np
@@ -23,7 +22,7 @@ except ImportError:  # SciPy >= 1.17 removed sph_harm in favour of sph_harm_y
 
 from . import data
 from .exceptions import DataNotFound, InvalidResult
-from .util import bo_logger, dict_decode
+from .util import dict_decode, read_json, write_json
 
 
 class Shell(MSONable):
@@ -320,19 +319,12 @@ class Result(MSONable):
         return results
 
     def save(self, filename: str):
-        """Pickles the Result object into a file"""
-        with open(filename, "wb") as f:
-            pickle.dump(self, f)
-            f.close()
-        bo_logger.info("Dumped object of type %s to %s", type(self), filename)
+        """Saves the Result to a JSON file (MSONable)"""
+        write_json(filename, self)
 
     def load(self, filename: str) -> object:
-        """Loads and returns a Result object from a file pickle"""
-        with open(filename, "rb") as f:
-            pkl_data = pickle.load(f)
-            f.close()
-        bo_logger.info("Loaded object of type %s from %s", type(pkl_data), filename)
-        return pkl_data
+        """Loads and returns a Result from a JSON file (MSONable)"""
+        return read_json(filename)
 
     def as_dict(self) -> dict[str, Any]:
         """Converts Result (and all children) to an MSONable dictionary"""

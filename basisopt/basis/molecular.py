@@ -1,4 +1,3 @@
-import pickle
 from typing import Any, Callable, Optional, Union
 
 import numpy as np
@@ -10,7 +9,7 @@ from basisopt.exceptions import DataNotFound, EmptyBasis
 from basisopt.molecule import Molecule
 from basisopt.opt import collective_minimize, collective_optimize, collective_polarize
 from basisopt.opt.strategies import Strategy
-from basisopt.util import bo_logger
+from basisopt.util import bo_logger, write_json
 
 from .atomic import AtomicBasis
 from .basis import Basis
@@ -43,11 +42,8 @@ class MolecularBasis(Basis):
             self._add_molecule(m)
 
     def save(self, filename: str):
-        """Pickles the MolecularBasis object into a binary file"""
-        with open(filename, "wb") as f:
-            pickle.dump(self, f)
-            f.close()
-        bo_logger.info("Dumped object of type %s to %s", type(self), filename)
+        """Saves the MolecularBasis to a JSON file (MSONable)"""
+        write_json(filename, self)
 
     def as_dict(self) -> dict[str, Any]:
         """Returns as MSONable dictionary"""

@@ -146,23 +146,20 @@ def test_search_result():
     assert "Flump" not in results.values()
 
 
-def test_load_result():
-    r = boc.Result().load("tests/data/result_test.bin")
-    assert r.name == "Parent"
-    assert len(r._children) == 2
-    assert r.get_data("age") == 32
-    assert r.get_data("age", step_back=1) == 24
-    assert len(r.get_data("position")) == 3
-    assert r.get_data("height") == 150
+def test_save_load_result_json(tmp_path):
+    # round-trip a Result tree through the JSON (MSONable) save/load
+    r1, r2, r3, r4 = build_frame()
+    path = str(tmp_path / "result.json")
+    r1.save(path)
 
-    child1 = r.get_child("Child1")
-    assert child1.get_data("name") == "Steven"
-    assert child1.get_data("name", step_back=2) == "Sally"
-
-    child2 = r.get_child("Child2")
-    assert child2.get_data("age") == 2
-    assert child2.depth == 2
-
-    belongings = child2.get_child("Belongings")
-    assert belongings.depth == 3
-    assert belongings.get_data("toy")
+    loaded = boc.Result().load(path)
+    assert type(loaded).__name__ == "Result"
+    # data survives (latest value and a step back)
+    assert loaded.get_data("Is_Banana") == r1.get_data("Is_Banana")
+    assert loaded.get_data("Is_Banana", step_back=1) == r1.get_data("Is_Banana", step_back=1)
+    # children survive recursively
+    assert len(loaded._children) == 2
+    child1 = loaded.get_child("Child1")
+    assert child1.get_data("Size") == 10.1
+    grandchild = child1.get_child("Grandchild")
+    assert grandchild.get_data("Is_Banana")
