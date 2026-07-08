@@ -37,7 +37,9 @@ def uncontract(basis: InternalBasis, elements: Optional[list[str]] = None) -> In
     """
     if elements is None:
         elements = basis.keys()  # do all
-    new_basis = copy.copy(basis)
+    # deep copy so uncontract_shell doesn't mutate the caller's shells in place
+    # (a shallow copy shares the Shell objects) -- matches the docstring
+    new_basis = copy.deepcopy(basis)
     for el in elements:
         if el in new_basis:
             el_basis = new_basis[el]
@@ -63,10 +65,12 @@ def contract_basis(basis: InternalBasis, contractions: dict):
                             contractions should be a list of numpy arrays
                             where each array is a set of coefficients
     """
-    elements = contractions.keys()
-    for el in elements:
-        for idx, shell in enumerate(basis[el.lower()]):
-            contract_shell(shell, contractions[el][idx])
+    for el, el_contractions in contractions.items():
+        # internal bases are keyed by lowercase symbol; fall back to the key as
+        # given so an un-lowercased basis still resolves
+        el_basis = basis.get(el.lower(), basis.get(el))
+        for idx, shell in enumerate(el_basis):
+            contract_shell(shell, el_contractions[idx])
 
 
 def contract_function(
@@ -108,7 +112,7 @@ def even_temper_expansion(params: ETParams) -> list[Shell]:
     return el_basis
 
 
-def legendre_expansion(params: LegParams, l=0, contractions=None) -> list[Shell]:
+def legendre_expansion(params: LegParams, l=None, contractions=None) -> list[Shell]:
     """Forms a basis for an element from Petersson's Legendre expansion
 
     Arguments:
@@ -125,7 +129,9 @@ def legendre_expansion(params: LegParams, l=0, contractions=None) -> list[Shell]
     el_basis = []
     for ix, (A_vals, n) in enumerate(params):
         new_shell = Shell()
-        if l:
+        # l is None -> derive each shell's angular momentum from its position;
+        # an explicit l (including 0 for an s shell) forces it
+        if l is not None:
             new_shell.l = data.INV_AM_DICT[l]
         else:
             new_shell.l = data.INV_AM_DICT[ix]

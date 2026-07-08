@@ -29,6 +29,27 @@ def test_uncontract():
         assert len(s.exps) == len(s.coefs)
 
 
+def test_uncontract_does_not_mutate_original():
+    vdz = get_vdz_internal()
+    n_coefs_before = len(vdz["h"][0].coefs)  # contracted (< n_exps)
+    new = basis.uncontract(vdz)
+    # the returned basis is uncontracted...
+    assert len(new["h"][0].coefs) == len(new["h"][0].exps)
+    # ...but the caller's basis is untouched (was mutated in place before)
+    assert len(vdz["h"][0].coefs) == n_coefs_before
+
+
+def test_legendre_expansion_explicit_l():
+    leg = [
+        ((3.0, 4.5, 0.75, 0.25, 0.1, 0.1), 5),
+        ((2.2, 4.5, 0.44, 0.29, 0.07, 0.02), 4),
+    ]
+    # explicit l=0 now forces s for every shell (was treated as "unset")
+    assert [s.l for s in basis.legendre_expansion(leg, l=0)] == ["s", "s"]
+    # default (l unset) derives each shell's l from its position
+    assert [s.l for s in basis.legendre_expansion(leg)] == ["s", "p"]
+
+
 def test_even_temper_expansion():
     et_params = [(1.5, 1.9, 15), (2.7, 1.6, 12)]
     et_basis = basis.even_temper_expansion(et_params)
