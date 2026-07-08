@@ -33,6 +33,12 @@ The following major changes have been made relative to Robert's original version
 - Support for atom specific basis sets for Psi4
 - Added an option to build an atom specific basis set when setting one into a molecule
 - Added a minimisation routine to BasisOpt in addition to optimise.
+- Added the automatic basis-set strategies (`AutoBasisFree`, `AutoBasisLegendre`, and the exponent-reducing `AutoBasisReduceStrategy`/`AutoBasisReduceStrategyAll`) that grow or reduce an atomic basis to a target CBS limit.
+- Added the `Optimizer` and `Minimizer` driver classes and a `MoleculeLoader` for running these strategies over one or more molecules.
+- Added `BasisOptimizationLogger` for recording per-composition energies and exponents during an optimisation.
+- Added a TOML configuration reader (`ConfigParser`/`ConfigNamespace`).
+- Object serialisation (`save`/`load` on `Result`/`Basis`/`AtomicBasis`/`MolecularBasis`) now uses JSON via the MSONable interface instead of pickle.
+- Minimum supported Python is now 3.10 (in line with NumPy 2.x).
 
 ## Documentation
 
