@@ -108,6 +108,14 @@ basisopt.opt.strategies module
    :undoc-members:
    :show-inheritance:
 
+basisopt.opt.tempered module
+----------------------------
+
+.. automodule:: basisopt.opt.tempered
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 basisopt.opt.welltemper module
 ------------------------------
 
