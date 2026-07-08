@@ -93,7 +93,18 @@ def fit_poly(
 
 
 def format_with_prefix(value: float, unit: str, dp: int = 3) -> str:
-    """Utility function for converting a float to scientific notation with units"""
+    """Format a value with the nearest SI prefix and a unit.
+
+    Arguments:
+        value (float): the quantity to format
+        unit (str): the base unit string (e.g. "Ha", "s")
+        dp (int): number of decimal places to show
+
+    Returns:
+        str: the value scaled to the largest prefix not exceeding it, e.g.
+            ``format_with_prefix(1500, "Hz") == "1.500 kHz"``. Zero (and any
+            magnitude below the smallest prefix) is returned with no prefix.
+    """
     prefixes = [
         (1e24, 'Y'),
         (1e21, 'Z'),
@@ -121,6 +132,9 @@ def format_with_prefix(value: float, unit: str, dp: int = 3) -> str:
         if abs(value) >= factor:
             formatted_value = value / factor
             return format_string.format(formatted_value) + f" {prefix}{unit}"
+
+    # value is zero (or smaller than the smallest prefix): no prefix
+    return format_string.format(value) + f" {unit}"
 
     # Handle very small numbers that do not fit any prefix
     return format_string.format(value) + f" {unit}"

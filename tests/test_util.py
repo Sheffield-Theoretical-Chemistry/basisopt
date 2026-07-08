@@ -5,7 +5,13 @@ from basisopt import api
 from basisopt.basis.basis import uncontract_shell
 from basisopt.containers import Shell
 from basisopt.data import get_even_temper_params, get_legendre_params
-from basisopt.util import fit_poly, get_composition, rank_shell_contractions, read_json
+from basisopt.util import (
+    fit_poly,
+    format_with_prefix,
+    get_composition,
+    rank_shell_contractions,
+    read_json,
+)
 from basisopt.wrappers.dummy import DummyWrapper
 from tests.data.factories import make_molecule
 
@@ -50,6 +56,18 @@ def _shell(l, n_exps, n_coefs):
     else:
         shell.coefs = [np.ones(n_exps) for _ in range(n_coefs)]
     return shell
+
+
+def test_format_with_prefix_scales_to_prefix():
+    assert format_with_prefix(1500, "Hz") == "1.500 kHz"
+    assert format_with_prefix(2.5e-3, "s") == "2.500 ms"
+
+
+def test_format_with_prefix_zero_has_no_prefix():
+    # regression: zero fell through every prefix test and returned None
+    assert format_with_prefix(0, "Ha") == "0.000 Ha"
+    # a magnitude below the smallest prefix also gets no prefix
+    assert format_with_prefix(1e-30, "Ha") == "0.000 Ha"
 
 
 def test_get_composition_uncontracted():
