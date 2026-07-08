@@ -15,6 +15,8 @@ from basisopt.opt.auto_basis import (
 )
 from basisopt.opt.contraction import ContractionStrategy
 from basisopt.opt.optimizers import (
+    Minimizer,
+    Optimizer,
     atom_auto,
     atom_auto_reduce,
     collective_minimize,
@@ -122,6 +124,31 @@ def test_collective_polarize_sequential(dummy_backend):
     assert results
     # polarize stores abs(value - cbs_limit) as the per-molecule result
     assert mol.get_result("energy_H") == pytest.approx(abs(-2.0 - (-2.5)))
+
+
+# --------------------------------------------------------------------------- #
+# Optimizer / Minimizer classes
+# --------------------------------------------------------------------------- #
+def test_optimizer_class_runs(dummy_backend):
+    basis = make_basis("h", (("s", (5.0, 1.0, 0.2)), ("p", (1.5, 0.3))))
+    mol = make_molecule(("H", "H"), method="linear", basis=basis)
+    opt = Optimizer(
+        strategy=Strategy(), params={}, basis=basis, elements=["h"],
+        opt_params={"options": {"maxiter": 2}},
+    )
+    opt.run(molecules=[mol], algorithm="l-bfgs-b")
+    assert set(opt.get_results()) == {"opt1", "opt2"}
+
+
+def test_minimizer_class_runs(dummy_backend):
+    basis = make_basis("h", (("s", (5.0, 1.0, 0.2)), ("p", (1.5, 0.3))))
+    mol = make_molecule(("H", "H"), method="linear", basis=basis)
+    mn = Minimizer(
+        strategy=Strategy(), params={}, basis=basis, elements=["h"],
+        opt_params={"options": {"maxiter": 2}},
+    )
+    mn.run(molecules=[mol], algorithm="l-bfgs-b")
+    assert set(mn.get_results()) == {"opt1", "opt2"}
 
 
 # --------------------------------------------------------------------------- #

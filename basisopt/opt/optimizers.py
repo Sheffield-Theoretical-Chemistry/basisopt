@@ -832,7 +832,8 @@ class Optimizer:
         """
         bo_logger.info(f"Starting optimization of {self.strategy.eval_type} {element.capitalize()}")
         bo_logger.info(f"Using {algorithm} algorithm for strategy {self.strategy.name}")
-        
+        bo_logger.info(f"Using loss function: {self.loss.__name__}")
+
         with BasisOptimizationLogger(
             basis=self.basis,
             element=element,
@@ -850,7 +851,9 @@ class Optimizer:
                     self.strategy.get_active(self.basis, element), logger=logger
                 )
             else:
-                initial_objective = self._objective(self.strategy.get_active(self.basis, element), logger=logger)
+                initial_objective = self._objective(
+                    self.strategy.get_active(self.basis, element), logger=logger
+                )
             objective_value = initial_objective
             ctr = 1
             while self.strategy.next(self.basis, element, objective_value):
@@ -858,33 +861,40 @@ class Optimizer:
                 if len(guess) > 0:
                     if self.parallel:
                         res = minimize(
-                            lambda x: self._parallel_objective(x, logger=logger), guess, method=algorithm, **self.opt_params
+                            lambda x: self._parallel_objective(x, logger=logger),
+                            guess, method=algorithm, **self.opt_params,
                         )
                     else:
-                        res = minimize(lambda x: self._objective(x, logger=logger), guess, method=algorithm, **self.opt_params)
+                        res = minimize(
+                            lambda x: self._objective(x, logger=logger),
+                            guess, method=algorithm, **self.opt_params,
+                        )
                     objective_value = res.fun
-                    
+
                     info_lines = [
                         f"Parameters: {res.x}",
                         f"Objective value: {res.fun}",
                     ]
-                    
                     if self.strategy.target is not None:
                         info_lines.append(f"Target value: {self.strategy.target}")
-                        info_lines.append(f"Difference to target: {objective_value - self.strategy.target}")
-                    
-                    info_lines.extend([
-                        f"Step Delta: {objective_value - self.strategy.last_objective}",
-                        f"Total Delta: {objective_value - initial_objective}",
-                    ])
-                    
+                        info_lines.append(
+                            f"Difference to target: {objective_value - self.strategy.target}"
+                        )
+                    info_lines.extend(
+                        [
+                            f"Step Delta: {objective_value - self.strategy.last_objective}",
+                            f"Total Delta: {objective_value - initial_objective}",
+                        ]
+                    )
                     info_str = "\n".join(info_lines)
                     self.results[f"opt{ctr}"] = res
                     ctr += 1
                 else:
                     info_str = "Skipping empty shell"
                 bo_logger.info(info_str)
-            bo_logger.info("Optimization complete.")
+            bo_logger.info(self._completion_message)
+
+    _completion_message = "Optimization complete."
 
     def _initialize(self):
         """
@@ -997,69 +1007,6 @@ class Minimizer(Optimizer):
             opt_params,
         )
 
-    def _opt(self, element: str, algorithm: str):
-        """
-        A method to optimize the active exponents for a given element using a given algorithm.
-
-        Args:
-            element (str): Element to optimize over
-            algorithm (str): Scipy optimization algorithm to use
-        """
-        bo_logger.info(f"Starting optimization of {self.strategy.eval_type} {element.capitalize()}")
-        bo_logger.info(f"Using {algorithm} algorithm for strategy {self.strategy.name}")
-        bo_logger.info(f"Using loss function: {self.loss.__name__}")
-        
-        with BasisOptimizationLogger(
-            basis=self.basis,
-            element=element,
-            strategy_name=self.strategy.name,
-            basis_type=self.strategy.basis_type,
-            eval_type=self.strategy.eval_type,
-            log_dir=self.log_dir,
-            flush_interval=self.flush_interval,
-            enabled=self.log_minimisation,
-            session_id=self.log_session_id,
-        ) as logger:
-            if self.parallel:
-                api.set_parallel(True, self.nprocs)
-                initial_objective = self._parallel_objective(
-                    self.strategy.get_active(self.basis, element), logger=logger
-                )
-            else:
-                initial_objective = self._objective(self.strategy.get_active(self.basis, element), logger=logger)
-            objective_value = initial_objective
-            ctr = 1
-            while self.strategy.next(self.basis, element, objective_value):
-                guess = self.strategy.get_active(self.basis, element)
-                if len(guess) > 0:
-                    if self.parallel:
-                        res = minimize(
-                            lambda x: self._parallel_objective(x, logger=logger), guess, method=algorithm, **self.opt_params
-                        )
-                    else:
-                        res = minimize(lambda x: self._objective(x, logger=logger), guess, method=algorithm, **self.opt_params)
-                    objective_value = res.fun
-                    running_total = 0
-                    running_total += objective_value - self.strategy.last_objective
-                    
-                    info_lines = [
-                        f"Parameters: {res.x}",
-                        f"Objective value: {res.fun}",
-                    ]
-                    
-                    if self.strategy.target is not None:
-                        info_lines.append(f"Target value: {self.strategy.target}")
-                        info_lines.append(f"Difference to target: {objective_value - self.strategy.target}")
-                    
-                    info_lines.extend([
-                        f"Step Delta: {objective_value - self.strategy.last_objective}",
-                        f"Total Delta: {running_total}",
-                    ])
-                    
-                    info_str = "\n".join(info_lines)
-                    self.results[f"opt{ctr}"] = res
-                    ctr += 1
-                else:
-                    info_str = "Skipping empty shell"
-                bo_logger.info(info_str)
-            bo_logger.info("Minimization complete")
+    # Only the default loss and the completion message differ from Optimizer;
+    # the optimization loop itself is inherited from Optimizer._opt.
+    _completion_message = "Minimization complete"
