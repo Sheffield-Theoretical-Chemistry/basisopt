@@ -54,6 +54,7 @@ def _run_strategy(
      Returns:
          a dictionary of scipy.optimize result objects for each step in the opt
     """
+    opt_params = {} if opt_params is None else opt_params
     bo_logger.info("Starting optimization of %s/%s", element, strategy.eval_type)
     bo_logger.info("Algorithm: %s, Strategy: %s", algorithm, strategy.name)
     if molecule is not None:
@@ -136,7 +137,7 @@ def optimize(
     algorithm: str = "l-bfgs-b",
     strategy: Strategy = Strategy(),
     reg: Regulariser = (lambda x: 0),
-    opt_params: dict[str, Any] = {},
+    opt_params: dict[str, Any] = None,
 ) -> OptResult:
     """General purpose optimizer for a single atomic basis
 
@@ -194,7 +195,7 @@ def minimizer(
     algorithm: str = 'l-bfgs-b',
     strategy: Strategy = Strategy(),
     reg: Regulariser = (lambda x: 0),
-    opt_params: dict[str, Any] = {},
+    opt_params: dict[str, Any] = None,
 ) -> OptResult:
     """General purpose optimizer for a single atomic basis
 
@@ -300,7 +301,7 @@ def atom_auto(
     algorithm: str = 'l-bfgs-b',
     strategy: Strategy = Strategy(),
     reg: Regulariser = (lambda x: 0),
-    opt_params: dict[str, Any] = {},
+    opt_params: dict[str, Any] = None,
     log_minimisation: bool = False,
     log_dir: Optional[str] = None,
     flush_interval: int = 50,
@@ -428,7 +429,7 @@ def atom_auto_reduce(
     algorithm: str = 'l-bfgs-b',
     strategy: Strategy = Strategy(),
     reg: Regulariser = (lambda x: 0),
-    opt_params: dict[str, Any] = {},
+    opt_params: dict[str, Any] = None,
     log_minimisation: bool = False,
     log_dir: Optional[str] = None,
     flush_interval: int = 50,
@@ -504,6 +505,7 @@ def _collective(
     molecules; ``accumulate_total`` accumulates the logged pass total across
     elements instead of overwriting it.
     """
+    opt_data = [] if opt_data is None else opt_data
     results = {}
     for i in range(npass):
         bo_logger.info("Collective pass %d", i + 1)
@@ -549,7 +551,7 @@ def _collective(
 def collective_optimize(
     molecules: list[Molecule],
     basis: InternalBasis,
-    opt_data: list[OptData] = [],
+    opt_data: list[OptData] = None,
     npass: int = 3,
     parallel: bool = False,
     ray_params: dict = None,
@@ -586,7 +588,7 @@ def collective_optimize(
 def collective_minimize(
     molecules: list[Molecule],
     basis: InternalBasis,
-    opt_data: list[OptData] = [],
+    opt_data: list[OptData] = None,
     npass: int = 3,
     parallel: bool = False,
     ray_params: dict = None,
@@ -651,7 +653,7 @@ def contraction_optimize(
     element: Optional[str] = None,
     algorithm: str = 'l-bfgs-b',
     reg: Regulariser = (lambda x: 0),
-    opt_params: dict[str, Any] = {},
+    opt_params: dict[str, Any] = None,
 ) -> OptResult:
     """General purpose optimizer for a single atomic basis
 
@@ -708,7 +710,7 @@ def contraction_optimize(
 def collective_polarize(
     molecules: list[Molecule],
     basis: InternalBasis,
-    opt_data: list[OptData] = [],
+    opt_data: list[OptData] = None,
     npass: int = 1,
     parallel: bool = False,
     ray_params: dict = None,
@@ -941,7 +943,7 @@ class Optimizer:
             mol.basis = self.basis
         self._initialized = True
 
-    def run(self, molecules: list = [], algorithm: str = "Nelder-Mead"):
+    def run(self, molecules: list = None, algorithm: str = "Nelder-Mead"):
         """Run the optimizer on the given molecules using the given algorithm"""
         if molecules:
             if isinstance(molecules, Iterable):

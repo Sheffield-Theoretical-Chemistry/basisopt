@@ -91,7 +91,7 @@ class JKFitBasis(Basis):
         guess: Optional[Union[str, InternalBasis]] = None,
         config: Optional[list[int]] = None,
         method: str = "rhf",
-        params: dict[str, Any] = {},
+        params: dict[str, Any] = None,
     ):
         """Sets up the basis ready for optimization. Must be called before optimize is called
 
@@ -109,6 +109,7 @@ class JKFitBasis(Basis):
              self.config
              self._done_setup - cannot call optimize until this flag is True
         """
+        params = {} if params is None else params
         if guess:
             if isinstance(guess, str):
                 starting_basis = fetch_basis(guess, self._molecule.unique_atoms())
@@ -142,7 +143,7 @@ class JKFitBasis(Basis):
             self._molecule.jkbasis = starting_basis
         self._done_setup = True
 
-    def optimize(self, algorithm: str = "Nelder-Mead", params: dict[str, Any] = {}) -> OptResult:
+    def optimize(self, algorithm: str = "Nelder-Mead", params: dict[str, Any] = None) -> OptResult:
         """Runs the basis optimization
 
         Arguments:
@@ -150,6 +151,7 @@ class JKFitBasis(Basis):
              params (dict): dictionary of parameters to pass to the backend -
              see the relevant Wrapper object for options
         """
+        params = {} if params is None else params
         if self._done_setup:
             self.opt_results = optimize(
                 self._molecule,
@@ -167,15 +169,15 @@ class JKFitBasis(Basis):
 def jkfit_collection(
     element: str,
     starting_guess: Union[str, InternalBasis],
-    basis_pairs: list[tuple[InternalBasis, Optional[list[int]]]] = [],
+    basis_pairs: list[tuple[InternalBasis, Optional[list[int]]]] = None,
     charge: int = 0,
     mult: int = 1,
     mol: Optional[Molecule] = None,
     jonly: bool = False,
     method: str = "rhf",
     algorithm: str = "Nelder-Mead",
-    opt_params: dict[str, Any] = {},
-    params: dict[str, Any] = {},
+    opt_params: dict[str, Any] = None,
+    params: dict[str, Any] = None,
 ) -> list[JKFitBasis]:
     """Optimizes a collection of JKFit basis sets, in the style of cc-pVnZ basis sets,
     i.e. V5Z -> VQZ -> VTZ, by reducing the fitting set size and reoptimizing at each step.
@@ -196,6 +198,9 @@ def jkfit_collection(
     Returns:
         a list of optimized JKFitBasis objects corresponding to the order of basis_pairs
     """
+    basis_pairs = [] if basis_pairs is None else basis_pairs
+    opt_params = {} if opt_params is None else opt_params
+    params = {} if params is None else params
     results = []
     guess = starting_guess
     for basis, config in basis_pairs:

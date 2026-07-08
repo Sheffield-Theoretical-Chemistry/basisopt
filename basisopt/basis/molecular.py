@@ -30,7 +30,7 @@ class MolecularBasis(Basis):
          _done_setup (bool): if True, setup has been called
     """
 
-    def __init__(self, name: str = "Empty", molecules: list[Molecule] = []):
+    def __init__(self, name: str = "Empty", molecules: list[Molecule] = None):
         super().__init__()
         self.name = name
         self.basis = {}
@@ -38,7 +38,7 @@ class MolecularBasis(Basis):
         self._atoms = set()
         self._atomic_bases = {}
         self._done_setup = False
-        for m in molecules:
+        for m in molecules or []:
             self._add_molecule(m)
 
     def save(self, filename: str):
@@ -119,7 +119,7 @@ class MolecularBasis(Basis):
     def run_test(
         self,
         name: str,
-        params: dict[str, Any] = {},
+        params: dict[str, Any] = None,
         reference_basis: Optional[Union[str, InternalBasis]] = None,
         do_print: bool = True,
     ) -> dict[str, Any]:
@@ -135,6 +135,7 @@ class MolecularBasis(Basis):
         Returns:
              Dicionary of results for each test, indexed by molecule name
         """
+        params = {} if params is None else params
         t = self.get_test(name)
         results = {}
         if t is None:
@@ -168,7 +169,7 @@ class MolecularBasis(Basis):
 
     def run_all_tests(
         self,
-        params: dict[str, Any] = {},
+        params: dict[str, Any] = None,
         reference_basis: Optional[Union[str, InternalBasis]] = None,
     ) -> None:
         """Runs all of the tests across all molecules, and prints the results to logger
@@ -178,6 +179,7 @@ class MolecularBasis(Basis):
              reference_basis (str or dict): either string name for basis to fetch
                  from the BSE, or an internal basis dictionary, or None
         """
+        params = {} if params is None else params
         results = {}
         for t in self._tests:
             results[t.name] = self.run_test(
@@ -200,12 +202,13 @@ class MolecularBasis(Basis):
         quality: str = "dz",
         strategy: Strategy = Strategy(),
         reference: str = "cc-pvqz",
-        params: dict[str, Any] = {},
+        params: dict[str, Any] = None,
     ):
         """Sets up the basis ready for optimization by creating AtomicBasis objects for each unique
         atom in the set, and calling setup for those - see the signature of AtomicBasis.setup for
         explanation.
         """
+        params = {} if params is None else params
         if len(self._atoms) == 0:
             raise EmptyBasis
 
@@ -274,7 +277,7 @@ class MolecularBasis(Basis):
     def optimize(
         self,
         algorithm: str = "Nelder-Mead",
-        params: dict[str, Any] = {},
+        params: dict[str, Any] = None,
         reg: Callable[[np.ndarray], float] = lambda x: 0,
         npass: int = 1,
         parallel: bool = False,
@@ -292,6 +295,7 @@ class MolecularBasis(Basis):
          Returns:
              dictionary of scipy.optimize result objects, indexed by atom
         """
+        params = {} if params is None else params
         if self._done_setup:
             opt_data = [
                 (k, algorithm, v.strategy, reg, params) for k, v in self._atomic_bases.items()
@@ -312,7 +316,7 @@ class MolecularBasis(Basis):
     def minimization(
         self,
         algorithm: str = "Nelder-Mead",
-        params: dict[str, Any] = {},
+        params: dict[str, Any] = None,
         reg: Callable[[np.ndarray], float] = lambda x: 0,
         npass: int = 1,
         parallel: bool = False,
@@ -330,6 +334,7 @@ class MolecularBasis(Basis):
          Returns:
              dictionary of scipy.optimize result objects, indexed by atom
         """
+        params = {} if params is None else params
         if self._done_setup:
             opt_data = [(k, algorithm, self.strategy, reg, params) for k, _ in self.basis.items()]
             self.opt_results = collective_minimize(
@@ -349,7 +354,7 @@ class MolecularBasis(Basis):
         self,
         element: str,
         algorithm: str = "Nelder-Mead",
-        params: dict[str, Any] = {},
+        params: dict[str, Any] = None,
         reg: Callable[[np.ndarray], float] = lambda x: 0,
         npass: int = 1,
         parallel: bool = False,
@@ -367,6 +372,7 @@ class MolecularBasis(Basis):
          Returns:
              dictionary of scipy.optimize result objects, indexed by atom
         """
+        params = {} if params is None else params
         if self._done_setup:
             opt_data = [(element.lower(), algorithm, self.strategy, reg, params)]
             self.opt_results = collective_polarize(
@@ -386,7 +392,7 @@ class MolecularBasis(Basis):
 class MoleculeLoader:
     """A dataloader class load and store Molecule objects for use in the Minimizer and Optimizer classes"""
 
-    def __init__(self, molecules: list[Molecule] = []):
+    def __init__(self, molecules: list[Molecule] = None):
         if molecules:
             self._molecules = {mol.name: mol for mol in molecules}
             self._atoms = set()
@@ -417,7 +423,7 @@ class MoleculeLoader:
         """Returns a list of all the Molecule objects"""
         return list(self._atoms)
 
-    def add_molecules_from_xyz(self, geoms: list[str], elements: list[str] = [], **kwargs):
+    def add_molecules_from_xyz(self, geoms: list[str], elements: list[str] = None, **kwargs):
         """
         Add multiple molecules to the loader from XYZ files with dynamic attributes.
 

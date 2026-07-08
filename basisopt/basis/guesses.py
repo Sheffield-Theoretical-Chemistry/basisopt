@@ -16,24 +16,25 @@ from .basis import (
 )
 
 # All guess functions need this signature
-# func(atomic, params={}), where atomic is an AtomicBasis object
+# func(atomic, params=None), where atomic is an AtomicBasis object
 # and params is a dictionary of parameters. atomic must have attribute
 # atomic.config set.
 # Return an array of Shell objects (i.e. an internal basis for a single atom)
 
 
-def null_guess(atomic, params={}):
+def null_guess(atomic, params=None):
     """Default guess type for testing, returns empty array"""
     return []
 
 
-def log_normal_guess(atomic, params={'mean': 0.0, 'sigma': 1.0}):
+def log_normal_guess(atomic, params=None):
     """Generates exponents randomly from a log-normal distribution
 
     Params:
          mean: centre of the log-normal distribution
          sigma: standard deviation of log-normal distribution
     """
+    params = {'mean': 0.0, 'sigma': 1.0} if params is None else params
     config = atomic.config
     basis = []
     for k, v in config.items():
@@ -103,23 +104,25 @@ def bse_guess(atomic, params={'name': 'cc-pvdz'}):
     return basis[atomic._symbol]
 
 
-def even_tempered_guess(atomic, params={}):
+def even_tempered_guess(atomic, params=None):
     """Takes guess from an even-tempered expansion
 
     Params:
          see signature for AtomicBasis.set_even_tempered
     """
+    params = {} if params is None else params
     if atomic.et_params is None:
         atomic.set_even_tempered(**params)
     return even_temper_expansion(atomic.et_params)
 
 
-def well_tempered_guess(atomic, params={}):
+def well_tempered_guess(atomic, params=None):
     """Takes guess from a well-tempered expansion
 
     Params:
          see signature for AtomicBasis.set_well_tempered
     """
+    params = {} if params is None else params
     if atomic.wt_params is None:
         atomic.set_well_tempered(**params)
     return well_temper_expansion(atomic.wt_params)

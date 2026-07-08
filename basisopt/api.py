@@ -185,7 +185,7 @@ def molpro(path: str):
 
 
 def run_calculation(
-    evaluate: str = 'energy', mol: Molecule = None, params: dict[Any, Any] = {}
+    evaluate: str = 'energy', mol: Molecule = None, params: dict[Any, Any] = None
 ) -> int:
     """Interface to the wrapper used to run a calculation.
 
@@ -197,15 +197,17 @@ def run_calculation(
     Returns:
         int: 0 on success, non-zero on failure
     """
+    params = {} if params is None else params
     result = _CURRENT_BACKEND.run(evaluate, mol, params, tmp=_TMP_DIR)
     _CURRENT_BACKEND.clean()
     return result
 
 
 def _one_job(
-    mol: Molecule, evaluate: str = 'energy', params: dict[Any, Any] = {}
+    mol: Molecule, evaluate: str = 'energy', params: dict[Any, Any] = None
 ) -> tuple[str, Any]:
     """Internal helper to run a single job in a distributed array"""
+    params = {} if params is None else params
     success = _CURRENT_BACKEND.run(evaluate, mol, params, tmp=_TMP_DIR)
     if success != 0:
         raise FailedCalculation
@@ -260,8 +262,8 @@ if _PARALLEL:
 
 def run_all(
     evaluate: str = 'energy',
-    mols: list = [],
-    params: dict = {},
+    mols: list = None,
+    params: dict = None,
     parallel: bool = False,
     count=None,
     ray_params=None,
@@ -277,6 +279,8 @@ def run_all(
     Returns:
         a dictionary of the form {molecule name: value}
     """
+    mols = [] if mols is None else mols
+    params = {} if params is None else params
     results = {}
 
     if parallel and _PARALLEL:
