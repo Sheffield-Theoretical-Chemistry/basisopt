@@ -2,6 +2,9 @@
 
 import inspect
 
+import pytest
+
+import basisopt.data as data
 from basisopt.basis.atomic import AtomicBasis
 
 
@@ -23,6 +26,42 @@ def test_charged_atom_without_multiplicity():
     cation = AtomicBasis("Li", charge=1)
     assert cation.multiplicity is not None
     assert cation.multiplicity >= 1
+
+
+@pytest.mark.parametrize(
+    "method_name, lookup_name, attr, fake_params, n_exps",
+    [
+        ("set_even_tempered", "get_even_temper_params", "et_params", [(0.5, 2.0, 4)], 4),
+        (
+            "set_well_tempered",
+            "get_well_temper_params",
+            "wt_params",
+            [(0.1, 2.2, 20.0, 10.0, 4)],
+            4,
+        ),
+        (
+            "set_legendre",
+            "get_legendre_params",
+            "leg_params",
+            [((3.5, 5.0, 0.8, 0.3, 0.1, 0.1), 6)],
+            6,
+        ),
+    ],
+)
+def test_set_tempered_expands_looked_up_params(
+    dummy_backend, monkeypatch, method_name, lookup_name, attr, fake_params, n_exps
+):
+    # When pre-optimized params are tabulated, the shared _set_tempered helper
+    # takes the expansion branch (no optimization) and stores them on the
+    # right attribute. Guards the set_even/well_tempered/set_legendre dedup.
+    monkeypatch.setattr(data, lookup_name, lambda atom, accuracy: fake_params)
+    atom = AtomicBasis("He")
+    getattr(atom, method_name)()
+
+    assert getattr(atom, attr) == fake_params
+    shells = atom._molecule.basis[atom._symbol]
+    assert len(shells) == 1
+    assert len(shells[0].exps) == n_exps
 
 
 def test_setup_strategy_default_is_not_a_shared_instance():

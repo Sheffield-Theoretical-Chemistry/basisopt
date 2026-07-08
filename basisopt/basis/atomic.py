@@ -284,6 +284,35 @@ class AtomicBasis(Basis):
         self._done_setup = True
         bo_logger.info("Atomic basis setup complete")
 
+    def _set_tempered(
+        self, attr, lookup, strategy_cls, expansion, method, accuracy, max_n, max_l, exact_ref, params
+    ):
+        """Shared implementation of set_even_tempered/set_well_tempered/set_legendre.
+
+        Looks up pre-optimized params for the atom via ``lookup``; if none are
+        tabulated, builds ``strategy_cls`` and optimizes to obtain them,
+        otherwise expands the stored params with ``expansion``. The resulting
+        parameters are stored on ``self.<attr>`` (et_params/wt_params/leg_params).
+        """
+        params = {} if params is None else params
+        values = lookup(atom=self._symbol.title(), accuracy=accuracy)
+        setattr(self, attr, values)
+        if len(values) == 0:
+            # optimize new params
+            if exact_ref:
+                reference = (
+                    "exact",
+                    data._ATOMIC_HF_ENERGIES[self._element.atomic_number],
+                )
+            else:
+                reference = ("cc-pV5Z", None)
+            strategy = strategy_cls(max_n=max_n, max_l=max_l)
+            self.setup(method=method, strategy=strategy, reference=reference, params=params)
+            self.optimize(algorithm="Nelder-Mead", params=params)
+            setattr(self, attr, strategy.shells)
+        else:
+            self._molecule.basis[self._symbol] = expansion(values)
+
     @needs_element
     def set_even_tempered(
         self,
@@ -309,22 +338,10 @@ class AtomicBasis(Basis):
         Sets:
              self.et_params
         """
-        self.et_params = data.get_even_temper_params(atom=self._symbol.title(), accuracy=accuracy)
-        if len(self.et_params) == 0:
-            # optimize new params
-            if exact_ref:
-                reference = (
-                    "exact",
-                    data._ATOMIC_HF_ENERGIES[self._element.atomic_number],
-                )
-            else:
-                reference = ("cc-pV5Z", None)
-            strategy = EvenTemperedStrategy(max_n=max_n, max_l=max_l)
-            self.setup(method=method, strategy=strategy, reference=reference, params=params)
-            self.optimize(algorithm="Nelder-Mead", params=params)
-            self.et_params = strategy.shells
-        else:
-            self._molecule.basis[self._symbol] = even_temper_expansion(self.et_params)
+        self._set_tempered(
+            "et_params", data.get_even_temper_params, EvenTemperedStrategy,
+            even_temper_expansion, method, accuracy, max_n, max_l, exact_ref, params,
+        )
 
     @needs_element
     def set_well_tempered(
@@ -351,22 +368,10 @@ class AtomicBasis(Basis):
         Sets:
              self.wt_params
         """
-        self.wt_params = data.get_well_temper_params(atom=self._symbol.title(), accuracy=accuracy)
-        if len(self.wt_params) == 0:
-            # optimize new params
-            if exact_ref:
-                reference = (
-                    "exact",
-                    data._ATOMIC_HF_ENERGIES[self._element.atomic_number],
-                )
-            else:
-                reference = ("cc-pV5Z", None)
-            strategy = WellTemperedStrategy(max_n=max_n, max_l=max_l)
-            self.setup(method=method, strategy=strategy, reference=reference, params=params)
-            self.optimize(algorithm="Nelder-Mead", params=params)
-            self.wt_params = strategy.shells
-        else:
-            self._molecule.basis[self._symbol] = well_temper_expansion(self.wt_params)
+        self._set_tempered(
+            "wt_params", data.get_well_temper_params, WellTemperedStrategy,
+            well_temper_expansion, method, accuracy, max_n, max_l, exact_ref, params,
+        )
 
     @needs_element
     def set_legendre(
@@ -393,22 +398,10 @@ class AtomicBasis(Basis):
         Sets:
              self.leg_params
         """
-        self.leg_params = data.get_legendre_params(atom=self._symbol.title(), accuracy=accuracy)
-        if len(self.leg_params) == 0:
-            # optimize new params
-            if exact_ref:
-                reference = (
-                    "exact",
-                    data._ATOMIC_HF_ENERGIES[self._element.atomic_number],
-                )
-            else:
-                reference = ("cc-pV5Z", None)
-            strategy = LegendreStrategy(max_n=max_n, max_l=max_l)
-            self.setup(method=method, strategy=strategy, reference=reference, params=params)
-            self.optimize(algorithm="Nelder-Mead", params=params)
-            self.leg_params = strategy.shells
-        else:
-            self._molecule.basis[self._symbol] = legendre_expansion(self.leg_params)
+        self._set_tempered(
+            "leg_params", data.get_legendre_params, LegendreStrategy,
+            legendre_expansion, method, accuracy, max_n, max_l, exact_ref, params,
+        )
 
     @needs_element
     def optimize(self, algorithm: str = "Nelder-Mead", params: dict[str, Any] = None) -> OptResult:
