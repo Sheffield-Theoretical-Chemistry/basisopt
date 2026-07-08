@@ -749,33 +749,35 @@ class Optimizer:
         strategy,
         params,
         reference_basis=None,
-        basis={},
-        elements=[],
+        basis=None,
+        elements=None,
         loss=default_opt_loss,
         parallel=False,
         nprocs=2,
-        parallel_params={},
+        parallel_params=None,
         log_minimisation=False,
         log_dir=None,
         flush_interval=50,
         log_session_id=None,
-        opt_params={},
+        opt_params=None,
     ):
         self.strategy = strategy
         self.params = params
         self.loss = loss
         bo_logger.info(f"Optimizer initialized with loss function: {loss.__name__}")
         self.reference_basis = reference_basis
-        self.basis = basis
-        self.elements = elements
+        # None defaults -> fresh mutable objects per instance (these get mutated,
+        # e.g. self.elements in _initialize, so a shared default would leak state
+        # across Optimizer instances)
+        self.basis = {} if basis is None else basis
+        self.elements = [] if elements is None else elements
         self.results = {}
-        self.opt_params = opt_params
+        self.opt_params = {} if opt_params is None else opt_params
         self.active_element = str
-        self.results = {}
         self.molecules = []
         self._initialized = False
         self.parallel = parallel
-        self.parallel_params = parallel_params
+        self.parallel_params = {} if parallel_params is None else parallel_params
         self.nprocs = nprocs
         self.log_minimisation = log_minimisation
         self.log_dir = log_dir
@@ -978,17 +980,17 @@ class Minimizer(Optimizer):
         strategy,
         params,
         reference_basis=None,
-        basis={},
-        elements=[],
+        basis=None,
+        elements=None,
         loss=default_min_loss,
         parallel=False,
         nprocs=2,
-        parallel_params={},
+        parallel_params=None,
         log_minimisation=False,
         log_dir=None,
         flush_interval=50,
         log_session_id=None,
-        opt_params={},
+        opt_params=None,
     ):
         super().__init__(
             strategy,

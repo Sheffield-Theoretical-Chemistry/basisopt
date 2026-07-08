@@ -140,6 +140,19 @@ def test_optimizer_class_runs(dummy_backend):
     assert set(opt.get_results()) == {"opt1", "opt2"}
 
 
+def test_optimizer_instances_do_not_share_mutable_defaults(dummy_backend):
+    """Regression: basis/elements used to be mutable defaults shared across all
+    Optimizer instances, and _initialize mutates elements in place."""
+    a = Optimizer(strategy=Strategy(), params={})
+    b = Optimizer(strategy=Strategy(), params={})
+    a.elements.append("h")
+    a.basis["h"] = []
+    assert b.elements == []
+    assert b.basis == {}
+    assert a.elements is not b.elements
+    assert a.basis is not b.basis
+
+
 def test_minimizer_class_runs(dummy_backend):
     basis = make_basis("h", (("s", (5.0, 1.0, 0.2)), ("p", (1.5, 0.3))))
     mol = make_molecule(("H", "H"), method="linear", basis=basis)
