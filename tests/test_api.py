@@ -1,5 +1,7 @@
 import logging
 import os
+import subprocess
+import sys
 
 from basisopt import api
 from basisopt.wrappers import Wrapper
@@ -40,6 +42,25 @@ def test_get_set_tmp_dir():
 
     if os.path.isdir(NEW_TMP):
         os.rmdir(NEW_TMP)
+
+
+def test_import_without_ray():
+    # regression: `@ray.remote` used to decorate `_run_one_job` unconditionally at
+    # import, so if the Ray import failed `ray` was unbound -> NameError at import.
+    # Mask Ray in a fresh interpreter and confirm the package still imports.
+    script = (
+        "import sys; sys.modules['ray'] = None\n"
+        "import basisopt.api as api\n"
+        "assert api._PARALLEL is False\n"
+        "assert callable(api._run_one_job)\n"
+        "assert not hasattr(api._run_one_job, 'remote')\n"
+        "print('ok')\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ok" in result.stdout
 
 
 def test_set_logger():

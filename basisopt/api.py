@@ -229,7 +229,6 @@ def _apply_additional_params(ray_params):
             # bo_logger.info(f"Setting psi4 path to {default_path}")
 
 
-@ray.remote
 def _run_one_job(molecule, evaluate, params, ray_params=None):
     """Remote function to process each molecule using the backend."""
     try:
@@ -249,6 +248,14 @@ def _run_one_job(molecule, evaluate, params, ray_params=None):
     except FailedCalculation:
         bo_logger.error(f"Calculation failed for molecule: {molecule.name}")
         return molecule.name, None
+
+
+# Only wrap as a Ray remote when Ray actually imported; decorating at import
+# time unconditionally would raise NameError on a machine without Ray. When Ray
+# is unavailable `_run_one_job` stays a plain function and is never called via
+# `.remote` (run_all only uses the remote path under `parallel and _PARALLEL`).
+if _PARALLEL:
+    _run_one_job = ray.remote(_run_one_job)
 
 
 def run_all(
