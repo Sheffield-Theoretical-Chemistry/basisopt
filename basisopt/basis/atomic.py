@@ -12,6 +12,7 @@ from basisopt.exceptions import ElementNotSet
 from basisopt.molecule import Molecule
 from basisopt.opt.eventemper import EvenTemperedStrategy
 from basisopt.opt.legendre import LegendreStrategy
+from basisopt.opt.optimizers import optimize
 from basisopt.opt.strategies import Strategy
 from basisopt.opt.welltemper import WellTemperedStrategy
 from basisopt.util import bo_logger
@@ -75,7 +76,11 @@ class AtomicBasis(Basis):
         # Enum object holding all the ground state multiplicities
         if self._element is not None:
             self.charge = charge
-            if self.charge == 0 and mult is None:
+            if mult is None:
+                # Fall back to the neutral ground-state multiplicity. Passing
+                # None to the multiplicity setter would raise (None < 1), so a
+                # charged atom constructed without an explicit multiplicity used
+                # to crash here.
                 self.multiplicity = getattr(
                     data.GROUNDSTATE_MULTIPLICITIES, self.element.symbol
                 ).value
@@ -165,8 +170,8 @@ class AtomicBasis(Basis):
     @multiplicity.setter
     @needs_element
     def multiplicity(self, new_mult: int):
-        if (new_mult < 1) or (new_mult - 1 > self._element.electrons):
-            bo_logger.warning("Multiplicity can't be set to %d, setting to 1", new_mult)
+        if new_mult is None or (new_mult < 1) or (new_mult - 1 > self._element.electrons):
+            bo_logger.warning("Multiplicity can't be set to %s, setting to 1", new_mult)
             self._multiplicity = 1
         else:
             self._multiplicity = new_mult
@@ -357,7 +362,7 @@ class AtomicBasis(Basis):
                 reference = ("cc-pV5Z", None)
             strategy = WellTemperedStrategy(max_n=max_n, max_l=max_l)
             self.setup(method=method, strategy=strategy, reference=reference, params=params)
-            self.optimize(algorithm="Nelder-Mead")
+            self.optimize(algorithm="Nelder-Mead", params=params)
             self.wt_params = strategy.shells
         else:
             self._molecule.basis[self._symbol] = well_temper_expansion(self.wt_params)
