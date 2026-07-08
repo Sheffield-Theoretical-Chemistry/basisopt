@@ -1,10 +1,13 @@
 import numpy as np
 import pandas as pd
 
+from basisopt import api
 from basisopt.basis.basis import uncontract_shell
 from basisopt.containers import Shell
 from basisopt.data import get_even_temper_params, get_legendre_params
-from basisopt.util import fit_poly, get_composition, read_json
+from basisopt.util import fit_poly, get_composition, rank_shell_contractions, read_json
+from basisopt.wrappers.dummy import DummyWrapper
+from tests.data.factories import make_molecule
 
 
 def test_read_json():
@@ -59,3 +62,28 @@ def test_get_composition_contracted():
     # fewer coefficient vectors than exponents -> arrow notation
     basis = {"h": [_shell("s", 4, 2), _shell("p", 2, 1)]}
     assert get_composition(basis, "H") == "(4s2p) -> [2s1p]"
+
+
+def test_rank_shell_contractions_failed_calc_ranks_last(monkeypatch):
+    api._CURRENT_BACKEND = DummyWrapper()
+    shell = Shell()
+    shell.l = "s"
+    shell.exps = np.array([1.0, 2.0])
+    shell.coefs = [np.array([0.5, 0.5])]
+    mol = make_molecule(("H",), method="linear")
+
+    state = {"n": 0}
+
+    def flaky(*args, **kwargs):
+        state["n"] += 1
+        if state["n"] == 1:
+            return 0  # initial reference calculation succeeds
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(api, "run_calculation", flaky)
+    _, errors, _, _ = rank_shell_contractions(mol, shell, {})
+
+    flat = [e for row in errors for e in row]
+    # a failed removal must be inf (rank last), never 0.0 (which would rank it
+    # as the best candidate to prune)
+    assert flat and all(np.isinf(e) for e in flat)

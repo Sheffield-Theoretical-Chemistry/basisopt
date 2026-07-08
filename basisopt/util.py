@@ -335,7 +335,10 @@ def rank_shell_contractions(mol, shell, params, skip_zeros=False):
                 bo_logger.error(f'Error: {e} on {shell.l} {idx} {i}')
                 shell.coefs[idx] = copy.deepcopy(old_coeffs)
                 en.append(np.nan)
-                er.append(0.0)
+                # a failed calculation must NOT look like a zero-cost removal
+                # (which would rank it as the best candidate to prune); make its
+                # error infinite so it sorts last and is never removed
+                er.append(np.inf)
         energies.append(en)
         errors.append(er)
     ranked_idx, sorted_errors = argsort_inhomogeneous_array(errors)
