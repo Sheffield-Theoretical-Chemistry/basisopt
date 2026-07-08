@@ -1,11 +1,8 @@
 import csv
 import os
-from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
-
-import numpy as np
 
 from basisopt import bo_logger
 
@@ -72,7 +69,6 @@ class BasisOptimizationLogger:
 
         # Track current composition and file
         self.current_composition = None
-        self.current_npy_path = None
         self.current_csv_path = None
         self.column_names = None
         self.log_buffer = []
@@ -99,28 +95,36 @@ class BasisOptimizationLogger:
         return columns
 
     def _get_file_paths(self, composition: str):
-        """Get file paths for a given composition"""
+        """Get file path for a given composition"""
         base_name = (
             f"{self.element}_{self.basis_type}_{self.eval_type}_{composition}_{self.timestamp}"
         )
-        npy_path = os.path.join(self.log_dir, f"{base_name}.npy")
         csv_path = os.path.join(self.log_dir, f"{base_name}.csv")
-        return npy_path, csv_path
+        return csv_path
 
     def _initialize_composition(self, composition: str):
-        """Initialize or resume logging for a composition"""
-        self.current_npy_path, self.current_csv_path = self._get_file_paths(composition)
+        """Initialize or resume logging for a composition.
 
-        # If file exists, load it to get the last eval_num
-        if os.path.exists(self.current_npy_path):
-            existing = np.load(self.current_npy_path, allow_pickle=True)
-            self.file_eval_counter = int(existing[-1, 0])  # Last eval_num
+        Rows are appended straight to the CSV as they are flushed; if the file
+        already exists we resume the evaluation counter from its last data row,
+        otherwise we create it and write the header.
+        """
+        self.current_csv_path = self._get_file_paths(composition)
+
+        if os.path.exists(self.current_csv_path):
+            with open(self.current_csv_path, newline='') as f:
+                rows = list(csv.reader(f))
+            # rows[0] is the header; the remainder are data rows
+            data_rows = rows[1:]
+            self.file_eval_counter = int(data_rows[-1][0]) if data_rows else 0
             bo_logger.info(f"Resuming composition {composition} at eval {self.file_eval_counter}")
         else:
             self.file_eval_counter = 0
+            with open(self.current_csv_path, 'w', newline='') as f:
+                csv.writer(f).writerow(self.column_names)
             bo_logger.info(f"New composition detected: {composition}")
 
-        bo_logger.info(f"Logging to: {self.current_npy_path}")
+        bo_logger.info(f"Logging to: {self.current_csv_path}")
 
     def log(self, energy: float, basis: dict, element: str, cbs_limit: Optional[float] = None):
         """Log a single evaluation
@@ -141,7 +145,7 @@ class BasisOptimizationLogger:
             # Flush previous buffer if exists
             if self.current_composition is not None:
                 self._flush_to_disk()
-                self._export_to_csv()
+                self._log_summary()
 
             # Initialize or resume composition
             self.current_composition = composition
@@ -167,32 +171,23 @@ class BasisOptimizationLogger:
             self._flush_to_disk()
 
     def _flush_to_disk(self):
-        """Write buffer to disk"""
-        if not self.log_buffer or self.current_npy_path is None:
+        """Append the buffered rows to the CSV and clear the buffer.
+
+        The header is written when the file is created (see
+        `_initialize_composition`), so a flush only ever appends data rows.
+        """
+        if not self.log_buffer or self.current_csv_path is None:
             return
 
-        buffer_array = np.array(self.log_buffer, dtype=object)  # Use object dtype for mixed types
-
-        # Append to existing file or create new one
-        if os.path.exists(self.current_npy_path):
-            existing = np.load(self.current_npy_path, allow_pickle=True)
-            combined = np.vstack([existing, buffer_array])
-            np.save(self.current_npy_path, combined)
-        else:
-            np.save(self.current_npy_path, buffer_array)
+        with open(self.current_csv_path, 'a', newline='') as f:
+            csv.writer(f).writerows(self.log_buffer)
 
         self.log_buffer.clear()
 
-    def _export_to_csv(self):
-        """Export current npy file to CSV"""
-        if self.current_npy_path is None or not os.path.exists(self.current_npy_path):
+    def _log_summary(self):
+        """Log a short summary of the current composition's file"""
+        if self.current_csv_path is None:
             return
-
-        data = np.load(self.current_npy_path, allow_pickle=True)
-        with open(self.current_csv_path, 'w', newline='') as f:
-            csv_writer = csv.writer(f)
-            csv_writer.writerow(self.column_names)
-            csv_writer.writerows(data.tolist())
 
         bo_logger.info(
             f"Composition {self.current_composition}: {self.file_eval_counter} evaluations"
@@ -200,13 +195,13 @@ class BasisOptimizationLogger:
         bo_logger.info(f"  CSV: {self.current_csv_path}")
 
     def finalize(self):
-        """Final flush and CSV conversion"""
+        """Final flush and summary"""
         if not self.enabled:
             return
 
-        # Flush remaining buffer and export final file
+        # Flush any remaining buffered rows and summarise
         self._flush_to_disk()
-        self._export_to_csv()
+        self._log_summary()
 
         bo_logger.info(f"Total evaluations logged: {self.total_eval_counter}")
 
