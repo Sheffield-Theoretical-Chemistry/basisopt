@@ -49,12 +49,12 @@ class AutoBasisStrategy(Strategy):
     def get_active(self, basis: InternalBasis, element: str) -> np.ndarray:
         """Returns the (preconditioned) exponents of the current shell."""
         x = basis[element][self._step].exps
-        return self.pre(x, **self.pre.params)
+        return self.pre(x, **self.pre_params)
 
     def set_active(self, values: np.ndarray, basis: InternalBasis, element: str):
         """Sets the current shell's exponents from preconditioned values."""
         y = np.array(values)
-        basis[element][self._step].exps = self.pre.inverse(y, **self.pre.params)
+        basis[element][self._step].exps = self.pre.inverse(y, **self.pre_params)
 
     def as_dict(self) -> dict[str, Any]:
         """Returns MSONable dictionary of object"""
@@ -593,7 +593,7 @@ class AutoBasisOpt(Strategy):
         self.guess_params = {"name": "cc-pvdz"}
         self._step = -1
         self.pre = pre
-        self.pre.params = {}
+        self.pre_params = {}
         self.last_objective = 0
         self.delta_objective = 0
         self.first_run = True
@@ -693,7 +693,7 @@ class PolarizationStrategy(Strategy):
         self.guess_params = {"name": "cc-pvdz"}
         self._step = -1
         self.pre = pre
-        self.pre.params = {}
+        self.pre_params = {}
         self.last_objective = 0
         self.delta_objective = 0
         self.first_run = True
@@ -738,7 +738,7 @@ class PolarizationStrategy(Strategy):
     def get_active(self, basis: InternalBasis, element: str) -> np.ndarray:
         """Returns the even temper params for the current shell"""
         y = basis[element][self._step].exps
-        return self.pre(y, **self.pre.params)
+        return self.pre(y, **self.pre_params)
 
     def set_active(self, values: np.ndarray, basis: InternalBasis, element: str):
         """Given the even temper params for a shell, expands the basis
@@ -746,7 +746,7 @@ class PolarizationStrategy(Strategy):
         and that the ratio is >= 1.01, to prevent impossible exponents
         """
         y = np.array(values)
-        basis[element][self._step].exps = self.pre.inverse(y, **self.pre.params)
+        basis[element][self._step].exps = self.pre.inverse(y, **self.pre_params)
 
     def set_new_basis(self, new_basis: InternalBasis, element: str):
         """Sets the new basis (IN DEVELOPMENT)"""

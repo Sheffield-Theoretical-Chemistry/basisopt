@@ -38,7 +38,8 @@ class Strategy(MSONable):
         guess (func): function to generate starting guess exponents
         guess_params (dict): parameters to pass to guess
         pre (func): function to precondition exponents - must have an inverse attribute
-        pre.params (dict): parameters to pass to the preconditioner
+        pre_params (dict): parameters to pass to the preconditioner (per-instance;
+            previously stored on the shared module-level preconditioner function)
         last_objective (float): last value of objective function
         delta_objective (float): change in value of objective function from last step
         first_run (bool): if True, next is yet to be called
@@ -60,7 +61,7 @@ class Strategy(MSONable):
         self.guess_params = {"name": "cc-pvdz"}
         self._step = -1
         self.pre = pre
-        self.pre.params = {}
+        self.pre_params = {}
         self.last_objective = 0
         self.delta_objective = 0
         self.first_run = True
@@ -114,7 +115,7 @@ class Strategy(MSONable):
         """
         elbasis = basis[element]
         x = elbasis[self._step].exps
-        return self.pre(x, **self.pre.params)
+        return self.pre(x, **self.pre_params)
 
     def set_active(self, values: np.ndarray, basis: InternalBasis, element: str):
         """Sets the currently active exponents to the given values.
@@ -126,7 +127,7 @@ class Strategy(MSONable):
         """
         elbasis = basis[element]
         y = np.array(values)
-        elbasis[self._step].exps = self.pre.inverse(y, **self.pre.params)
+        elbasis[self._step].exps = self.pre.inverse(y, **self.pre_params)
 
     def set_context(self, molecule=None):
         """Stashes per-run context (the Molecule being optimized).
@@ -167,7 +168,7 @@ class Strategy(MSONable):
             "params": self.params,
             "guess_params": self.guess_params,
             "step": self._step,
-            "pre_params": self.pre.params,
+            "pre_params": self.pre_params,
             "last_objective": self.last_objective,
             "delta_objective": self.delta_objective,
             "first_run": self.first_run,

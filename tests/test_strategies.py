@@ -125,6 +125,21 @@ def test_reduce_strategy_selects_min_error_across_jagged_shells(dummy_backend, m
     assert len(basis["h"][2].exps) == n_d_before - 1
 
 
+def test_preconditioner_params_are_per_instance(dummy_backend):
+    """Regression: pre.params was set on the shared module-level preconditioner
+    function object, so every strategy aliased one dict. Each strategy must own
+    its own pre_params, and the shared function must not carry a params attr."""
+    from basisopt.opt.preconditioners import make_positive
+
+    s1 = Strategy()
+    s2 = Strategy()
+    assert s1.pre_params == {} and s2.pre_params == {}
+    s1.pre_params["k"] = 1
+    assert s2.pre_params == {}
+    assert s1.pre_params is not s2.pre_params
+    assert not hasattr(make_positive, "params")
+
+
 def test_default_strategy_has_target_attribute(dummy_backend):
     """Base Strategy exposes a `target` (None) so Optimizer/Minimizer can read it."""
     strategy = Strategy()

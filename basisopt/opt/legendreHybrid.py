@@ -141,7 +141,7 @@ class LegendrePairsHybrid(Strategy):
         """
         if self.shells[self._step][0][1] <= self.n_exp_cutoff:
             basis[element][self._step].exps = self.pre.inverse(
-                abs(self.shells[self._step][0][0]), **self.pre.params
+                abs(self.shells[self._step][0][0]), **self.pre_params
             )
         else:
             basis[element][self._step] = legendre_expansion(
