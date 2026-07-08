@@ -42,6 +42,26 @@ def test_default_strategy_progression(dummy_backend):
     assert strategy._step == 2
 
 
+@pytest.mark.parametrize(
+    "module_name, cls_name",
+    [
+        ("basisopt.opt.contraction", "ContractionStrategy"),
+        ("basisopt.opt.legendreHybrid", "LegendrePairsHybrid"),
+        ("basisopt.opt.eventemper", "EvenTemperedStrategy"),
+        ("basisopt.opt.welltemper", "WellTemperedStrategy"),
+        ("basisopt.opt.legendre", "LegendreStrategy"),
+    ],
+)
+def test_strategy_family_serialization_roundtrip(dummy_backend, module_name, cls_name):
+    """as_dict/from_dict must round-trip without referencing unset attributes."""
+    import importlib
+
+    cls = getattr(importlib.import_module(module_name), cls_name)
+    strategy = cls()
+    restored = cls.from_dict(strategy.as_dict())
+    assert restored.name == strategy.name
+
+
 def test_tempered_strategies_initialise_with_explicit_max_l(dummy_backend):
     """initialise must not raise UnboundLocalError when max_l >= 0.
 

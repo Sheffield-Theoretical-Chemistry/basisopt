@@ -3,7 +3,10 @@ from typing import Callable
 
 import numpy as np
 
-Preconditioner = Callable[[np.ndarray, ...], np.ndarray]
+# Preconditioners take an exponent array plus optional keyword parameters and
+# return an array; Callable[..., np.ndarray] is the correct spelling (a literal
+# `...` is not valid as an element inside the argument-list form).
+Preconditioner = Callable[..., np.ndarray]
 
 
 def inverse(inv_func: Preconditioner) -> Preconditioner:

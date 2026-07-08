@@ -83,7 +83,7 @@ class ContractionStrategy(Strategy):
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> object:
-        """Creates LegendreStrategy from MSONable dictionary"""
+        """Creates a ContractionStrategy from an MSONable dictionary"""
         strategy = Strategy.from_dict(d)
         instance = cls(
             eval_type=d.get("eval_type", "energy"),
@@ -108,13 +108,8 @@ class ContractionStrategy(Strategy):
 
     def set_active(self, values: np.ndarray, basis: InternalBasis, element: str):
         """Given a series of coefficients for a shell, set the contractions for the basis"""
-        # coefficients = self.shells[self._step][self._n_step]
         self.shells[self._step][self._n_step] = values
         self.set_basis_shells(basis=basis, element=element, values=values)
-
-    # def set_basis_contractions(self, basis, contractions):
-        # """Sets the initial guess for the contraction coefficients"""
-        # contract_basis(basis, contractions)
 
     def set_basis_shells(self, basis: InternalBasis, element: str, values: np.ndarray):
         """Expands parameters into a basis set
@@ -179,6 +174,4 @@ class ContractionStrategy(Strategy):
                 self._n_step += 1
             return carry_on
 
-        maxl = len(basis[element])
-        carry_on = maxl != self._step
-        return maxl != self._step
+        return len(basis[element]) != self._step

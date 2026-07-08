@@ -88,22 +88,20 @@ class LegendrePairsHybrid(Strategy):
         d = super().as_dict()
         d["@module"] = type(self).__module__
         d["@class"] = type(self).__name__
-        d["shells"] = self.shells
-        d["shell_done"] = self.shell_done
         d["target"] = self.target
         d["max_n"] = self.max_n
-        d["max_l"] = self.max_l
+        d["l"] = self.l
         return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> object:
-        """Creates LegendreStrategy from MSONable dictionary"""
+        """Creates a LegendrePairsHybrid strategy from an MSONable dictionary"""
         strategy = Strategy.from_dict(d)
         instance = cls(
             eval_type=d.get("eval_type", 'energy'),
             target=d.get("target", 1e-5),
-            max_n=d.get("max_n", 18),
-            max_l=d.get("max_l", -1),
+            max_n=d.get("max_n", 9),
+            l=d.get("l", -1),
         )
         instance.name = strategy.name
         instance.params = strategy.params
@@ -111,8 +109,6 @@ class LegendrePairsHybrid(Strategy):
         instance._step = strategy._step
         instance.last_objective = strategy.last_objective
         instance.delta_objective = strategy.delta_objective
-        instance.shells = d.get("shells", [])
-        instance.shell_done = d.get("shell_done", [])
         return instance
 
     def get_active(self, basis: InternalBasis, element: str) -> np.ndarray:
