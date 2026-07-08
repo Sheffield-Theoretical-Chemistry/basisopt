@@ -111,10 +111,10 @@ def rank_mol_basis_cbs(
         FailedCalculation: Failed calculation, check backend parameters if this occurs.
 
     Returns:
-        errors (list): List of difference to the DFT CBS limit for each primitive function
+        errors (list): List of difference to the CBS limit for each primitive function
         ranks (list): List of ranks for each primitive function
         energies (list): List of energies for each primitive function
-        dE_CBS_INITIAL (float): Initial difference to the DFT CBS limit
+        dE_CBS_INITIAL (float): Initial difference to the CBS limit
     """
     element = element.lower()
     if api.run_calculation(evaluate=eval_type, mol=mol, params=backend_params) != 0:

@@ -36,34 +36,44 @@ def rank_basis(mol, element, params):
 
 
 def prune_element(mol, element, target, params):
+    """Prunes contraction coefficients to zero, least-important first, until the
+    energy rises more than ``target`` above the reference, then reverts the last
+    (over-aggressive) prune.
+    """
     bo_logger.info(f'Pruning {element} to {target}')
     api.run_calculation(mol=mol, params=params)
     reference_energy = api.get_backend().get_value('energy')
     energy = reference_energy
+
+    shell = None
+    old_coefs = None
+    idx = exp_idx = None
     while energy < reference_energy + target:
-        energies, errors, ranked_idx, sorted_errors = rank_basis(mol, element, params)
-        ang_idx, idx, exp_idx = ranked_idx.pop(0)
-        current_err = sorted_errors.pop(0)
-        shell = mol.basis[element.lower()][ang_idx]
-        # while shell.coefs[idx][exp_idx] == 0.0:
-        while current_err == 0.0:
+        _, _, ranked_idx, sorted_errors = rank_basis(mol, element, params)
+
+        # find the least-important coefficient that is not already zeroed
+        ang_idx = None
+        while ranked_idx:
             ang_idx, idx, exp_idx = ranked_idx.pop(0)
-            current_err = sorted_errors.pop(0)
-            shell = mol.basis[element.lower()][ang_idx]
-        else:
-            old_coefs = copy.deepcopy(shell.coefs)
-            shell.coefs[idx][exp_idx] = 0.0
-            bo_logger.info(f'Pruned {shell.l} {idx} {exp_idx}')
-            api.run_calculation(mol=mol, params=params)
-            energy = api.get_backend().get_value('energy')
-            bo_logger.info(f'Energy: {energy}')
-            bo_logger.info(f'Target: {reference_energy+target}')
-            bo_logger.info(f'Diff: {energy - reference_energy}')
-    else:
-        shell.coefs = old_coefs
-        bo_logger.info(f'Reverted Prune of {shell.l} {idx} {exp_idx}')
+            if sorted_errors.pop(0) != 0.0:
+                break
+            ang_idx = None
+        if ang_idx is None:
+            # nothing left to prune
+            break
+
+        shell = mol.basis[element.lower()][ang_idx]
+        old_coefs = copy.deepcopy(shell.coefs)
+        shell.coefs[idx][exp_idx] = 0.0
+        bo_logger.info(f'Pruned {shell.l} {idx} {exp_idx}')
+        api.run_calculation(mol=mol, params=params)
         energy = api.get_backend().get_value('energy')
         bo_logger.info(f'Energy: {energy}')
-        bo_logger.info(f'Target: {reference_energy+target}')
+        bo_logger.info(f'Target: {reference_energy + target}')
         bo_logger.info(f'Diff: {energy - reference_energy}')
+
+    # revert the last prune that pushed the energy over target, if any was made
+    if shell is not None and old_coefs is not None:
+        shell.coefs = old_coefs
+        bo_logger.info(f'Reverted Prune of {shell.l} {idx} {exp_idx}')
     return mol
