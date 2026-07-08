@@ -4,6 +4,22 @@ basisopt.opt package
 Submodules
 ----------
 
+basisopt.opt.auto\_basis module
+-------------------------------
+
+.. automodule:: basisopt.opt.auto_basis
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+basisopt.opt.contraction module
+-------------------------------
+
+.. automodule:: basisopt.opt.contraction
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 basisopt.opt.eventemper module
 ------------------------------
 
@@ -12,10 +28,50 @@ basisopt.opt.eventemper module
    :undoc-members:
    :show-inheritance:
 
+basisopt.opt.legendre module
+----------------------------
+
+.. automodule:: basisopt.opt.legendre
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+basisopt.opt.legendreHybrid module
+----------------------------------
+
+.. automodule:: basisopt.opt.legendreHybrid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+basisopt.opt.objectives module
+------------------------------
+
+.. automodule:: basisopt.opt.objectives
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+basisopt.opt.opt\_logging module
+--------------------------------
+
+.. automodule:: basisopt.opt.opt_logging
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 basisopt.opt.optimizers module
 ------------------------------
 
 .. automodule:: basisopt.opt.optimizers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+basisopt.opt.polarisation module
+--------------------------------
+
+.. automodule:: basisopt.opt.polarisation
    :members:
    :undoc-members:
    :show-inheritance:
@@ -48,6 +104,14 @@ basisopt.opt.strategies module
 ------------------------------
 
 .. automodule:: basisopt.opt.strategies
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+basisopt.opt.welltemper module
+------------------------------
+
+.. automodule:: basisopt.opt.welltemper
    :members:
    :undoc-members:
    :show-inheritance:

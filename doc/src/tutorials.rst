@@ -7,6 +7,7 @@ Tutorials
 =========
 
 - :doc:`_tutorials/eventemper`
+- :doc:`_tutorials/auto_basis`
 - :doc:`_tutorials/molecule`
 - :doc:`_tutorials/ranking`
 - :doc:`_tutorials/multimol`
