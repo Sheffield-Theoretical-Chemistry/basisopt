@@ -1,10 +1,13 @@
 from typing import Any, Optional, Union
 
+from monty.json import MontyDecoder
+
 from basisopt.bse_wrapper import fetch_basis
 from basisopt.containers import InternalBasis, OptResult
 from basisopt.molecule import Molecule, build_diatomic
-from basisopt.opt import Strategy, optimize
+from basisopt.opt import optimize
 from basisopt.opt.reduce import ReduceStrategy
+from basisopt.opt.strategies import Strategy
 from basisopt.util import bo_logger
 
 from .basis import Basis
@@ -50,7 +53,7 @@ class JKFitBasis(Basis):
         d["basis_type"] = self.basis_type
 
         if isinstance(self.strategy, Strategy):
-            d["strategy"] = self.strategy
+            d["strategy"] = self.strategy.as_dict()
             d["done_setup"] = self._done_setup
         return d
 
@@ -67,7 +70,9 @@ class JKFitBasis(Basis):
         instance._tests = basis._tests
         instance._molecule = basis._molecule
         instance.basis_type = d.get("basis_type", "jkfit")
-        instance.strategy = d.get("strategy", None)
+        strat = d.get("strategy", None)
+        # decode the strategy back into the right Strategy subclass (via @class)
+        instance.strategy = MontyDecoder().process_decoded(strat) if isinstance(strat, dict) else strat
         if instance.strategy:
             instance._done_setup = d.get("done_setup", False)
         return instance
