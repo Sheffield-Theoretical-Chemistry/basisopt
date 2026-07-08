@@ -50,8 +50,9 @@ class MolecularBasis(Basis):
         d = super().as_dict()
         d["@module"] = type(self).__module__
         d["@class"] = type(self).__name__
+        d["name"] = self.name
         d["basis"] = basis_to_dict(self.basis)
-        d["atoms"] = self._atoms
+        d["atoms"] = list(self._atoms)  # set is not JSON-serializable
         d["atomic_bases"] = {k: ab.as_dict() for k, ab in self._atomic_bases.items()}
         d["done_setup"] = self._done_setup
         d["molecules"] = {k: m.as_dict() for k, m in self._molecules.items()}
@@ -61,15 +62,23 @@ class MolecularBasis(Basis):
     def from_dict(cls, d: dict[str, Any]) -> object:
         """Creates a MolecularBasis from an MSONable dictionary"""
         basis = Basis.from_dict(d)
-        instance = cls(name=basis.name)
+        instance = cls(name=d.get("name", "Empty"))
         instance.results = basis.results
         instance.opt_results = basis.opt_results
         instance._tests = basis._tests
         instance.basis = dict_to_basis(d.get("basis", {}))
-        instance._atoms = d.get("atoms", set())
+        instance._atoms = set(d.get("atoms", set()))
         instance._done_setup = d.get("done_setup", False)
-        instance._atomic_bases = d.get("atomic_bases", {})
-        instance._molecules = d.get("molecules", {})
+        # decode nested objects (they are stored as as_dict() output); tolerate
+        # either raw dicts or objects already decoded by the MSON decoder
+        instance._atomic_bases = {
+            k: v if isinstance(v, AtomicBasis) else AtomicBasis.from_dict(v)
+            for k, v in d.get("atomic_bases", {}).items()
+        }
+        instance._molecules = {
+            k: v if isinstance(v, Molecule) else Molecule.from_dict(v)
+            for k, v in d.get("molecules", {}).items()
+        }
         return instance
 
     def add_molecule(self, molecule: Molecule):

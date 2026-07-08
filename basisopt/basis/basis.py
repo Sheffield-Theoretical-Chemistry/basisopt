@@ -249,7 +249,8 @@ class Basis(MSONable):
             "results": self.results.as_dict(),
             "opt_results": self.opt_results,
             "tests": [t.as_dict() for t in self._tests],
-            "molecule": self._molecule.as_dict(),
+            # MolecularBasis holds many molecules and leaves _molecule as None
+            "molecule": self._molecule.as_dict() if self._molecule is not None else None,
         }
         return d
 
