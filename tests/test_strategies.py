@@ -150,6 +150,80 @@ def test_default_strategy_has_target_attribute(dummy_backend):
 
 
 # --------------------------------------------------------------------------- #
+# Tempered strategy family (even/well/legendre share one state machine)
+# --------------------------------------------------------------------------- #
+def _run_tempered(cls, max_n, element="c", target=1e-5, schedule=None):
+    """Drive initialise + a fixed next() schedule, recording the state machine.
+
+    Returns (strategy, basis, trace) where each trace entry is
+    (return_value, _step, first_run, [n per shell], shell_done)."""
+    if schedule is None:
+        schedule = (10.0, 10.0, 10.0, 10.0, 1e-9, 1e-9, 1e-9, 1e-9)
+    strategy = cls(target=target, max_n=max_n)
+    basis = {}
+    strategy.initialise(basis, element)
+    trace = []
+    for obj in schedule:
+        ret = strategy.next(basis, element, obj)
+        trace.append(
+            (ret, strategy._step, strategy.first_run,
+             [shell[-1] for shell in strategy.shells], list(strategy.shell_done))
+        )
+        if not ret:
+            break
+    return strategy, basis, trace
+
+
+# Golden trace for carbon (minimal config -> 2 shells), max_n=10. Even- and
+# well-tempered share the identical control flow; the refactor to a shared
+# TemperedStrategy base must reproduce this exactly.
+_TEMPERED_GOLDEN = [
+    (True, 0, True, [8, 8], [1, 1]),
+    (True, 1, True, [8, 8], [1, 1]),
+    (True, 0, False, [9, 8], [1, 1]),
+    (True, 1, False, [9, 9], [0, 1]),
+    (True, 0, False, [9, 9], [0, 1]),
+    (True, 1, False, [9, 10], [0, 1]),
+    (False, 0, False, [9, 10], [0, 0]),
+]
+
+
+@pytest.mark.parametrize(
+    "module_name, cls_name",
+    [
+        ("basisopt.opt.eventemper", "EvenTemperedStrategy"),
+        ("basisopt.opt.welltemper", "WellTemperedStrategy"),
+    ],
+)
+def test_tempered_state_machine(dummy_backend, module_name, cls_name):
+    import importlib
+
+    cls = getattr(importlib.import_module(module_name), cls_name)
+    strategy, basis, trace = _run_tempered(cls, max_n=10)
+    assert strategy.max_l == 2
+    assert len(basis["c"]) == 2
+    assert trace == _TEMPERED_GOLDEN
+
+
+def test_legendre_state_machine(dummy_backend):
+    """Legendre uses the same machine; with max_n=12 (initial n=10) it grows
+    identically to the even/well case, just offset by the larger starting n."""
+    from basisopt.opt.legendre import LegendreStrategy
+
+    strategy, basis, trace = _run_tempered(LegendreStrategy, max_n=12)
+    assert strategy.max_l == 2
+    assert trace == [
+        (True, 0, True, [10, 10], [1, 1]),
+        (True, 1, True, [10, 10], [1, 1]),
+        (True, 0, False, [11, 10], [1, 1]),
+        (True, 1, False, [11, 11], [0, 1]),
+        (True, 0, False, [11, 11], [0, 1]),
+        (True, 1, False, [11, 12], [0, 1]),
+        (False, 0, False, [11, 12], [0, 0]),
+    ]
+
+
+# --------------------------------------------------------------------------- #
 # AutoBasisFree
 # --------------------------------------------------------------------------- #
 def test_autobasisfree_requires_cbs_limit(dummy_backend):
