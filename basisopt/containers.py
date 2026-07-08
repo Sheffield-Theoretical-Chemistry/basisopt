@@ -202,11 +202,16 @@ class Result(MSONable):
 
         return string
 
-    def statistics(self):
-        """Tabulates summary statistics for the data in this Result
-        Note: does not recur over children
+    def statistics(self) -> str:
+        """Returns a human-readable summary of the latest value of each datum
+        held directly by this Result. Does not recur over children.
         """
-        raise NotImplementedError
+        if not self._data_keys:
+            return "  (no data)\n"
+        lines = []
+        for name, count in self._data_keys.items():
+            lines.append(f"  {name} = {self._data_values[name + str(count)]}")
+        return "\n".join(lines) + "\n"
 
     def _summary(self, title: str) -> str:
         """Generates a summary string for the Result and all its children
@@ -319,7 +324,7 @@ class Result(MSONable):
         with open(filename, "wb") as f:
             pickle.dump(self, f)
             f.close()
-        bo_logger.info("Dumped object of type %s to %s", type(data), filename)
+        bo_logger.info("Dumped object of type %s to %s", type(self), filename)
 
     def load(self, filename: str) -> object:
         """Loads and returns a Result object from a file pickle"""

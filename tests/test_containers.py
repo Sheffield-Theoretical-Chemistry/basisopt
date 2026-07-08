@@ -111,6 +111,19 @@ def test_add_get_child():
         r3.add_child(shell)
 
 
+def test_result_summary():
+    r1, r2, r3, r4 = build_frame()
+    # statistics() must not raise, and summary() should include data + children
+    stats = r1.statistics()
+    assert "Is_Banana" in stats
+    summary = r1.summary()
+    # titles are upper-cased by _summary; data keys/values are not
+    assert "CHILD1" in summary
+    assert "GRANDCHILD" in summary
+    assert "Surname" in summary
+    assert "Flump" in summary
+
+
 def test_search_result():
     r1, r2, r3, r4 = build_frame()
 
