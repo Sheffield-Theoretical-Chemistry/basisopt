@@ -331,9 +331,6 @@ class MolecularBasis(Basis):
              dictionary of scipy.optimize result objects, indexed by atom
         """
         if self._done_setup:
-            # opt_data = [
-            #     (k, algorithm, v.strategy, reg, params) for k, v in self._atomic_bases.items()
-            # ]
             opt_data = [(k, algorithm, self.strategy, reg, params) for k, _ in self.basis.items()]
             self.opt_results = collective_minimize(
                 self._molecules.values(),
