@@ -135,7 +135,7 @@ def optimize(
     molecule: Molecule,
     element: Optional[str] = None,
     algorithm: str = "l-bfgs-b",
-    strategy: Strategy = Strategy(),
+    strategy: Strategy = None,
     reg: Regulariser = (lambda x: 0),
     opt_params: dict[str, Any] = None,
 ) -> OptResult:
@@ -156,6 +156,7 @@ def optimize(
     Raises:
         FailedCalculation
     """
+    strategy = Strategy() if strategy is None else strategy
     wrapper = api.get_backend()
     if element is None:
         element = molecule.unique_atoms()[0]
@@ -193,7 +194,7 @@ def minimizer(
     molecule: Molecule,
     element: Optional[str] = None,
     algorithm: str = 'l-bfgs-b',
-    strategy: Strategy = Strategy(),
+    strategy: Strategy = None,
     reg: Regulariser = (lambda x: 0),
     opt_params: dict[str, Any] = None,
 ) -> OptResult:
@@ -214,6 +215,7 @@ def minimizer(
     Raises:
         FailedCalculation
     """
+    strategy = Strategy() if strategy is None else strategy
     wrapper = api.get_backend()
     if element is None:
         element = molecule.unique_atoms()[0]
@@ -299,7 +301,7 @@ def atom_auto(
     molecule: Molecule,
     element: Optional[str] = None,
     algorithm: str = 'l-bfgs-b',
-    strategy: Strategy = Strategy(),
+    strategy: Strategy = None,
     reg: Regulariser = (lambda x: 0),
     opt_params: dict[str, Any] = None,
     log_minimisation: bool = False,
@@ -308,6 +310,7 @@ def atom_auto(
     log_session_id: Optional[str] = None,
 ) -> OptResult:
     """General purpose optimizer for a single atomic basis"""
+    strategy = Strategy() if strategy is None else strategy
     wrapper = api.get_backend()
     if element is None:
         element = molecule.unique_atoms()[0]
@@ -427,7 +430,7 @@ def atom_auto_reduce(
     molecule: Molecule,
     element: Optional[str] = None,
     algorithm: str = 'l-bfgs-b',
-    strategy: Strategy = Strategy(),
+    strategy: Strategy = None,
     reg: Regulariser = (lambda x: 0),
     opt_params: dict[str, Any] = None,
     log_minimisation: bool = False,
@@ -436,6 +439,7 @@ def atom_auto_reduce(
     log_session_id: Optional[str] = None,
 ) -> OptResult:
     """General purpose optimizer for a single atomic basis"""
+    strategy = Strategy() if strategy is None else strategy
     wrapper = api.get_backend()
     if element is None:
         element = molecule.unique_atoms()[0]

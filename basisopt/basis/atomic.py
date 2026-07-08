@@ -222,9 +222,9 @@ class AtomicBasis(Basis):
         self,
         method: str = "ccsd(t)",
         quality: str = "dz",
-        strategy: Strategy = Strategy(),
+        strategy: Strategy = None,
         reference: tuple[str, Optional[InternalBasis]] = ("cc-pvqz", None),
-        params: dict[str, Any] = {},
+        params: dict[str, Any] = None,
     ):
         """Sets up the basis ready for optimization. Must be called before optimize is called
 
@@ -243,6 +243,8 @@ class AtomicBasis(Basis):
              self.config (Configuration): basis set configuration
              self._done_setup (bool): cannot call optimize until this flag is True
         """
+        strategy = Strategy() if strategy is None else strategy
+        params = {} if params is None else params
         # get configuration
         self.configuration(quality=quality)
         bo_logger.info("Using the %s building strategy", strategy.name)
@@ -290,7 +292,7 @@ class AtomicBasis(Basis):
         max_n: int = 18,
         max_l: int = -1,
         exact_ref: bool = True,
-        params: dict[str, Any] = {},
+        params: dict[str, Any] = None,
     ):
         """Looks up or computes an even tempered basis expansion for the atom
 
@@ -332,7 +334,7 @@ class AtomicBasis(Basis):
         max_n: int = 18,
         max_l: int = -1,
         exact_ref: bool = True,
-        params: dict[str, Any] = {},
+        params: dict[str, Any] = None,
     ):
         """Looks up or computes a well tempered basis expansion for the atom
 
@@ -374,7 +376,7 @@ class AtomicBasis(Basis):
         max_n: int = 18,
         max_l: int = -1,
         exact_ref: bool = True,
-        params: dict[str, Any] = {},
+        params: dict[str, Any] = None,
     ):
         """Looks up or computes a Legendre polynomial-based expansion for the atom
 
@@ -409,7 +411,7 @@ class AtomicBasis(Basis):
             self._molecule.basis[self._symbol] = legendre_expansion(self.leg_params)
 
     @needs_element
-    def optimize(self, algorithm: str = "Nelder-Mead", params: dict[str, Any] = {}) -> OptResult:
+    def optimize(self, algorithm: str = "Nelder-Mead", params: dict[str, Any] = None) -> OptResult:
         """Runs the basis optimization
 
         Arguments:
@@ -420,6 +422,7 @@ class AtomicBasis(Basis):
         Returns:
               opt_results (OptResult): a dictionary of scipy results from each opt step
         """
+        params = {} if params is None else params
         if self._done_setup:
             self.opt_results = optimize(
                 self._molecule, algorithm=algorithm, strategy=self.strategy, **params

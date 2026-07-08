@@ -200,7 +200,7 @@ class MolecularBasis(Basis):
         self,
         method: str = "ccsd(t)",
         quality: str = "dz",
-        strategy: Strategy = Strategy(),
+        strategy: Strategy = None,
         reference: str = "cc-pvqz",
         params: dict[str, Any] = None,
     ):
@@ -209,6 +209,7 @@ class MolecularBasis(Basis):
         explanation.
         """
         params = {} if params is None else params
+        strategy = Strategy() if strategy is None else strategy
         if len(self._atoms) == 0:
             raise EmptyBasis
 
