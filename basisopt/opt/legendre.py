@@ -120,8 +120,7 @@ class LegendreStrategy(Strategy):
                basis (InternalBasis): the basis set being optimized
                element (str): the atom type of interest
         """
-        if self.max_l < 0:
-            el = md_element(element.title())
+        el = md_element(element.title())
         l_list = [l for (n, l) in el.ec.conf.keys()]
         min_l = len(set(l_list))
 

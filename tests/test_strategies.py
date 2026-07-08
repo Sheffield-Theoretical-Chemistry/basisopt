@@ -42,6 +42,24 @@ def test_default_strategy_progression(dummy_backend):
     assert strategy._step == 2
 
 
+def test_tempered_strategies_initialise_with_explicit_max_l(dummy_backend):
+    """initialise must not raise UnboundLocalError when max_l >= 0.
+
+    Regression: `el = md_element(...)` was bound only inside `if max_l < 0`,
+    but `l_list` used it unconditionally, so any explicit max_l crashed (and
+    took AtomicBasis.set_even/well_tempered/legendre down with it).
+    """
+    from basisopt.opt.eventemper import EvenTemperedStrategy
+    from basisopt.opt.legendre import LegendreStrategy
+    from basisopt.opt.welltemper import WellTemperedStrategy
+
+    for cls in (EvenTemperedStrategy, WellTemperedStrategy, LegendreStrategy):
+        strategy = cls(max_l=1)
+        basis = {}
+        strategy.initialise(basis, "he")
+        assert "he" in basis
+
+
 def test_reduce_strategy_uses_standard_next_signature(dummy_backend):
     """Reduce strategies get the molecule via set_context, not a wide next()."""
     import inspect
