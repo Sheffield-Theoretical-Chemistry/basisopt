@@ -73,6 +73,20 @@ def test_config_to_str():
     assert string3 == ""
 
 
+def test_string_to_config():
+    # regression: int() on a letter raises ValueError (not TypeError), so this
+    # used to raise instead of parsing
+    assert zt.string_to_config("4s3p2d") == conf_1
+    assert zt.string_to_config(zt.config_to_string(conf_2)) == conf_2
+
+
+def test_n_cartesian_returns_int():
+    result = zt.n_cartesian(conf_1)
+    assert isinstance(result, int)
+    # 4*(1s) + 3*(3p) + 2*(6d) = 4 + 9 + 12
+    assert result == 25
+
+
 def test_compare():
     assert zt.compare(conf_1, conf_2) > 0
     assert zt.compare(conf_1, conf_1) == 0

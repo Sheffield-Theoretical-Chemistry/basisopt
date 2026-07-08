@@ -93,7 +93,8 @@ def string_to_config(string: str) -> Configuration:
             n = int(c)
             current_size *= 10
             current_size += n
-        except TypeError:
+        except ValueError:
+            # a non-digit marks the angular-momentum label for the count so far
             config[c] = current_size
             current_size = 0
     return config
@@ -103,8 +104,10 @@ def n_cartesian(config: Configuration) -> int:
     "Returns number of Cartesian Gaussians in configuration"
     total = 0
     for l, n in config.items():
-        size = data.AM_DICT[l]
-        size = (size * (size + 1)) / 2
+        am = data.AM_DICT[l]
+        # Cartesian Gaussians in a shell of angular momentum l: (l+1)(l+2)/2
+        # (1, 3, 6, 10, ... for s, p, d, f) -- integer division keeps the type int
+        size = ((am + 1) * (am + 2)) // 2
         total += n * size
     return total
 

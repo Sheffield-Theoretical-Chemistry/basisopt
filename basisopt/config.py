@@ -1,3 +1,8 @@
+# `from __future__ import annotations` keeps annotations lazy (strings) so the
+# `str | Path` union does not evaluate at class-definition time, which would
+# raise TypeError on Python 3.9 (PEP 604 unions are runtime-only from 3.10).
+from __future__ import annotations
+
 from pathlib import Path
 
 import toml
