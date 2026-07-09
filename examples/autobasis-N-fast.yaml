@@ -1,0 +1,47 @@
+# Example auto-basis pipeline config: nitrogen, auto-fast tier.
+#
+#   python -m basisopt.autobasis run    examples/autobasis-N-fast.yaml
+#   python -m basisopt.autobasis status examples/autobasis-N-fast.yaml
+#
+# `extends` pulls in a tier preset (per-step targets + method defaults);
+# everything below is the run-specific overlay. Re-running with a subset of
+# `steps` picks up earlier steps from workdir/manifest.json, so you can iterate
+# on (say) uncontraction+purification without redoing 1-3.
+#
+# Presets are NOT shipped with basisopt - they are your own tier definitions.
+# Either point at a directory of them (bare-name extends):
+#   export BASISOPT_AUTOBASIS_PRESETS=/path/to/autobasis-presets
+#   extends: fast
+# or give a path to the preset file directly:
+#   extends: ../autobasis-presets/fast.yaml
+
+extends: fast
+
+name: N-fast
+workdir: ./runs/N-fast
+element: N
+
+reference:
+  cbs_limit: -54.589156          # Eh  (your extrapolated atomic CBS limit)
+  target: 2.0e-3                 # Eh  distance-to-CBS target for steps 1-2
+  geometry: ./data/geoms/nitrogen.xyz   # used by the molecular (uncontraction) step
+  multiplicity: 3
+  wf_cards:                      # Molpro occupation cards (steps 3-6 use molpro)
+    molpro_atomic:   ";wf,7,8,3"
+    molpro_diatomic: ";wf,7,8,3"
+
+backend:
+  tmp_dir: ./tmp
+
+# Run all six steps. Step 3 (NAO contraction) is produced in Molpro and dropped
+# in via `contraction.input`; the rest run from the preset's targets/params.
+steps: [primitives, reduction, contraction, uncontraction, purification, pruning]
+
+contraction:
+  input: ./data/N-fast-molpro-contracted.txt   # external NAO basis (Molpro format)
+
+# Example override: to trial a different decontraction cut, run only
+#   steps: [uncontraction, purification]
+# against the same workdir and set:
+# uncontraction:
+#   decontract_error_percent: 3

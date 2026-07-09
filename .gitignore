@@ -4,6 +4,7 @@ auto-basis-paper/
 timer.dat
 *.pkl
 *.DS_Store
+auto-basis-data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
