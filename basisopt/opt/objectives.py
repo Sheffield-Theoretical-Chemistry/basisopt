@@ -1,3 +1,12 @@
+"""Objective / loss functions for optimizing over a set of atoms/molecules.
+
+All of these measure the **distance to the CBS limit**, ``E - E_CBS`` (the basis
+set incompleteness error), for each system. The mean-per-electron variants
+divide by the electron count so the loss is comparable across atoms and
+molecules of different size - otherwise larger systems would dominate the loss
+simply by having more electrons.
+"""
+
 import numpy as np
 
 
@@ -13,7 +22,7 @@ class ObjectiveRegistry:
     @classmethod
     def get(cls, name):
         return cls._registry.get(name)
-    
+
     @classmethod
     def all_objectives(cls):
         return cls._registry.keys()
@@ -47,7 +56,14 @@ def mae(molecules):
 
 @registered_objective_decorator()
 def mape(molecules):
-    """Mean Absolute Percentage Error"""
+    """Mean absolute distance-to-CBS per electron.
+
+    The absolute CBS distance ``|E - E_CBS|`` of each system, normalised by its
+    electron count and averaged over the set. This normalisation makes the loss
+    comparable across atoms/molecules of different size. (Named ``mape`` for
+    historical reasons; it is a size-normalised CBS-distance loss, not a
+    statistical mean-absolute-percentage-error against a reference.)
+    """
     objective = np.mean(
         np.abs([(mol.get_result('energy') - mol.cbs_limit) / mol.nelectrons() for mol in molecules])
     )
@@ -56,7 +72,12 @@ def mape(molecules):
 
 @registered_objective_decorator()
 def mean_per_mol(molecules):
-    """Mean per molecule"""
+    """Mean (signed) distance-to-CBS per electron.
+
+    As :func:`mape` but without the absolute value. For variational energies
+    ``E - E_CBS >= 0``, so the two coincide; the signed form is used where the
+    sign of the incompleteness error is meaningful (e.g. polarisation).
+    """
     objective = np.mean(
         [(mol.get_result('energy') - mol.cbs_limit) / mol.nelectrons() for mol in molecules]
     )
