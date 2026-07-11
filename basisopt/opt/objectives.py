@@ -1,10 +1,10 @@
 """Objective / loss functions for optimizing over a set of atoms/molecules.
 
 All of these measure the **distance to the CBS limit**, ``E - E_CBS`` (the basis
-set incompleteness error), for each system. The mean-per-electron variants
-divide by the electron count so the loss is comparable across atoms and
-molecules of different size - otherwise larger systems would dominate the loss
-simply by having more electrons.
+set incompleteness error, BSIE), for each system. The per-electron variants
+(``mean_bsie_per_electron``, ``mean_per_mol``) divide by the electron count so
+the loss is comparable across atoms and molecules of different size - otherwise
+larger systems would dominate the loss simply by having more electrons.
 """
 
 import numpy as np
@@ -55,14 +55,14 @@ def mae(molecules):
 
 
 @registered_objective_decorator()
-def mape(molecules):
-    """Mean absolute distance-to-CBS per electron.
+def mean_bsie_per_electron(molecules):
+    """Mean absolute basis-set incompleteness error per electron.
 
-    The absolute CBS distance ``|E - E_CBS|`` of each system, normalised by its
-    electron count and averaged over the set. This normalisation makes the loss
-    comparable across atoms/molecules of different size. (Named ``mape`` for
-    historical reasons; it is a size-normalised CBS-distance loss, not a
-    statistical mean-absolute-percentage-error against a reference.)
+    The absolute distance to the CBS limit, ``|E - E_CBS|`` (the BSIE), of each
+    system, normalised by its electron count and averaged over the set. The
+    per-electron normalisation makes the loss comparable across atoms/molecules
+    of different size, so large systems do not dominate simply by having more
+    electrons. (This was previously named ``mape``.)
     """
     objective = np.mean(
         np.abs([(mol.get_result('energy') - mol.cbs_limit) / mol.nelectrons() for mol in molecules])
@@ -72,11 +72,11 @@ def mape(molecules):
 
 @registered_objective_decorator()
 def mean_per_mol(molecules):
-    """Mean (signed) distance-to-CBS per electron.
+    """Mean (signed) basis-set incompleteness error per electron.
 
-    As :func:`mape` but without the absolute value. For variational energies
-    ``E - E_CBS >= 0``, so the two coincide; the signed form is used where the
-    sign of the incompleteness error is meaningful (e.g. polarisation).
+    As :func:`mean_bsie_per_electron` but without the absolute value. For
+    variational energies ``E - E_CBS >= 0`` so the two coincide; the signed form
+    is used where the sign of the incompleteness error matters (e.g. polarisation).
     """
     objective = np.mean(
         [(mol.get_result('energy') - mol.cbs_limit) / mol.nelectrons() for mol in molecules]
