@@ -26,10 +26,10 @@ def dunham(
     Emax: float = 0,
 ) -> DunhamResults:
     "Performs a Dunham analysis on a diatomic, given energy/distance values around a minimum and the reduced mass mu"
-    # convert units
+    # convert units (non-mutating: do not clobber the caller's array in place)
     An = mu * data.FORCE_MASS
     if angstrom:
-        distances *= data.TO_BOHR
+        distances = distances * data.TO_BOHR
     poly_order = max(poly_order, 3)
 
     # perform polynomial fit to data
@@ -223,8 +223,9 @@ class DunhamTest(Test):
             Emax=self.Emax,
         )
 
-        # store results
-        self.add_data("StencilRi", rvals * data.TO_ANGSTROM)
+        # store results (rvals is already in Angstrom; dunham() no longer mutates
+        # it to Bohr, so store it directly rather than round-tripping)
+        self.add_data("StencilRi", rvals)
         self.add_data("StencilEi", energies)
         for n, r in zip(_VALUE_NAMES, results):
             self.add_data(n, r)

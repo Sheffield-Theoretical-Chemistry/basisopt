@@ -490,6 +490,15 @@ class MoleculeLoader:
         """
         Run calculations on all molecules in the loader.
         If an objective function is provided, return the objective value from all molecules.
+
+        Arguments:
+            params (dict): backend parameters.
+            objective (callable, optional): if given, called with all molecules
+                and its return value is returned.
+            clean (bool): if True (default), clear backend scratch/state after
+                each molecule (Psi4Wrapper.clean() clears psi4 timers/state; a
+                safe no-op for other backends). Set False to preserve backend
+                scratch files/state for inspection.
         """
         wrapper = api.get_backend()
         n = len(self)
@@ -501,11 +510,7 @@ class MoleculeLoader:
             except Exception as e:
                 bo_logger.error(f"Calculation failed for molecule {mol.name}: {e}")
             finally:
-                # Backend-agnostic cleanup between molecules; Psi4Wrapper.clean() clears
-                # psi4 timers/state, and it is a safe no-op for other backends.
-                wrapper.clean()
-
-        if clean:
-            wrapper.clean()
+                if clean:
+                    wrapper.clean()
         if objective:
             return objective(self._molecules.values())
