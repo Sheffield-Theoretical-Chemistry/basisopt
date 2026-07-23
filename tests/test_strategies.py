@@ -80,6 +80,34 @@ def test_tempered_strategies_initialise_with_explicit_max_l(dummy_backend):
         assert "he" in basis
 
 
+def test_tempered_strategy_reinitialise_across_elements(dummy_backend):
+    """Reusing one tempered strategy (as Optimizer.run / _collective's npass loop
+    do) must reset _step and not accumulate max_l onto lighter elements."""
+    from basisopt.opt.eventemper import EvenTemperedStrategy
+
+    strategy = EvenTemperedStrategy()  # default max_l = -1 (minimal config)
+    basis = {}
+
+    strategy.initialise(basis, "C")  # C -> s,p => min_l 2
+    assert strategy.max_l == 2
+    strategy.next(basis, "C", 1.0)
+    assert strategy._step >= 0  # advanced
+
+    strategy.initialise(basis, "H")  # H -> s => min_l 1
+    assert strategy._step == -1  # reset (was left advanced before the fix)
+    assert strategy.max_l == 1  # not accumulated up to 2
+
+
+def test_tempered_from_dict_preserves_basis_type(dummy_backend):
+    """Auxiliary-basis strategies must not silently revert to 'orbital' on reload."""
+    from basisopt.opt.eventemper import EvenTemperedStrategy
+
+    strategy = EvenTemperedStrategy()
+    strategy.basis_type = "jkfit"
+    restored = EvenTemperedStrategy.from_dict(strategy.as_dict())
+    assert restored.basis_type == "jkfit"
+
+
 def test_reduce_strategy_uses_standard_next_signature(dummy_backend):
     """Reduce strategies get the molecule via set_context, not a wide next()."""
     import inspect

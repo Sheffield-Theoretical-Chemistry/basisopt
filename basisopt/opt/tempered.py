@@ -54,6 +54,11 @@ class TemperedStrategy(Strategy):
         self.guess_params = {}
         self.max_n = max_n
         self.max_l = max_l
+        # the requested max_l as given to the constructor; initialise() derives
+        # self.max_l from this each run so that reusing one strategy across
+        # elements/passes does not accumulate (mutating self.max_l in place gave
+        # lighter elements too many shells)
+        self._max_l_config = max_l
 
     def as_dict(self) -> dict[str, Any]:
         """Returns MSONable dictionary of object"""
@@ -83,6 +88,12 @@ class TemperedStrategy(Strategy):
         instance._step = strategy._step
         instance.last_objective = strategy.last_objective
         instance.delta_objective = strategy.delta_objective
+        # carry the base attributes the subclass ctor does not take, so an
+        # auxiliary-basis (jfit/jkfit) strategy does not silently revert to
+        # basis_type="orbital" on reload
+        instance.basis_type = strategy.basis_type
+        instance.orbital_basis = strategy.orbital_basis
+        instance.pre_params = strategy.pre_params
         instance.shells = d.get("shells", [])
         instance.shell_done = d.get("shell_done", [])
         return instance
@@ -103,7 +114,11 @@ class TemperedStrategy(Strategy):
         l_list = [l for (n, l) in el.ec.conf.keys()]
         min_l = len(set(l_list))
 
-        self.max_l = max(min_l, self.max_l)
+        # derive from the constructor value, not the possibly-already-resolved
+        # self.max_l, and reset _step like the base Strategy.initialise does, so
+        # a reused instance starts each element/pass cleanly
+        self.max_l = max(min_l, self._max_l_config)
+        self._step = -1
         self.shells = [self._INITIAL_GUESS] * self.max_l
         self.shell_done = [1] * self.max_l
         self.set_basis_shells(basis, element)
