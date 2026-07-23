@@ -1,6 +1,8 @@
 # wrappers for BasisSetExchange functionality
 
+import copy
 from datetime import datetime
+from functools import lru_cache
 from typing import Any, Optional
 
 import basis_set_exchange as bse
@@ -125,8 +127,18 @@ def internal_basis_converter(basis: InternalBasis, fmt: str = "gaussian94") -> s
     return bse.writers.write_formatted_basis_str(bse_basis, fmt)
 
 
+@lru_cache(maxsize=None)
+def _fetch_basis_cached(name: str, elements_key: tuple) -> InternalBasis:
+    """Cached BSE fetch + conversion, keyed on hashable (name, elements)."""
+    return bse_to_internal(bse.get_basis(name, list(elements_key)))
+
+
 def fetch_basis(name: str, elements: list[str]) -> InternalBasis:
     """Fetches a basis set for a set of elements from the BSE
+
+    The (name, elements) fetch/parse is cached because it is called repeatedly
+    inside optimization loops; a fresh deep copy is returned each call since
+    callers mutate the basis.
 
     Arguments:
          name (str) - the name of the desired basis, see BSE docs for options
@@ -135,8 +147,8 @@ def fetch_basis(name: str, elements: list[str]) -> InternalBasis:
     Returns:
          an internal basis dictionary
     """
-    basis = bse.get_basis(name, elements)
-    return bse_to_internal(basis)
+    key = (elements,) if isinstance(elements, str) else tuple(elements)
+    return copy.deepcopy(_fetch_basis_cached(name, key))
 
 
 def fetch_ecp(name: str, elements: list[str]) -> BSEBasis:

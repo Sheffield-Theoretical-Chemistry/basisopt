@@ -36,6 +36,17 @@ def test_fetch_basis():
         assert shell_data.shells_are_equal(s1, s2)
 
 
+def test_fetch_basis_cached_returns_independent_copies():
+    # caching must not let one caller's mutation leak into the cache/others
+    b1 = bsew.fetch_basis("cc-pvdz", ["H"])
+    b2 = bsew.fetch_basis("cc-pvdz", ["H"])
+    assert b1 is not b2
+    assert shell_data.shells_are_equal(b1["h"][0], b2["h"][0])
+    b1["h"][0].exps[0] = 987654.0
+    b3 = bsew.fetch_basis("cc-pvdz", ["H"])
+    assert b3["h"][0].exps[0] != 987654.0
+
+
 def test_fetch_ecp():
     ecpbas = bsew.fetch_ecp("aug-cc-pvtz-pp", ["I"])
     assert "53" in ecpbas["elements"]
