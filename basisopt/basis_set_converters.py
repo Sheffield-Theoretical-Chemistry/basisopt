@@ -63,3 +63,6 @@ def convert_to_psi4(basis: BasisSet):
 def convert_internal_to_basis_str(basis: InternalBasis, fmt: str) -> str:
     if fmt == "psi4":
         return convert_to_psi4(internal_to_basis_set(basis))
+    # returning None here made callers fail later with an opaque
+    # AttributeError (e.g. None.split); fail clearly at the source instead
+    raise ValueError(f"Unsupported format {fmt!r}; only 'psi4' is implemented here")

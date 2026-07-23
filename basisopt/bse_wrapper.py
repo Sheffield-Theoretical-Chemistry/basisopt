@@ -103,9 +103,10 @@ def bse_to_internal(basis: BSEBasis) -> InternalBasis:
                     sl.coefs.append(np.concatenate([np.zeros(nc), c]))
         el = bse.lut.element_sym_from_Z(z)
         new_basis[el] = []
-        for l in ["s", "p", "d", "f", "g", "h", "i"]:
+        for l in ["s", "p", "d", "f", "g", "h", "i", "k", "l"]:
             if l not in shells:
-                break
+                continue  # skip missing angular momenta, don't stop (a polarization-
+                # only set has no s/p; break dropped the whole element)
             new_basis[el].append(shells[l])
     return new_basis
 
@@ -192,7 +193,9 @@ Basis set composition:
     """
     for element in mol.basis:
         outstr += f"{element.capitalize()}: {get_composition(mol.basis, element)}\n"
-    if mol.basis[element][0].leg_params:
+    # gate the heading on whether ANY element has Legendre params, not just the
+    # last one left in `element` by the loop above
+    if any(mol.basis[e][0].leg_params for e in mol.basis):
         outstr += 'Legendre Parameters:\n'
     leg_params = {}
     for element in mol.basis:

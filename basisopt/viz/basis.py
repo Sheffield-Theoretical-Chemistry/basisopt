@@ -1,4 +1,5 @@
 # correlation consistent plots
+import re
 from typing import Callable, Optional
 
 import matplotlib.pyplot as plt
@@ -16,8 +17,11 @@ def extract_steps(opt_results: OptResult, key: str = "fun"):
     in an opt_results dictionary
     """
     steps, values = [], []
-    for k, d in opt_results.items():
-        steps.append(int(k[9:]))
+    for i, (k, d) in enumerate(opt_results.items()):
+        # parse the trailing step number robustly; keys vary (atomicopt1, opt1,
+        # h_opt1, pass0_opt1). Fall back to enumeration order if there is none.
+        match = re.search(r"\d+$", str(k))
+        steps.append(int(match.group()) if match else i)
         values.append(d.get(key, 0.0))
     return steps, np.array(values)
 
@@ -45,28 +49,30 @@ def plot_objective(
     Returns:
         matplotlib (figure, axis) tuple
     """
+    # validate before creating the figure, otherwise the error path leaks a
+    # Matplotlib figure on every bad call
+    if not hasattr(basis, "opt_results"):
+        raise TypeError("Not a suitable Basis object")
+
     fig, ax = plt.subplots()
     fig.set_size_inches(figsize)
     ax.set_xlabel("Optimization step")
     ax.set_ylabel("Objective value")
 
-    if hasattr(basis, "opt_results"):
-        steps = {}
-        values = {}
-        results = basis.opt_results
-        for k, v in results.items():
-            if "atomicopt" in k:
-                key = basis._symbol
-                steps[key], values[key] = extract_steps(results, key="fun")
-                break
-            steps[k], values[k] = extract_steps(v, key="fun")
+    steps = {}
+    values = {}
+    results = basis.opt_results
+    for k, v in results.items():
+        if "atomicopt" in k:
+            key = basis._symbol
+            steps[key], values[key] = extract_steps(results, key="fun")
+            break
+        steps[k], values[k] = extract_steps(v, key="fun")
 
-        for k, v in steps.items():
-            ax.plot(x_transform(v), y_transform(values[k]), "x", ms=8, label=k)
-        if (len(steps)) > 1:
-            ax.legend()
-    else:
-        raise TypeError("Not a suitable Basis object")
+    for k, v in steps.items():
+        ax.plot(x_transform(v), y_transform(values[k]), "x", ms=8, label=k)
+    if (len(steps)) > 1:
+        ax.legend()
     return fig, ax
 
 
@@ -205,11 +211,15 @@ def create_exponent_plot(
     if not isinstance(basis_sets, list):
         basis_sets = [basis_sets]
 
+    # basis_labels is indexed per basis set and its length is used for the
+    # legend; default to auto labels so the documented no-labels call does not
+    # crash with a NoneType subscript.
+    if basis_labels is None:
+        basis_labels = [f"Basis {i + 1}" for i in range(len(basis_sets))]
+
     if max_l is None:
-        max_l = 0
-        for b in basis_sets:
-            if len(b[element]) > max_l:
-                max_l = len(b[element])
+        # max_l is an inclusive angular-momentum index, not a shell count
+        max_l = max(len(b[element]) for b in basis_sets) - 1
 
     max_x = 0
     for b in basis_sets:
@@ -220,11 +230,11 @@ def create_exponent_plot(
     min_y = 0
     for b in basis_sets:
         for shell in b[element][min_l : max_l + 1]:
-            if log:
-                if max(np.log(shell.exps)) > max_y:
-                    max_y = int(max(np.log(shell.exps)))
-                if min(np.log(shell.exps)) < min_y:
-                    min_y = int(min(np.log(shell.exps)))
+            # compute the y-range for both scales; when log=False these used to
+            # stay 0, so set_ax_format clamped the axis to [-2, 2] and hid the data
+            vals = np.log(shell.exps) if log else shell.exps
+            max_y = max(max_y, int(np.ceil(np.max(vals))))
+            min_y = min(min_y, int(np.floor(np.min(vals))))
 
     # Setup the plot
 
