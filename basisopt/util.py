@@ -136,9 +136,6 @@ def format_with_prefix(value: float, unit: str, dp: int = 3) -> str:
     # value is zero (or smaller than the smallest prefix): no prefix
     return format_string.format(value) + f" {unit}"
 
-    # Handle very small numbers that do not fit any prefix
-    return format_string.format(value) + f" {unit}"
-
 
 def get_composition(basis, element):
     """Returns a human-readable composition string for an element's basis.
@@ -169,8 +166,8 @@ def inside_out(basis_coefficients, inside_out=True):
             for l in range(k, K):
                 if inside_out:
                     if sum(basis_coefficients[l]) == 1.0:
-                        # Ignores any uncontracted shells when doing inside-out
-                        basis_coefficients[l] = basis_coefficients[l]
+                        # Ignore uncontracted shells when doing inside-out
+                        pass
                     else:
                         basis_coefficients[l] -= basis_coefficients[m] * ratio
                         basis_coefficients[l] = np.round(basis_coefficients[l], 8)

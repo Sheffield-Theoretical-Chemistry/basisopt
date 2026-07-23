@@ -922,8 +922,6 @@ class Optimizer:
             self.active_element = element
             self.strategy.initialise(self.basis, self.active_element)
         self.wrapper = api.get_backend()
-        if self.molecules:
-            self.molecules = self.molecules
         if not self.elements:
             for mol in self.molecules:
                 for atom in mol.unique_atoms():
@@ -960,7 +958,9 @@ class Optimizer:
                 self.molecules = [molecules]
         if not self._initialized:
             self._initialize()
-        if self.elements is None:
+        # _initialize turns elements into a (possibly empty) list, never None, so
+        # guard on emptiness to actually catch "nothing to optimize"
+        if not self.elements:
             raise ValueError("No elements to optimize")
         for element in self.elements:
             self.active_element = element
