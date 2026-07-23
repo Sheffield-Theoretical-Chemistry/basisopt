@@ -1,6 +1,5 @@
 # plot an orbital
 import numpy as np
-from mayavi import mlab
 
 from basisopt.containers import Shell
 from basisopt.util import bo_logger
@@ -29,6 +28,10 @@ def contour3d(
     Returns:
          the mayavi figure object
     """
+    # mayavi is a heavy, optional GUI dependency; import it lazily so the module
+    # (and anything importing basisopt.viz) does not require it just to exist
+    from mayavi import mlab
+
     nj = n * 1j
     X, Y, Z = np.mgrid[
         (lower[0]) : (upper[0]) : nj,

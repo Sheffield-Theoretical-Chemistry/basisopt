@@ -3,13 +3,13 @@
 
 class MethodNotAvailable(Exception):
     def __init__(self, estr):
-        Exception.__init__(self)
+        super().__init__(f"Method not available: {estr}")
         self.method_str = estr
 
 
 class PropertyNotAvailable(Exception):
     def __init__(self, pstr):
-        Exception.__init__(self)
+        super().__init__(f"Property not available: {pstr}")
         self.property_str = pstr
 
 

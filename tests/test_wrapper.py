@@ -9,6 +9,15 @@ from tests.data.shells import get_vdz_internal
 from tests.data.utils import almost_equal
 
 
+def test_named_exceptions_carry_a_message():
+    from basisopt.exceptions import MethodNotAvailable, PropertyNotAvailable
+
+    # regression: these called Exception.__init__(self) with no message, so
+    # str(exc) was empty and tracebacks showed no method/property name
+    assert "scf.rhf" in str(MethodNotAvailable("scf.rhf"))
+    assert "polarizability" in str(PropertyNotAvailable("polarizability"))
+
+
 def test_dummy_wrapper_accepts_params(dummy_backend):
     # regression: Dummy methods lacked **params, so a non-empty strategy.params
     # raised TypeError (uncaught by Wrapper.run).
