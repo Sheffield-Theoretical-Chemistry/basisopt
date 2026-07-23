@@ -39,8 +39,8 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://example.com/project-docs"
-Source = "https://github.com/Sheffield-Theoretical-Chemistry/basisflow"
+Documentation = "https://basisopt.readthedocs.io/en/latest/"
+Source = "https://github.com/Sheffield-Theoretical-Chemistry/basisopt"
 
 [project.optional-dependencies]
 dev = [

@@ -3,9 +3,9 @@ colorlog>=6.7.0
 scipy>=1.10.1,<2.0.0
 pandas>=1.5.3
 monty>=2022.9.9
-basis_set_exchange
+basis_set_exchange>=0.9
 mendeleev>=0.9
-ray
-pytest
-pytest-cov
-codecov
+matplotlib>=3.7.1
+ray>=2.11.0
+toml
+pyyaml>=6.0
