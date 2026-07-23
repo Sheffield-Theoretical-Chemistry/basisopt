@@ -137,10 +137,15 @@ def legendre_expansion(params: LegParams, l=None, contractions=None) -> list[She
             new_shell.l = data.INV_AM_DICT[ix]
         exponents = []
 
+        # Petersson node grid: x_j = 2j/(n-1) - 1 for j = 0..n-1, spanning
+        # [-1, +1] symmetrically (JCP 118, 1101). The previous form
+        # ((2j-2)/n - 1) used the wrong denominator and a stale 1-indexed
+        # offset, placing nodes off-centre and outside [-1, 1].
+        denom = (n - 1) if n > 1 else 1
         for j in range(n):
             ln_a = 0e1
             for k in range(len(A_vals)):
-                ln_a += A_vals[k] * legendre(k)((((2 * j) - 2) / (n)) - 1)
+                ln_a += A_vals[k] * legendre(k)((2 * j) / denom - 1)
             exponents.append(np.exp(ln_a))
         new_shell.exps = np.array(exponents)
         new_shell.leg_params = (np.array(A_vals), n)

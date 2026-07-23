@@ -75,10 +75,25 @@ def test_legendre_expansion():
     s_shell = leg_basis[0]
     p_shell = leg_basis[1]
     assert len(s_shell.exps) == 13
-    assert almost_equal(s_shell.exps[1], 0.367879, thresh=1e-6)
-    assert almost_equal(s_shell.exps[7], 10.332911, thresh=1e-6)
+    # Values on the corrected Petersson node grid x_j = 2j/(n-1) - 1
+    assert almost_equal(s_shell.exps[1], 0.689883, thresh=1e-6)
+    assert almost_equal(s_shell.exps[7], 30.005022, thresh=1e-6)
     assert len(p_shell.exps) == 12
-    assert almost_equal(p_shell.exps[10], 70.083507, thresh=1e-6)
+    assert almost_equal(p_shell.exps[10], 457.218308, thresh=1e-6)
+
+
+def test_legendre_expansion_uses_petersson_grid():
+    # The Legendre nodes must be Petersson's x_j = 2j/(n-1) - 1, spanning [-1, +1]
+    # symmetrically. Selecting only A_1 (P_1(x) = x) makes ln(exp) == x_j, so the
+    # log-exponents recover the node grid directly.
+    n = 6
+    a_vals = (0.0, 1.0, 0.0, 0.0, 0.0, 0.0)
+    shell = basis.legendre_expansion([(a_vals, n)])[0]
+    nodes = np.log(shell.exps)
+    expected = (2 * np.arange(n)) / (n - 1) - 1
+    assert np.allclose(nodes, expected)
+    assert almost_equal(nodes[0], -1.0, thresh=1e-9)
+    assert almost_equal(nodes[-1], 1.0, thresh=1e-9)
 
 
 def test_well_temper_expansion():
