@@ -15,10 +15,6 @@ try:
     _PARALLEL = True
     num_cores = 2
     import ray
-
-    # from basisopt.parallelise import distribute
-
-
 except ImportError:
     bo_logger.error('RAY Import Error')
     _PARALLEL = False

@@ -174,7 +174,8 @@ def add_uncontracted_functions_cutoff(mol, element, params, cutoff, verbose=Fals
 
     bo_logger.info(f'Uncontracting coefficients for {element} with cutoff {cutoff}.')
 
-    api.run_calculation(mol=mol, params=params)
+    # (removed a standalone run_calculation here: its result was never read
+    # before the ranking pass below recomputes the reference energy)
     uncontracted_functions = []
     uncontract = True
     while uncontract:
