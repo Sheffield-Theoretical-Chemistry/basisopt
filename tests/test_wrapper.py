@@ -4,8 +4,19 @@ from basisopt import Molecule
 from basisopt.exceptions import InvalidMethodString
 from basisopt.wrappers import Wrapper
 from basisopt.wrappers.dummy import DummyWrapper
+from tests.data.factories import make_molecule
 from tests.data.shells import get_vdz_internal
 from tests.data.utils import almost_equal
+
+
+def test_dummy_wrapper_accepts_params(dummy_backend):
+    # regression: Dummy methods lacked **params, so a non-empty strategy.params
+    # raised TypeError (uncaught by Wrapper.run).
+    from basisopt import api
+
+    mol = make_molecule(("H", "H"), method="linear")
+    assert api.run_calculation(evaluate="energy", mol=mol, params={"memory": "2 GB"}) == 0
+    assert api.get_backend().get_value("energy") == -2.0
 
 
 def test_empty_wrappers():

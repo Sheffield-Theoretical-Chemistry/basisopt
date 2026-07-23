@@ -70,21 +70,21 @@ class DummyWrapper(Wrapper):
         self._basis_value = len(m.basis)
 
     @available
-    def energy(self, mol, tmp=""):
+    def energy(self, mol, tmp="", **params):
         self.initialise(mol, name="energy", tmp=tmp)
         return _method_lookup[mol.method](self._value, a=-1.0)
 
     @available
-    def dipole(self, mol, tmp=""):
+    def dipole(self, mol, tmp="", **params):
         self.initialise(mol, name="dipole", tmp=tmp)
         return _method_lookup[mol.method](self._value, a=0.5)
 
     @available
-    def quadrupole(self, mol, tmp=""):
+    def quadrupole(self, mol, tmp="", **params):
         self.initialise(mol, name="quadrupole", tmp=tmp)
         return _method_lookup[mol.method](self._value, a=0.1)
 
     @available
-    def polarizability(self, mol, tmp=""):
+    def polarizability(self, mol, tmp="", **params):
         self.initialise(mol, name="polarizability", tmp=tmp)
         return _method_lookup[mol.method](self._value, a=self._basis_value)
