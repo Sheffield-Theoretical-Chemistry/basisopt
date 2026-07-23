@@ -896,7 +896,10 @@ class Optimizer:
                         ]
                     )
                     info_str = "\n".join(info_lines)
-                    self.results[f"opt{ctr}"] = res
+                    # Namespace by element: a shared self.results dict with a
+                    # per-element ctr reset meant multi-element runs overwrote
+                    # earlier elements' steps.
+                    self.results[f"{element}_opt{ctr}"] = res
                     ctr += 1
                 else:
                     info_str = "Skipping empty shell"
@@ -925,9 +928,10 @@ class Optimizer:
             for mol in self.molecules:
                 for atom in mol.unique_atoms():
                     self.elements.append(atom.lower())
-            self.elements = set(self.elements)
-        else:
-            self.elements = set(self.elements)
+        # de-duplicate while preserving a deterministic order; a set made the
+        # element iteration order nondeterministic, so which element's results
+        # survived the clobber was also nondeterministic
+        self.elements = list(dict.fromkeys(el.lower() for el in self.elements))
         for mol in self.molecules:
             if self.reference_basis:
                 mol.basis = self.reference_basis

@@ -137,7 +137,26 @@ def test_optimizer_class_runs(dummy_backend):
         opt_params={"options": {"maxiter": 2}},
     )
     opt.run(molecules=[mol], algorithm="l-bfgs-b")
-    assert set(opt.get_results()) == {"opt1", "opt2"}
+    assert set(opt.get_results()) == {"h_opt1", "h_opt2"}
+
+
+def test_optimizer_multi_element_keeps_all_results(dummy_backend):
+    # regression: results were keyed f"opt{ctr}" with ctr reset per element into
+    # one shared dict, so a multi-element run silently kept only the last
+    # element's steps (and which one survived was nondeterministic via a set).
+    basis = {
+        **make_basis("h", (("s", (5.0, 1.0, 0.2)),)),
+        **make_basis("o", (("s", (9.0, 3.0, 1.0)), ("p", (1.5, 0.4)))),
+    }
+    mol = make_molecule(("H", "O"), method="linear", basis=basis)
+    opt = Optimizer(
+        strategy=Strategy(), params={}, basis=basis, elements=["h", "o"],
+        opt_params={"options": {"maxiter": 2}},
+    )
+    opt.run(molecules=[mol], algorithm="l-bfgs-b")
+    keys = set(opt.get_results())
+    assert "h_opt1" in keys  # H's step survives instead of being clobbered
+    assert {"o_opt1", "o_opt2"} <= keys
 
 
 def test_optimizer_instances_do_not_share_mutable_defaults(dummy_backend):
@@ -161,7 +180,7 @@ def test_minimizer_class_runs(dummy_backend):
         opt_params={"options": {"maxiter": 2}},
     )
     mn.run(molecules=[mol], algorithm="l-bfgs-b")
-    assert set(mn.get_results()) == {"opt1", "opt2"}
+    assert set(mn.get_results()) == {"h_opt1", "h_opt2"}
 
 
 # --------------------------------------------------------------------------- #
