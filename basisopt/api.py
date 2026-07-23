@@ -284,6 +284,14 @@ def run_all(
     results = {}
 
     if parallel and _PARALLEL:
+        # Ray workers start fresh and must be told which backend to use; without
+        # ray_params, _run_one_job used to hit None['backend'] (a swallowed
+        # TypeError) and silently drop every result. Fail fast instead.
+        if not ray_params or 'backend' not in ray_params:
+            raise ValueError(
+                "run_all(parallel=True) requires ray_params with at least a "
+                "'backend' key so the Ray workers can set the backend."
+            )
         # Ensure Ray is initialized
         if not ray.is_initialized():
             ray.init(ignore_reinit_error=True, num_cpus=num_cores)

@@ -801,7 +801,7 @@ class Optimizer:
                 evaluate=self.strategy.eval_type, mol=mol, params=self.params
             )
             if success != 0:
-                raise ValueError("Calculation failed")
+                raise FailedCalculation("Calculation failed")
             mol.add_result(self.strategy.eval_type, self.wrapper.get_value(self.strategy.eval_type))
         result = self.loss(self.molecules)
 
@@ -941,7 +941,7 @@ class Optimizer:
                 evaluate=self.strategy.eval_type, mol=mol, params=self.params
             )
             if success != 0:
-                raise ValueError("Calculation failed")
+                raise FailedCalculation("Calculation failed")
             mol.add_result("energy", self.wrapper.get_value("energy"))
             if mol.get_reference(self.strategy.eval_type) == 0.0:
                 mol.add_reference(

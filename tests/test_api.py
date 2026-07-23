@@ -3,8 +3,22 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 from basisopt import api
 from basisopt.wrappers import Wrapper
+
+
+def test_run_all_parallel_requires_ray_params(dummy_backend):
+    # regression: parallel=True with no ray_params silently dropped every result
+    # (None['backend'] TypeError swallowed in the worker). Now it fails fast.
+    from tests.data.factories import make_molecule
+
+    if not api._PARALLEL:
+        pytest.skip("Ray not available; parallel path inactive")
+    mol = make_molecule(("H", "H"), method="linear")
+    with pytest.raises(ValueError, match="ray_params"):
+        api.run_all(evaluate="energy", mols=[mol], parallel=True)
 
 
 def test_backend_registration():
