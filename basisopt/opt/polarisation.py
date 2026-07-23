@@ -173,7 +173,10 @@ class PolarizationStrategyConverge(Strategy):
                     bo_logger.info('Basis set converged, restoring old basis.')
                     basis[element] = self.old_basis
                     return False
-        except:
+        except Exception:
+            # NOTE: this masks an AttributeError on first entry (self.old_energy
+            # is read before it is assigned). This strategy is unfinished/unused;
+            # left for the polarisation work rather than reworked here.
             pass
 
         if self._possible_combinations:
