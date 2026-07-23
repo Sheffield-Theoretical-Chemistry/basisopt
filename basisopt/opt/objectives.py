@@ -100,9 +100,15 @@ def default_min_loss(molecules):
 
 @registered_objective_decorator()
 def sp_polarisation_energy(molecules):
+    """Mean per-electron single-point polarisation error vs the CBS limit.
+
+    Requires each molecule to carry a ``cbs_limit`` attribute and an
+    ``'sp_polarisation'`` result (read via get_result, which defaults to 0.0).
+    """
     objective = np.mean(
         [
-            ((mol.get_result('energy') - mol.cbs_limit) - mol.sp_polarisation) / mol.nelectrons()
+            ((mol.get_result('energy') - mol.cbs_limit) - mol.get_result('sp_polarisation'))
+            / mol.nelectrons()
             for mol in molecules
         ]
     )

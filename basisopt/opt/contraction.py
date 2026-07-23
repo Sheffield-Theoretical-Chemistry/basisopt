@@ -75,7 +75,6 @@ class ContractionStrategy(Strategy):
         d["@module"] = type(self).__module__
         d["@class"] = type(self).__name__
         d["shells"] = self.shells
-        d["shell_done"] = self.shell_done
         d["target"] = self.target
         d["max_n"] = self.max_n
         d["max_l"] = self.max_l
@@ -83,7 +82,14 @@ class ContractionStrategy(Strategy):
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> object:
-        """Creates a ContractionStrategy from an MSONable dictionary"""
+        """Creates a ContractionStrategy from an MSONable dictionary.
+
+        Only the configuration (target/max_n/max_l/shells) is restored; the
+        per-run working state (_step/_n_step/number_of_contractions/
+        sub_shells_done) is derived from the basis, so ``initialise()`` must be
+        called after deserialization before use. The previously-serialized
+        ``shell_done`` flag was never read and has been dropped.
+        """
         strategy = Strategy.from_dict(d)
         instance = cls(
             eval_type=d.get("eval_type", "energy"),
@@ -98,7 +104,6 @@ class ContractionStrategy(Strategy):
         instance.last_objective = strategy.last_objective
         instance.delta_objective = strategy.delta_objective
         instance.shells = d.get("shells", [])
-        instance.shell_done = d.get("shell_done", [])
         return instance
 
     def get_active(self, basis: InternalBasis, element: str) -> np.ndarray:

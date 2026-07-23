@@ -71,6 +71,11 @@ class RunState:
         mol = Molecule.from_xyz(self.reference.geometry)
         mol.name = self.element
         mol.method = method
+        if self.reference.charge:
+            mol.charge = self.reference.charge
+        # NOTE: a single reference.multiplicity is applied to both the atom
+        # (build_atom) and this (di)atomic; for species whose atomic and
+        # molecular ground states differ (e.g. N vs N2) set it per run/step.
         if self.reference.multiplicity is not None:
             mol.multiplicity = self.reference.multiplicity
         return mol
