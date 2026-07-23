@@ -104,9 +104,12 @@ class Psi4Wrapper(Wrapper):
         # logic to check global options
         # TODO: expand option handling
         if "memory" in options:
-            psi4.set_memory(params["memory"])
+            # memory may have arrived via add_global (in options only) or via
+            # params; read it from options (always present once the check passes)
+            # and pop params defensively so neither branch KeyErrors.
+            psi4.set_memory(options["memory"])
             del options["memory"]
-            del params["memory"]
+            params.pop("memory", None)
         psi4.set_options(options)
 
         # set basis
