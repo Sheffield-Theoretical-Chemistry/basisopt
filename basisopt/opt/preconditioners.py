@@ -36,14 +36,20 @@ def unit(x):
     return x
 
 
-def _positive_inverse(y, minval=1e-4, ratio=1.4):
-    """Inverse of make_positive"""
-    x = np.copy(y)
-    for ix, v in enumerate(x):
+def _clamp_positive(arr, minval=1e-4, ratio=1.4):
+    """Clamp values below ``minval`` up to ``minval``, growing by ``ratio`` each
+    time so repeated small values do not collapse onto the same exponent."""
+    out = np.copy(arr)
+    for ix, v in enumerate(out):
         if v < minval:
-            x[ix] = minval
+            out[ix] = minval
             minval *= ratio
-    return x
+    return out
+
+
+def _positive_inverse(y, minval=1e-4, ratio=1.4):
+    """Inverse of make_positive (the same clamp, kept in sync via _clamp_positive)"""
+    return _clamp_positive(y, minval, ratio)
 
 
 @inverse(_positive_inverse)
@@ -52,12 +58,7 @@ def make_positive(x, minval=1e-4, ratio=1.4):
     If multiple values are < minval, the new values
     will be minval * (ratio**n)
     """
-    y = np.copy(x)
-    for ix, v in enumerate(y):
-        if v < minval:
-            y[ix] = minval
-            minval *= ratio
-    return y
+    return _clamp_positive(x, minval, ratio)
 
 
 def _logistic_inverse(y, minval=1e-4, maxval=1e5, alpha=1.0, x0=0.0):
