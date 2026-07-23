@@ -21,6 +21,15 @@ def test_molecular_basis_json_roundtrip(dummy_backend, tmp_path):
     assert set(loaded.unique_atoms()) == {"h"}
 
 
+def test_molecular_basis_accepts_molecules_kwarg(dummy_backend):
+    # regression: __init__ called a non-existent self._add_molecule, so the
+    # documented molecules= kwarg raised AttributeError.
+    mol = make_molecule(("H", "H"), method="linear")
+    mb = MolecularBasis(name="ctor", molecules=[mol])
+    assert isinstance(mb.get_molecule(mol.name), Molecule)
+    assert set(mb.unique_atoms()) == {"h"}
+
+
 def test_molecule_loader_run_calculations(dummy_backend):
     m1 = make_molecule(("H", "H"), method="linear", name="m1")
     m2 = make_molecule(("H",), method="linear", name="m2")

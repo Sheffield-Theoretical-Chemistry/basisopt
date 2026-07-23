@@ -39,7 +39,7 @@ class MolecularBasis(Basis):
         self._atomic_bases = {}
         self._done_setup = False
         for m in molecules or []:
-            self._add_molecule(m)
+            self.add_molecule(m)
 
     def save(self, filename: str):
         """Saves the MolecularBasis to a JSON file (MSONable)"""
