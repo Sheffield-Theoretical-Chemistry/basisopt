@@ -70,7 +70,7 @@ class AutoBasisStrategy(Strategy):
         strategy = Strategy.from_dict(d)
         instance = cls(
             eval_type=d.get("eval_type", 'energy'),
-            target=d.get("target", 1e-5),
+            target=d.get("target", 1e-6),
         )
         instance.name = strategy.name
         instance.params = strategy.params
@@ -78,6 +78,11 @@ class AutoBasisStrategy(Strategy):
         instance._step = strategy._step
         instance.last_objective = strategy.last_objective
         instance.delta_objective = strategy.delta_objective
+        # carry the base attributes as_dict wrote but the ctor does not take, so
+        # an auxiliary-basis strategy does not silently revert to "orbital"
+        instance.basis_type = strategy.basis_type
+        instance.orbital_basis = strategy.orbital_basis
+        instance.pre_params = strategy.pre_params
         instance.cbs_limit = d.get("cbs_limit", None)
         return instance
 
@@ -537,7 +542,10 @@ class AutoBasisReduceStrategyAll(AutoBasisStrategy):
         self.delta_objective = 0
         self.first_run = [True] * len(basis[element])
         self.init_run = True
-        self._just_removed = [False] * len(basis[element])
+        # index of the shell whose exponent was most recently removed (-1 = none
+        # yet). next() compares it to self._step; it must be a scalar int, not the
+        # list it used to be (which only "worked" because list != int is always True).
+        self._just_removed = -1
         self.original_shells = [copy.deepcopy(shell) for shell in basis[element]]
         self.original_size = [len(shell.exps) for shell in basis[element]]
         self.n_exps_removed = [0] * len(basis[element])

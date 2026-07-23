@@ -198,6 +198,15 @@ def test_autobasis_serialization_roundtrip(dummy_backend, cls):
     assert restored.cbs_limit == strategy.cbs_limit
 
 
+def test_autobasis_from_dict_preserves_basis_type(dummy_backend):
+    # regression: from_dict dropped basis_type, so an auxiliary-basis strategy
+    # silently reverted to "orbital" on reload.
+    strategy = AutoBasisFree(target=1e-5)
+    strategy.basis_type = "jkfit"
+    restored = AutoBasisFree.from_dict(strategy.as_dict())
+    assert restored.basis_type == "jkfit"
+
+
 def test_autobasis_legendre_initialise_requires_n_prim(dummy_backend):
     # regression: n_coefs defaulted to None, so initialise did zip(..., None)
     # -> TypeError. It must now raise a clear, actionable error.
