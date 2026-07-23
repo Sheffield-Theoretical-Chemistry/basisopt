@@ -1,4 +1,5 @@
 # Wrappers for psi4 functionality
+import os
 from typing import Any
 
 import psi4
@@ -88,7 +89,7 @@ class Psi4Wrapper(Wrapper):
         - converts basis set (TODO: handle jkfit)
         """
         # create output file
-        outfile = tmp + f"{m.name}-{m.method}-" + name + ".out"
+        outfile = os.path.join(tmp, f"{m.name}-{m.method}-{name}.out")
         psi4.core.set_output_file(outfile, False)
 
         # create the molecule

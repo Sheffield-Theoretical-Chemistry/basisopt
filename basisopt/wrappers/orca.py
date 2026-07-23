@@ -141,7 +141,9 @@ class OrcaWrapper(Wrapper):
                 the prefix for the calculation input/output files
         """
         # create input file
-        self._pwd = os.getenv("PWD")
+        # os.getcwd() always reflects the real working directory; PWD is a shell
+        # convenience var that may be unset (-> os.chdir(None) TypeError) or stale.
+        self._pwd = os.getcwd()
         os.chdir(tmp)
         prefix = f"{m.name}-{m.method}-" + name
 
@@ -263,7 +265,7 @@ class OrcaWrapper(Wrapper):
                     # currently taking the isotropic polarizability
                     # could change to take raw tensor
                     line = lines[line_ix]
-                    res = line.split(":")[1].strip()
+                    res = float(line.split(":")[1].strip())
                 results[f"{key}:{name}"] = res
 
         return results
