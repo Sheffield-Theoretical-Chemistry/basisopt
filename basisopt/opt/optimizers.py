@@ -146,7 +146,6 @@ def optimize(
         element (str): symbol of atom to optimize; if None, will default to first atom in molecule
         algorithm (str): scipy.optimize algorithm to use
         strategy (Strategy): optimization strategy
-        basis_type (str): which basis type to use; currently "orbital", "jfit", or "jkfit"
         reg (func): regularization function
         opt_params (dict): parameters to pass to scipy.optimize.minimize
 
@@ -205,7 +204,6 @@ def minimizer(
         element (str): symbol of atom to optimize; if None, will default to first atom in molecule
         algorithm (str): scipy.optimize algorithm to use
         strategy (Strategy): optimization strategy
-        basis_type (str): which basis type to use; currently "orbital", "jfit", or "jkfit"
         reg (func): regularization function
         opt_params (dict): parameters to pass to scipy.optimize.minimize
 
@@ -295,7 +293,6 @@ def _atomic_opt_auto(
     )
 
 
-# Updated atom_auto function
 # Updated atom_auto function
 def atom_auto(
     molecule: Molecule,
@@ -424,7 +421,6 @@ def _atomic_opt_auto_reduce(
     )
 
 
-# Updated atom_auto_reduce function
 # Updated atom_auto_reduce function
 def atom_auto_reduce(
     molecule: Molecule,
@@ -666,7 +662,6 @@ def contraction_optimize(
         element (str): symbol of atom to optimize; if None, will default to first atom in molecule
         algorithm (str): scipy.optimize algorithm to use
         strategy (Strategy): optimization strategy
-        basis_type (str): which basis type to use; currently "orbital", "jfit", or "jkfit"
         reg (func): regularization function
         opt_params (dict): parameters to pass to scipy.optimize.minimize
 
