@@ -94,6 +94,11 @@ class Test(Result):
         name = d.get("name", "Empty")
         ref = d.get("reference", None)
         molecule = d.get("molecule", None)
+        # MontyDecoder does not recursively decode nested @class dicts, so the
+        # molecule arrives as a raw dict; rebuild it into a Molecule (otherwise
+        # calculate() does dict.basis = ... -> AttributeError).
+        if isinstance(molecule, dict):
+            molecule = Molecule.from_dict(molecule)
         instance = cls(name, reference=ref, mol=molecule)
         instance._data_keys = result._data_keys
         instance._data_values = result._data_values

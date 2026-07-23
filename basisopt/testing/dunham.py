@@ -125,7 +125,11 @@ class DunhamTest(Test):
         if len(mol_str) != 0:
             self.from_string(mol_str, charge=charge, mult=mult)
 
-        self.reduced_mass()
+        # reduced_mass() dereferences self.molecule._atom_names, so only validate
+        # it here when a molecule is present; from_dict constructs without one and
+        # sets it afterwards, and calculate() recomputes it when actually needed.
+        if self.molecule is not None:
+            self.reduced_mass()
 
     def as_dict(self):
         d = super().as_dict()
