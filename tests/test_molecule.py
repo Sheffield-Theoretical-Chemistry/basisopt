@@ -106,6 +106,23 @@ def test_set_ecps():
     assert len(m.ecps) == 1
 
 
+def test_roundtrip_preserves_geometry():
+    # Regression: Molecule.from_dict must restore coordinates onto _coords,
+    # otherwise every reloaded molecule keeps its atom names but loses geometry.
+    m = Molecule(name="water-ish", charge=0, mult=1)
+    m.add_atom(element="O", coord=[0.0, 0.0, 0.0])
+    m.add_atom(element="H", coord=[0.0, 0.0, 0.96])
+    m.add_atom(element="H", coord=[0.93, 0.0, -0.24])
+    assert m.natoms() == 3
+
+    restored = Molecule.from_dict(m.as_dict())
+    assert restored.natoms() == 3
+    assert restored._atom_names == m._atom_names
+    # These index into _coords and would IndexError if geometry were dropped.
+    assert almost_equal(restored.distance(0, 1), m.distance(0, 1))
+    assert restored.get_line(0) == m.get_line(0)
+
+
 def test_build_diatomic():
     no = build_diatomic("NO,1.3", charge=1)
     assert no.natoms() == 2

@@ -342,7 +342,7 @@ class Molecule(MSONable):
         instance.jkbasis = d.get("jkbasis", None)
         instance._atom_names = d.get("atom_names", [])
         instance.dummy_atoms = d.get("dummy_atoms", [])
-        instance.coords = d.get("coords", [])
+        instance._coords = d.get("coords", [])
         instance._results = d.get("results", {})
         instance._references = d.get("references", {})
         return instance
