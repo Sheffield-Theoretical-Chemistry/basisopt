@@ -104,9 +104,7 @@ def _run_strategy(
             if verbose and cbs_limit is not None:
                 dE_CBS = objective_value - cbs_limit
                 res['dE_CBS'] = dE_CBS
-                lines.append(
-                    "Difference to atomic CBS limit: " + format_with_prefix(dE_CBS, 'Eₕ')
-                )
+                lines.append("Difference to atomic CBS limit: " + format_with_prefix(dE_CBS, 'Eₕ'))
             results[f"atomicopt{ctr}"] = res
             ctr += 1
             info_str = "\n".join(lines)
@@ -264,6 +262,7 @@ def _atomic_opt_auto(
      Returns:
          a dictionary of scipy.optimize result objects for each step in the opt
     """
+
     def finalize(results: OptResult, objective_value: float):
         bo_logger.info("Optimization finished")
         bo_logger.info("Final energy: %f", objective_value)
@@ -288,8 +287,14 @@ def _atomic_opt_auto(
         bo_logger.info(f"Basis composition: {get_composition(basis, element)}")
 
     return _run_strategy(
-        basis, element, algorithm, strategy, opt_params, objective,
-        verbose=True, finalize=finalize,
+        basis,
+        element,
+        algorithm,
+        strategy,
+        opt_params,
+        objective,
+        verbose=True,
+        finalize=finalize,
     )
 
 
@@ -416,8 +421,15 @@ def _atomic_opt_auto_reduce(
         bo_logger.info(f"Basis composition: {get_composition(basis, element)}")
 
     return _run_strategy(
-        basis, element, algorithm, strategy, opt_params, objective,
-        molecule=molecule, verbose=True, finalize=finalize,
+        basis,
+        element,
+        algorithm,
+        strategy,
+        opt_params,
+        objective,
+        molecule=molecule,
+        verbose=True,
+        finalize=finalize,
     )
 
 
@@ -575,13 +587,20 @@ def collective_optimize(
     Raises:
           FailedCalculation
     """
+
     def contribution(mol, value, strategy, el):
         mol.add_result(strategy.eval_type + "_" + el.title(), value)
         return np.linalg.norm(value - mol.get_reference(strategy.eval_type))
 
     return _collective(
-        molecules, basis, opt_data, npass, parallel, ray_params,
-        contribution=contribution, accumulate_total=True,
+        molecules,
+        basis,
+        opt_data,
+        npass,
+        parallel,
+        ray_params,
+        contribution=contribution,
+        accumulate_total=True,
     )
 
 
@@ -612,6 +631,7 @@ def collective_minimize(
     Raises:
           FailedCalculation
     """
+
     def contribution(mol, value, strategy, el):
         mol.add_result(strategy.eval_type + "_" + el.title(), value)
         return value / mol.nelectrons()
@@ -733,14 +753,21 @@ def collective_polarize(
     Raises:
           FailedCalculation
     """
+
     def contribution(mol, value, strategy, el):
         polarisation = abs(value - mol.cbs_limit)
         mol.add_result(strategy.eval_type + "_" + el.title(), polarisation)
         return polarisation / mol.nelectrons()
 
     return _collective(
-        molecules, basis, opt_data, npass, parallel, ray_params,
-        contribution=contribution, normalize=True,
+        molecules,
+        basis,
+        opt_data,
+        npass,
+        parallel,
+        ray_params,
+        contribution=contribution,
+        normalize=True,
     )
 
 
@@ -866,12 +893,16 @@ class Optimizer:
                     if self.parallel:
                         res = minimize(
                             lambda x: self._parallel_objective(x, logger=logger),
-                            guess, method=algorithm, **self.opt_params,
+                            guess,
+                            method=algorithm,
+                            **self.opt_params,
                         )
                     else:
                         res = minimize(
                             lambda x: self._objective(x, logger=logger),
-                            guess, method=algorithm, **self.opt_params,
+                            guess,
+                            method=algorithm,
+                            **self.opt_params,
                         )
                     objective_value = res.fun
 

@@ -70,9 +70,7 @@ def test_import_without_ray():
         "assert not hasattr(api._run_one_job, 'remote')\n"
         "print('ok')\n"
     )
-    result = subprocess.run(
-        [sys.executable, "-c", script], capture_output=True, text=True
-    )
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert "ok" in result.stdout
 

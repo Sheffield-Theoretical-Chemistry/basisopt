@@ -133,7 +133,10 @@ def test_optimizer_class_runs(dummy_backend):
     basis = make_basis("h", (("s", (5.0, 1.0, 0.2)), ("p", (1.5, 0.3))))
     mol = make_molecule(("H", "H"), method="linear", basis=basis)
     opt = Optimizer(
-        strategy=Strategy(), params={}, basis=basis, elements=["h"],
+        strategy=Strategy(),
+        params={},
+        basis=basis,
+        elements=["h"],
         opt_params={"options": {"maxiter": 2}},
     )
     opt.run(molecules=[mol], algorithm="l-bfgs-b")
@@ -150,7 +153,10 @@ def test_optimizer_multi_element_keeps_all_results(dummy_backend):
     }
     mol = make_molecule(("H", "O"), method="linear", basis=basis)
     opt = Optimizer(
-        strategy=Strategy(), params={}, basis=basis, elements=["h", "o"],
+        strategy=Strategy(),
+        params={},
+        basis=basis,
+        elements=["h", "o"],
         opt_params={"options": {"maxiter": 2}},
     )
     opt.run(molecules=[mol], algorithm="l-bfgs-b")
@@ -176,7 +182,10 @@ def test_minimizer_class_runs(dummy_backend):
     basis = make_basis("h", (("s", (5.0, 1.0, 0.2)), ("p", (1.5, 0.3))))
     mol = make_molecule(("H", "H"), method="linear", basis=basis)
     mn = Minimizer(
-        strategy=Strategy(), params={}, basis=basis, elements=["h"],
+        strategy=Strategy(),
+        params={},
+        basis=basis,
+        elements=["h"],
         opt_params={"options": {"maxiter": 2}},
     )
     mn.run(molecules=[mol], algorithm="l-bfgs-b")

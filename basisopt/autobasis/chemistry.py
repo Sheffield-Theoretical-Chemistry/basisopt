@@ -35,8 +35,9 @@ def _method_name(step_cfg: dict, backend: str) -> str:
     return step_cfg.get("method") or _DEFAULT_METHODS.get(backend, "scf")
 
 
-def _method_params(state: RunState, step_name: str, backend: str, method: str,
-                   wf_key: Optional[str] = None) -> dict:
+def _method_params(
+    state: RunState, step_name: str, backend: str, method: str, wf_key: Optional[str] = None
+) -> dict:
     """Merged method params for a step, with the Molpro occupation card applied
     (``<method>-params``) when the backend is Molpro and the card is present."""
     params = state.config.method_params(backend, step_name)
@@ -202,9 +203,7 @@ def step_uncontraction(state: RunState, step_cfg: dict) -> StepResult:
     method = _method_name(step_cfg, backend)
 
     mol = state.build_geometry_molecule(method)
-    mol.basis = {
-        el.lower(): contracted_basis[el.lower()] for el in mol.unique_atoms()
-    }
+    mol.basis = {el.lower(): contracted_basis[el.lower()] for el in mol.unique_atoms()}
     params = _method_params(state, "uncontraction", backend, method, wf_key="molpro_diatomic")
 
     # contracted vs fully-uncontracted reference energies (as the scripts logged)

@@ -223,8 +223,13 @@ def _run_tempered(cls, max_n, element="c", target=1e-5, schedule=None):
     for obj in schedule:
         ret = strategy.next(basis, element, obj)
         trace.append(
-            (ret, strategy._step, strategy.first_run,
-             [shell[-1] for shell in strategy.shells], list(strategy.shell_done))
+            (
+                ret,
+                strategy._step,
+                strategy.first_run,
+                [shell[-1] for shell in strategy.shells],
+                list(strategy.shell_done),
+            )
         )
         if not ret:
             break

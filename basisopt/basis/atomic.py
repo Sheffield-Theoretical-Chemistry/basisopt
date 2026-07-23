@@ -18,7 +18,12 @@ from basisopt.opt.welltemper import WellTemperedStrategy
 from basisopt.util import bo_logger, write_json
 
 from . import zetatools as zt
-from .basis import Basis, even_temper_expansion, legendre_expansion, well_temper_expansion
+from .basis import (
+    Basis,
+    even_temper_expansion,
+    legendre_expansion,
+    well_temper_expansion,
+)
 
 
 def needs_element(func: Callable) -> Callable:
@@ -292,7 +297,17 @@ class AtomicBasis(Basis):
         bo_logger.info("Atomic basis setup complete")
 
     def _set_tempered(
-        self, attr, lookup, strategy_cls, expansion, method, accuracy, max_n, max_l, exact_ref, params
+        self,
+        attr,
+        lookup,
+        strategy_cls,
+        expansion,
+        method,
+        accuracy,
+        max_n,
+        max_l,
+        exact_ref,
+        params,
     ):
         """Shared implementation of set_even_tempered/set_well_tempered/set_legendre.
 
@@ -346,8 +361,16 @@ class AtomicBasis(Basis):
              self.et_params
         """
         self._set_tempered(
-            "et_params", data.get_even_temper_params, EvenTemperedStrategy,
-            even_temper_expansion, method, accuracy, max_n, max_l, exact_ref, params,
+            "et_params",
+            data.get_even_temper_params,
+            EvenTemperedStrategy,
+            even_temper_expansion,
+            method,
+            accuracy,
+            max_n,
+            max_l,
+            exact_ref,
+            params,
         )
 
     @needs_element
@@ -376,8 +399,16 @@ class AtomicBasis(Basis):
              self.wt_params
         """
         self._set_tempered(
-            "wt_params", data.get_well_temper_params, WellTemperedStrategy,
-            well_temper_expansion, method, accuracy, max_n, max_l, exact_ref, params,
+            "wt_params",
+            data.get_well_temper_params,
+            WellTemperedStrategy,
+            well_temper_expansion,
+            method,
+            accuracy,
+            max_n,
+            max_l,
+            exact_ref,
+            params,
         )
 
     @needs_element
@@ -406,8 +437,16 @@ class AtomicBasis(Basis):
              self.leg_params
         """
         self._set_tempered(
-            "leg_params", data.get_legendre_params, LegendreStrategy,
-            legendre_expansion, method, accuracy, max_n, max_l, exact_ref, params,
+            "leg_params",
+            data.get_legendre_params,
+            LegendreStrategy,
+            legendre_expansion,
+            method,
+            accuracy,
+            max_n,
+            max_l,
+            exact_ref,
+            params,
         )
 
     @needs_element

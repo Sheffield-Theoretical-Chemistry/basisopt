@@ -485,9 +485,7 @@ class AutoBasisReduceStrategy(AutoBasisStrategy):
             new_exps = np.delete(basis[element][self._step].exps, min_exp)
             self.set_active(new_exps, basis, element)
             uncontract_shell(basis[element][self._step])
-            bo_logger.info(
-                f"Removing exponent {min_exp} from shell {basis[element][self._step].l}"
-            )
+            bo_logger.info(f"Removing exponent {min_exp} from shell {basis[element][self._step].l}")
             self._just_removed = True
             self.n_exps_removed[self._step] += 1
             return True

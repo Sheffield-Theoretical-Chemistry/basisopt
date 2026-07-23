@@ -275,6 +275,7 @@ class Molecule(MSONable):
             momentum's legendre coefficients.
 
         """
+
         def _shells(el):
             # consistent value shape in both branches: the A-coefficient list per
             # angular momentum, skipping shells with no Legendre params
@@ -287,10 +288,7 @@ class Molecule(MSONable):
         if element:
             return _shells(element)
         else:
-            return {
-                element: _shells(element)
-                for element in self.basis.keys()
-            }
+            return {element: _shells(element) for element in self.basis.keys()}
 
     def distance(self, atom1: int, atom2: int) -> float:
         """Computes the Euclidean distance between two atoms.

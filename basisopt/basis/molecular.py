@@ -4,7 +4,13 @@ import numpy as np
 
 from basisopt import api
 from basisopt.bse_wrapper import fetch_basis
-from basisopt.containers import InternalBasis, OptCollection, Result, basis_to_dict, dict_to_basis
+from basisopt.containers import (
+    InternalBasis,
+    OptCollection,
+    Result,
+    basis_to_dict,
+    dict_to_basis,
+)
 from basisopt.exceptions import DataNotFound, EmptyBasis
 from basisopt.molecule import Molecule
 from basisopt.opt import collective_minimize, collective_optimize, collective_polarize
