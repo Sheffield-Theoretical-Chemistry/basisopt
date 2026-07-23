@@ -196,3 +196,30 @@ def test_autobasis_serialization_roundtrip(dummy_backend, cls):
     restored = cls.from_dict(d)
     assert restored.target == strategy.target
     assert restored.cbs_limit == strategy.cbs_limit
+
+
+def test_autobasis_legendre_initialise_requires_n_prim(dummy_backend):
+    # regression: n_coefs defaulted to None, so initialise did zip(..., None)
+    # -> TypeError. It must now raise a clear, actionable error.
+    from basisopt.opt.auto_basis import AutoBasisLegendre
+
+    strategy = AutoBasisLegendre()  # no n_coefs
+    strategy.set_cbs_limit(-75.0)
+    with pytest.raises(ValueError, match="n_coefs"):
+        strategy.initialise({}, "O")
+
+
+def test_autobasis_legendre_serialization_roundtrip(dummy_backend):
+    # regression: n_prim/legendre_params were dropped by as_dict/from_dict, so a
+    # reloaded strategy reset both to None and crashed on the next initialise.
+    from basisopt.opt.auto_basis import AutoBasisLegendre
+
+    strategy = AutoBasisLegendre(n_coefs=(9, 3))
+    strategy.legendre_params = [[1.0] * 6, [2.0] * 6]
+    strategy.set_cbs_limit(-75.0)
+
+    restored = AutoBasisLegendre.from_dict(strategy.as_dict())
+    assert restored.n_prim == (9, 3)
+    assert restored.legendre_params == [[1.0] * 6, [2.0] * 6]
+    assert restored.cbs_limit == -75.0
+    assert restored.target == strategy.target

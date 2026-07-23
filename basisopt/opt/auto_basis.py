@@ -205,21 +205,50 @@ class AutoBasisLegendre(AutoBasisStrategy):
         # back to the built-in _ATOMIC_LEGENDRE_COEFFS for the element.
         self.legendre_params = None
 
+    def as_dict(self) -> dict[str, Any]:
+        """Returns MSONable dictionary of object.
+
+        Overrides the base to also persist the Legendre configuration
+        (``n_prim`` and ``legendre_params``); without it a reloaded strategy
+        reset both to None and crashed on the next ``initialise``.
+        """
+        d = super().as_dict()
+        d["n_prim"] = list(self.n_prim) if self.n_prim is not None else None
+        d["legendre_params"] = self.legendre_params
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> object:
+        """Creates the strategy from an MSONable dictionary."""
+        instance = super().from_dict(d)
+        n_prim = d.get("n_prim", None)
+        instance.n_prim = tuple(n_prim) if n_prim is not None else None
+        instance.legendre_params = d.get("legendre_params", None)
+        return instance
+
     def initialise(self, basis: InternalBasis, element: str):
-        """Initialises the strategy (does nothing in default)
+        """Builds the Legendre-expanded starting basis and resets per-run state.
+
+        Uses ``legendre_params`` if set, otherwise the built-in
+        ``_ATOMIC_LEGENDRE_COEFFS`` for the element, pairing each shell's
+        coefficients with the requested primitive count ``n_prim``.
 
         Arguments:
             basis: internal basis dictionary
             element: symbol of the atom being optimized
         """
+        if self.n_prim is None:
+            raise ValueError(
+                "AutoBasisLegendre needs the number of primitives per shell; pass "
+                "n_coefs=(...) to the constructor, set .n_prim, or give the step's "
+                "'n_prim' config."
+            )
         if self.legendre_params:
-            leg_params = []
-            for shell, n in zip(self.legendre_params, self.n_prim):
-                leg_params.append((shell, n))
-            self._shells = leg_params
+            coeffs = self.legendre_params
         else:
             bo_logger.warning(
-                'No Legendre parameters set. Using default parameters. This may result in poorly conditioned expansions.'
+                'No Legendre parameters set. Using default parameters. This may '
+                'result in poorly conditioned expansions.'
             )
             if element.capitalize() not in _ATOMIC_LEGENDRE_COEFFS:
                 raise ValueError(
@@ -228,7 +257,13 @@ class AutoBasisLegendre(AutoBasisStrategy):
                     f"strategy's `legendre_params` attribute."
                 )
             self._initial_guess = _ATOMIC_LEGENDRE_COEFFS[element.capitalize()]
-            self._shells = [(A_vals, n) for A_vals, n in zip(self._initial_guess, self.n_prim)]
+            coeffs = self._initial_guess
+        if len(self.n_prim) != len(coeffs):
+            raise ValueError(
+                f"n_coefs has {len(self.n_prim)} entries but {element} has "
+                f"{len(coeffs)} Legendre shell(s)."
+            )
+        self._shells = [(A_vals, n) for A_vals, n in zip(coeffs, self.n_prim)]
         if not isinstance(basis, dict):
             basis = {}
         self.set_basis_shell(basis, element)
