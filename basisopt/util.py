@@ -153,6 +153,38 @@ def get_composition(basis, element):
     return prim_conf
 
 
+def natural_orbitals_from_density_block(density_block, overlap_block):
+    """Natural orbitals of one angular-momentum block.
+
+    A natural orbital is an eigenvector of the one-particle density matrix D; its
+    eigenvalue is the occupation number. Because the AO basis is non-orthogonal
+    (overlap S != I) we solve the eigenproblem in the S metric via Loewdin
+    symmetric orthogonalisation: diagonalise ``S^{1/2} D S^{1/2}`` and
+    back-transform with ``S^{-1/2}``.
+
+    This is the backend-agnostic core of the natural-orbital contraction: a
+    wrapper supplies the (radial) density and overlap blocks for a shell (e.g.
+    Psi4 averages the AO density over a shell's 2l+1 m-components), and this
+    returns the shell's natural orbitals.
+
+    Arguments:
+        density_block (np.ndarray): the (n x n) density matrix block
+        overlap_block (np.ndarray): the (n x n) overlap (S) matrix block
+
+    Returns:
+        (occupations, coefficients): occupations sorted in decreasing order, and
+        coefficients with ``coefficients[:, k]`` the k-th natural orbital (its
+        entries are contraction coefficients over the n primitives). The columns
+        are S-orthonormal: ``coefficients.T @ overlap_block @ coefficients == I``.
+    """
+    w, v = np.linalg.eigh(overlap_block)
+    s_half = v @ np.diag(np.sqrt(w)) @ v.T
+    s_inv_half = v @ np.diag(1.0 / np.sqrt(w)) @ v.T
+    occupations, u = np.linalg.eigh(s_half @ density_block @ s_half)
+    order = np.argsort(occupations)[::-1]
+    return occupations[order], (s_inv_half @ u)[:, order]
+
+
 def inside_out(basis_coefficients, inside_out=True):
     """Performs the inside-out part of the Davidson purification"""
     K = len(basis_coefficients)  # Number of contractions

@@ -11,6 +11,9 @@ from __future__ import annotations
 import copy
 from typing import Optional
 
+import numpy as np
+
+from basisopt.data import AM_DICT
 from basisopt.util import get_composition
 
 from .state import RunState, StepResult
@@ -172,19 +175,97 @@ def step_reduction(state: RunState, step_cfg: dict) -> StepResult:
 
 
 # --------------------------------------------------------------------------- #
-# Step 3: contraction (natural atomic orbitals - external Molpro for now)
+# Step 3: contraction (natural atomic orbitals)
 # --------------------------------------------------------------------------- #
+def _apply_naos(basis, element: str, nao_data: dict, n_keep: dict):
+    """Replace each shell's coefficients with its leading natural orbitals.
+
+    ``nao_data`` is the backend's ``{l: (occupations, coefficients)}``; ``n_keep``
+    maps angular-momentum letter -> number of NAOs to keep. Returns the contracted
+    basis and the kept occupations per shell (for the record).
+    """
+    contracted = copy.deepcopy(basis)
+    kept_occupations = {}
+    for shell in contracted[element.lower()]:
+        am = AM_DICT[shell.l]
+        if am not in nao_data:
+            continue
+        occupations, coefficients = nao_data[am]
+        if coefficients.shape[0] != len(shell.exps):
+            raise ValueError(
+                f"NAO coefficient count ({coefficients.shape[0]}) does not match the "
+                f"number of {shell.l} primitives ({len(shell.exps)}) for {element}"
+            )
+        keep = min(int(n_keep.get(shell.l, 0)), coefficients.shape[1])
+        if keep == 0:
+            raise ValueError(
+                f"contraction.n_keep gives no count for the {shell.l} shell of {element}"
+            )
+        shell.coefs = [np.asarray(coefficients[:, k], dtype=float) for k in range(keep)]
+        kept_occupations[shell.l] = [float(o) for o in occupations[:keep]]
+    return contracted, kept_occupations
+
+
 @register_step("contraction")
 def step_contraction(state: RunState, step_cfg: dict) -> StepResult:
-    # NAO contraction is currently produced in Molpro and dropped in via
-    # `contraction.input: <file>`; the driver has already loaded it, so this
-    # step just adopts it. (Replicating NAOs in Psi4 is a science to-do.)
+    """Natural-orbital (NAO) contraction.
+
+    Two modes:
+      - ``generate: true`` -- generate the NAOs natively with the configured
+        backend (per-backend: e.g. Psi4's density-average route) from the
+        uncontracted input primitives, keeping ``n_keep`` orbitals per shell.
+      - default -- adopt an externally-produced (e.g. Molpro) NAO basis dropped
+        in via ``contraction.input`` (the driver has already loaded it).
+    """
     basis = state.require_input("contraction")
+
+    if not step_cfg.get("generate", False):
+        record = {
+            "note": "adopted externally-contracted (NAO) basis",
+            "composition": get_composition(basis, state.element),
+        }
+        return StepResult(basis=basis, record=record, exports=_molpro_export(basis))
+
+    from basisopt import api
+    from basisopt.basis.basis import uncontract
+
+    n_keep = step_cfg.get("n_keep")
+    if not n_keep:
+        raise ValueError(
+            "contraction.generate needs 'n_keep' (natural orbitals to keep per "
+            "shell, e.g. {s: 2, p: 1})"
+        )
+
+    backend = _activate_backend(state, "contraction")
+    method = _method_name(step_cfg, backend)
+    params = _method_params(state, "contraction", backend, method, wf_key="molpro_atomic")
+
+    mol = state.build_atom(method)
+    # the natural orbitals live in the primitive space, so build them from the
+    # fully uncontracted input basis
+    mol.basis = uncontract(copy.deepcopy(basis))
+    nao_data = api.get_backend().natural_orbitals(mol, params)
+    contracted, occupations = _apply_naos(basis, state.element, nao_data, n_keep)
+
     record = {
-        "note": "adopted externally-contracted (NAO) basis",
-        "composition": get_composition(basis, state.element),
+        "note": f"natural-orbital contraction generated with the {backend} backend",
+        "n_keep": n_keep,
+        "occupations": occupations,
+        "composition": get_composition(contracted, state.element),
     }
-    return StepResult(basis=basis, record=record, exports=_molpro_export(basis))
+
+    # optional contraction-error diagnostic (uncontracted vs contracted energy)
+    if step_cfg.get("evaluate_energy", True):
+        mol.basis = uncontract(copy.deepcopy(basis))
+        e_uncontracted = _run_energy(mol, params)
+        mol.basis = contracted
+        e_contracted = _run_energy(mol, params)
+        record["uncontracted_energy"] = e_uncontracted
+        record["contracted_energy"] = e_contracted
+        if e_uncontracted is not None and e_contracted is not None:
+            record["contraction_error_mEh"] = (e_contracted - e_uncontracted) * 1e3
+
+    return StepResult(basis=contracted, record=record, exports=_molpro_export(contracted))
 
 
 # --------------------------------------------------------------------------- #

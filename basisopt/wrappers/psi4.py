@@ -2,6 +2,7 @@
 import os
 from typing import Any
 
+import numpy as np
 import psi4
 from basis_set_exchange.writers import write_formatted_basis_str
 
@@ -9,6 +10,7 @@ from basisopt.basis_set_converters import convert_internal_to_basis_str
 from basisopt.bse_wrapper import fetch_ecp
 from basisopt.exceptions import EmptyCalculation, PropertyNotAvailable
 from basisopt.molecule import Molecule
+from basisopt.util import natural_orbitals_from_density_block
 from basisopt.wrappers.wrapper import Wrapper, available
 
 
@@ -168,6 +170,60 @@ class Psi4Wrapper(Wrapper):
         self.initialise(mol, name="energy", tmp=tmp, **params)
         runstring = self._command_string(mol.method, **params)
         return psi4.energy(runstring)
+
+    def natural_orbitals(self, mol, params=None):
+        """Natural atomic orbitals for an atom via the density-average route.
+
+        Runs a (U)KS/HF single point on the *uncontracted* atom, forms the total
+        one-particle density ``D = Da + Db`` and overlap ``S`` in the AO
+        (primitive) basis, and for each angular-momentum shell averages the AO
+        density/overlap over the shell's 2l+1 m-components -- restoring the
+        spherical symmetry an open-shell atom breaks -- before taking the natural
+        orbitals in the S metric. This reproduces the Molpro averaged-NAO
+        contraction (validated: O 8s6p->[2s1p] overlaps Molpro's NAOs to 0.999+,
+        closed-shell Ne is exactly lossless). See examples/nao_from_scratch.py.
+
+        Returns ``{l: (occupations, coefficients)}`` (see Wrapper.natural_orbitals).
+        """
+        params = {} if params is None else dict(params)
+        # open-shell atoms need an unrestricted reference; the density-average
+        # makes the natural orbitals spherically symmetric regardless
+        if "reference" not in params:
+            params["reference"] = "uks" if (mol.multiplicity or 1) > 1 else "rks"
+
+        self.initialise(mol, name="nao", **params)
+        runstring = self._command_string(mol.method, **params)
+        _, wfn = psi4.energy(runstring, return_wfn=True)
+
+        overlap = wfn.S().to_array()
+        density = wfn.Da().to_array() + wfn.Db().to_array()
+
+        # starting AO index of each primitive shell, grouped by angular momentum
+        basisset = wfn.basisset()
+        shell_starts = {}
+        for i in range(basisset.nshell()):
+            shell = basisset.shell(i)
+            shell_starts.setdefault(shell.am, []).append(shell.function_index)
+
+        result = {}
+        for am, starts in shell_starts.items():
+            n_m = 2 * am + 1  # spherical-harmonic m-components
+            density_l = (
+                sum(
+                    density[np.ix_([s + c for s in starts], [s + c for s in starts])]
+                    for c in range(n_m)
+                )
+                / n_m
+            )
+            overlap_l = (
+                sum(
+                    overlap[np.ix_([s + c for s in starts], [s + c for s in starts])]
+                    for c in range(n_m)
+                )
+                / n_m
+            )
+            result[am] = natural_orbitals_from_density_block(density_l, overlap_l)
+        return result
 
     def ao_coefficients(self, mol, **params):
         self.initialise(mol, name="energy", **params)

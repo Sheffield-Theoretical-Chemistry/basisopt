@@ -317,6 +317,47 @@ def test_purification_records_real_energy(tmp_path):
     assert set(load_basis(wd / "05_purification" / "basis.json")) == {"n"}
 
 
+def test_contraction_generates_naos_with_backend(tmp_path):
+    # native NAO contraction via the (dummy) backend, end-to-end through the driver
+    from basisopt.autobasis import load_basis, run_pipeline, save_basis
+    from tests.data.factories import make_basis
+
+    uncontracted = make_basis("n", (("s", (10.0, 3.0, 1.0, 0.3)), ("p", (1.5, 0.4))))
+    infile = tmp_path / "uncontracted.json"
+    save_basis(uncontracted, infile)
+
+    wd = tmp_path / "wd"
+    cfgfile = tmp_path / "run.yaml"
+    cfgfile.write_text(
+        yaml.safe_dump(
+            {
+                "name": "N-nao",
+                "workdir": str(wd),
+                "element": "N",
+                "backend": {"default": "dummy", "tmp_dir": str(tmp_path / "scratch")},
+                "steps": ["contraction"],
+                "contraction": {
+                    "input": str(infile),
+                    "generate": True,
+                    "n_keep": {"s": 2, "p": 1},
+                    "evaluate_energy": True,
+                },
+            }
+        )
+    )
+
+    run_pipeline(cfgfile, timestamp="T0")
+
+    shells = load_basis(wd / "03_contraction" / "basis.json")["n"]
+    assert shells[0].l == "s" and len(shells[0].coefs) == 2  # kept 2 s NAOs
+    assert shells[1].l == "p" and len(shells[1].coefs) == 1  # kept 1 p NAO
+    assert len(shells[0].coefs[0]) == 4  # each NAO spans the 4 s primitives
+
+    rec = json.loads((wd / "03_contraction" / "record.json").read_text())
+    assert rec["occupations"] == {"s": [4.0, 3.0], "p": [2.0]}
+    assert rec["contraction_error_mEh"] == 0.0  # dummy energy is basis-independent
+
+
 def test_real_purification_step_end_to_end(tmp_path):
     """Drive the *real* purification step (pure linear algebra, no backend)
     through the driver from an external input file - exercises the full path

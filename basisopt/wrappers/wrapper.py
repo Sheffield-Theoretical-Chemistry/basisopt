@@ -206,3 +206,25 @@ class Wrapper:
     def jk_error(self, mol, tmp="", **params):
         "JK density fitting error, Hartree"
         raise NotImplementedError
+
+    def natural_orbitals(self, molecule: Molecule, params: dict = None) -> dict:
+        """Generate natural-orbital contraction data for a single atom.
+
+        This is backend-specific and therefore not a scalar-property method:
+        different programs build natural atomic orbitals differently (e.g. Psi4
+        from the density via the density-average route, Molpro from its native
+        averaged-NAO output). Implement it in a backend to expose native NAO
+        contraction to the auto-basis pipeline.
+
+        Arguments:
+            molecule (Molecule): a single atom carrying an *uncontracted* basis
+                and the desired multiplicity/method.
+            params (dict): backend parameters (e.g. the DFT functional).
+
+        Returns:
+            dict ``{l (int): (occupations, coefficients)}`` for the atom, where
+            ``coefficients[:, k]`` is the k-th natural orbital of the
+            angular-momentum-l shell (one coefficient per primitive exponent),
+            with columns ordered by decreasing occupation.
+        """
+        raise MethodNotAvailable(f"natural_orbitals on the {self._name} backend")

@@ -1,6 +1,7 @@
 # Wrappers for testing functionality
 import numpy as np
 
+from basisopt.data import AM_DICT
 from basisopt.molecule import Molecule
 from basisopt.wrappers.wrapper import Wrapper, available
 
@@ -88,3 +89,17 @@ class DummyWrapper(Wrapper):
     def polarizability(self, mol, tmp="", **params):
         self.initialise(mol, name="polarizability", tmp=tmp)
         return _method_lookup[mol.method](self._value, a=self._basis_value)
+
+    def natural_orbitals(self, molecule, params=None):
+        """Deterministic stand-in for the pipeline's NAO contraction path.
+
+        Each primitive is treated as its own natural orbital (identity
+        coefficients) with occupations descending, so the auto-basis contraction
+        step can be exercised without a real quantum-chemistry backend.
+        """
+        result = {}
+        for element in molecule.unique_atoms():
+            for shell in molecule.basis[element.lower()]:
+                n = len(shell.exps)
+                result[AM_DICT[shell.l]] = (np.arange(n, 0, -1, dtype=float), np.eye(n))
+        return result

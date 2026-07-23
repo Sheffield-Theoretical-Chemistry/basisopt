@@ -9,6 +9,7 @@ from basisopt.util import (
     fit_poly,
     format_with_prefix,
     get_composition,
+    natural_orbitals_from_density_block,
     rank_shell_contractions,
     read_json,
 )
@@ -105,3 +106,28 @@ def test_rank_shell_contractions_failed_calc_ranks_last(monkeypatch):
     # a failed removal must be inf (rank last), never 0.0 (which would rank it
     # as the best candidate to prune)
     assert flat and all(np.isinf(e) for e in flat)
+
+
+def test_natural_orbitals_orthonormal_reconstruct_and_ordered():
+    # a non-orthogonal overlap and a symmetric density block
+    S = np.array([[1.0, 0.3, 0.1], [0.3, 1.0, 0.25], [0.1, 0.25, 1.0]])
+    D = np.array([[1.5, 0.2, 0.05], [0.2, 0.8, 0.1], [0.05, 0.1, 0.3]])
+
+    occ, C = natural_orbitals_from_density_block(D, S)
+
+    # occupations sorted descending
+    assert np.all(np.diff(occ) <= 1e-12)
+    # natural orbitals are orthonormal in the S metric
+    assert np.allclose(C.T @ S @ C, np.eye(3), atol=1e-10)
+    # the density is exactly rebuilt from its natural orbitals: D = C diag(occ) C^T
+    assert np.allclose(C @ np.diag(occ) @ C.T, D, atol=1e-10)
+    # trace(D S) (the electron count) is preserved as the sum of occupations
+    assert abs(occ.sum() - np.trace(D @ S)) < 1e-10
+
+
+def test_natural_orbitals_diagonal_case():
+    # S = I, D = diag(occupations) -> natural orbitals are the axes, occ recovered
+    D = np.diag([2.0, 1.0, 0.0])
+    occ, C = natural_orbitals_from_density_block(D, np.eye(3))
+    assert np.allclose(occ, [2.0, 1.0, 0.0])
+    assert np.allclose(np.abs(C), np.eye(3), atol=1e-10)  # up to column sign
