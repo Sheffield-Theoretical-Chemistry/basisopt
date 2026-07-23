@@ -1,0 +1,61 @@
+# Auto-basis pipeline for oxygen, run entirely on the Psi4 backend.
+#
+#   python -m basisopt.autobasis run    examples/autobasis-O-psi4.yaml
+#   python -m basisopt.autobasis status examples/autobasis-O-psi4.yaml
+#
+# This runs all six steps with Psi4 and NO Molpro: the contraction step (step 3)
+# now generates natural atomic orbitals (NAOs) natively, via the density-average
+# route in Psi4Wrapper.natural_orbitals. Paths below are relative to where you
+# run the command (the repo root here).
+#
+# Resumable: re-running with a subset of `steps` picks earlier steps up from
+# workdir/manifest.json, so you can iterate on one step without redoing the rest:
+#   steps: [contraction]              # redo just the NAO contraction
+#   steps: [uncontraction, purification]
+
+name: O-psi4
+workdir: ./runs/O-psi4
+element: O
+
+reference:
+  # >>> set these two to your own values <<<
+  cbs_limit: -75.0603        # Eh: your extrapolated atomic BHHLYP CBS limit
+  target: 2.0e-3             # Eh: distance-to-CBS target for steps 1-2
+  geometry: ./examples/data/O2.xyz    # used by the molecular (uncontraction) step
+  multiplicity: 3            # O atom is 3P and O2 is a triplet -> 3 fits both
+
+backend:
+  default: psi4              # every step uses Psi4
+  tmp_dir: ./tmp
+
+defaults:
+  method:
+    psi4:
+      functional: BHHLYP     # 0.5 HF + 0.5 Becke88 exchange, LYP correlation
+
+steps: [primitives, reduction, contraction, uncontraction, purification, pruning]
+
+# Step 1 - primitive exponents from a Legendre expansion (built-in O coefficients).
+primitives:
+  n_prim: [8, 6]             # 8 s + 6 p primitives (O's minimal config is s, p)
+
+# Step 2 - drop the least-important exponents down to reference.target.
+#   (needs no extra keys; uses reference.cbs_limit and reference.target)
+
+# Step 3 - natural-orbital contraction, generated natively in Psi4.
+contraction:
+  generate: true             # generate NAOs with the backend (vs adopting a file)
+  n_keep: {s: 2, p: 1}       # keep the 2 most-occupied s and 1 p NAO -> [2s1p]
+  evaluate_energy: true      # also record the contraction error (mEh) as a check
+
+# Step 4 - re-uncontract functions until the decontraction error <= this percent.
+uncontraction:
+  decontract_error_percent: 3
+
+# Step 5 - purify the contraction coefficients (extended Davidson).
+purification:
+  evaluate_energy: true
+
+# Step 6 - prune contraction coefficients to zero within an energy budget.
+pruning:
+  energy_target: 2.0e-4
