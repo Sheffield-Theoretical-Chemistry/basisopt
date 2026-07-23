@@ -265,8 +265,8 @@ class AtomicBasis(Basis):
         if value is None:
             # Compute
             value = 0.0
-            if api.which_backend() == "Empty":
-                bo_logger.warning("No backend currently set, can't compute reference value")
+            if api.which_backend() in ("Dummy", "Empty"):
+                bo_logger.warning("No computational backend set, can't compute reference value")
             else:
                 bo_logger.info(
                     "Calculating reference value using %s and %s/%s",

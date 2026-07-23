@@ -229,8 +229,8 @@ class MolecularBasis(Basis):
                 )
             self.basis = {k: v.get_basis()[k] for k, v in self._atomic_bases.items()}
             if reference is not None:
-                if api.which_backend() == "Empty":
-                    bo_logger.warning("No backend currently set, can't compute reference value")
+                if api.which_backend() in ("Dummy", "Empty"):
+                    bo_logger.warning("No computational backend set, can't compute reference value")
                 else:
                     ref_basis = fetch_basis(reference, self.unique_atoms())
                     for m in self.molecules():
