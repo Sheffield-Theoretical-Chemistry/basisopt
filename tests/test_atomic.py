@@ -2,6 +2,7 @@
 
 import inspect
 
+import numpy as np
 import pytest
 
 import basisopt.data as data
@@ -62,6 +63,26 @@ def test_set_tempered_expands_looked_up_params(
     shells = atom._molecule.basis[atom._symbol]
     assert len(shells) == 1
     assert len(shells[0].exps) == n_exps
+
+
+def test_set_legendre_expands_shipped_data():
+    # Regression: shipped _LEGENDRE_DATA entries are bare coefficient lists;
+    # get_legendre_params must pair each with a primitive count n so that
+    # legendre_expansion (which unpacks (A_vals, n)) does not crash on the only
+    # populated tempered table.
+    params = data.get_legendre_params("H")
+    assert params, "H should be tabulated"
+    a_vals, n = params[0]  # must unpack cleanly as (A_vals, n)
+    assert len(a_vals) == 6 and isinstance(n, int)
+
+    atom = AtomicBasis("H")
+    atom.set_legendre()  # else-branch: pure expansion, no backend needed
+    shells = atom._molecule.basis[atom._symbol]
+    assert len(shells) == len(params)
+    assert shells[0].l == "s"
+    assert len(shells[0].exps) == n
+    assert (shells[0].exps > 0).all()
+    assert np.isfinite(shells[0].exps).all()
 
 
 def test_setup_strategy_default_is_not_a_shared_instance():

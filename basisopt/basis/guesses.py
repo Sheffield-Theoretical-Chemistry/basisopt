@@ -70,14 +70,16 @@ def legendre_guess(atomic, params=None):
     if not params:
         return legendre_expansion(_default_shells())
     if 'exponents' in params:
-        a_vals = data.get_legendre_params(atom=atomic._symbol.title())
-        shells = list(zip(a_vals, params['exponents']))
+        # get_legendre_params returns (A_vals, n) tuples; here we override the
+        # primitive count n with the caller-supplied per-shell exponent counts.
+        leg = data.get_legendre_params(atom=atomic._symbol.title())
+        shells = [(a_vals, n_exp) for (a_vals, _n), n_exp in zip(leg, params['exponents'])]
         return legendre_expansion(shells)
     if 'name' in params:
         ref_basis = fetch_basis(params['name'], [atomic._symbol])
         lengths = [len(shell.exps) for shell in ref_basis[atomic._symbol]]
-        a_vals = data.get_legendre_params(atom=atomic._symbol.title())
-        shells = [(tuple(a), n) for a, n in zip(a_vals, lengths)]
+        leg = data.get_legendre_params(atom=atomic._symbol.title())
+        shells = [(a_vals, length) for (a_vals, _n), length in zip(leg, lengths)]
         return legendre_expansion(shells)
     if 'initial_guess' in params:
         return legendre_expansion(params['initial_guess'])

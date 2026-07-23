@@ -358,6 +358,13 @@ shell) of Legendre A-coefficient lists. Consumed by :func:`get_legendre_params`.
 
 LegParams = list[tuple[tuple, int]]
 
+# Number of primitive exponents generated per shell when expanding the tabulated
+# Legendre A-coefficients. The _LEGENDRE_DATA / _ATOMIC_LEGENDRE_COEFFS tables
+# store only the A-coefficients; the primitive count is a separate modelling
+# choice (cf. AutoBasisLegendre.n_prim), so get_legendre_params pairs each
+# coefficient list with this default. Callers may override via ``n``.
+_DEFAULT_LEGENDRE_N = 14
+
 
 class GROUNDSTATE_MULTIPLICITIES(Enum):
     H = 2
@@ -411,9 +418,15 @@ def get_even_temper_params(atom: str = "H", accuracy: float = 1e-5) -> ETParams:
         return []
 
 
-def get_legendre_params(atom: str = "H", accuracy: float = 1e-5) -> LegParams:
+def get_legendre_params(
+    atom: str = "H", accuracy: float = 1e-5, n: int = _DEFAULT_LEGENDRE_N
+) -> LegParams:
     """Searches for the relevant Legendre polynomial-based expansion
     from _LEGENDRE_DATA.
+
+    The stored entries are bare A-coefficient lists (one per angular-momentum
+    shell); each is paired with the primitive count ``n`` so the return matches
+    the ``(A_vals, n)`` shape that :func:`legendre_expansion` expects.
 
     Unlike the even/well-tempered tables, _LEGENDRE_DATA is not tiered by
     accuracy; ``accuracy`` is accepted for signature parity with
@@ -421,7 +434,7 @@ def get_legendre_params(atom: str = "H", accuracy: float = 1e-5) -> LegParams:
     ``AtomicBasis.set_legendre`` caller) and is currently unused.
     """
     if atom in _LEGENDRE_DATA:
-        return _LEGENDRE_DATA[atom]
+        return [(tuple(a_vals), n) for a_vals in _LEGENDRE_DATA[atom]]
     else:
         return []
 
