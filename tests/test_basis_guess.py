@@ -21,7 +21,9 @@ def logx_mean(shells):
 
 
 def test_log_normal_guess():
-    # this has randomness so might fail?
+    # seed so the stochastic exponent draw is deterministic (was an unseeded,
+    # occasionally-flaky assertion)
+    np.random.seed(0)
     o = AtomicBasis("O")
     o.config = {"s": 2, "p": 3}
 

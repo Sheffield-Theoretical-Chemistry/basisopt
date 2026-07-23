@@ -62,9 +62,10 @@ def test_verify_method_string():
     assert not dw.verify_method_string("quadratic.quadrupole")
     assert not dw.verify_method_string("exp.polarizability")
 
-    with pytest.raises(InvalidMethodString):
-        w.verify_method_string("rhfenergy")
-        dw.verify_method_string("uniform/dipole")
+    # each must raise in its own block; a shared block stops at the first raise
+    for bad in ("rhfenergy", "uniform/dipole"):
+        with pytest.raises(InvalidMethodString):
+            dw.verify_method_string(bad)
 
 
 def test_run():

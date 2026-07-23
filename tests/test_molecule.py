@@ -9,7 +9,7 @@ def test_default_molecule():
     m = Molecule()
     assert m.name == "Untitled"
     assert m.charge == 0
-    assert m.multiplicity == None
+    assert m.multiplicity is None
     assert m.method == ""
     assert len(m.basis.keys()) == 0
     assert len(m.unique_atoms()) == 0
@@ -191,8 +191,8 @@ def test_build_diatomic():
     with pytest.raises(IndexError):
         _ = build_diatomic("H2")
 
-    with pytest.raises(InvalidDiatomic):
-        _ = build_diatomic("H2O,1.4")
-        _ = build_diatomic("Ne,1.4")
-        _ = build_diatomic("C5,1.4")
-        _ = build_diatomic("CHCl3,1.4")
+    # each malformed string needs its own block; a shared block stops at the
+    # first raise, so the later cases were never actually exercised
+    for bad in ("H2O,1.4", "Ne,1.4", "C5,1.4", "CHCl3,1.4"):
+        with pytest.raises(InvalidDiatomic):
+            build_diatomic(bad)
