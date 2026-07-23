@@ -85,6 +85,33 @@ def test_set_legendre_expands_shipped_data():
     assert np.isfinite(shells[0].exps).all()
 
 
+def test_needs_element_returns_wrapped_value():
+    # regression: the decorator dropped the wrapped function's return value.
+    from basisopt.basis.atomic import needs_element
+
+    class Fake:
+        element = "x"
+
+    @needs_element
+    def f(basis):
+        return 42
+
+    assert f(Fake()) == 42
+
+
+def test_atomic_basis_from_dict_decodes_strategy(dummy_backend):
+    # regression: strategy came back as a raw dict, so optimize()/as_dict broke.
+    from basisopt.opt.strategies import Strategy
+
+    ab = AtomicBasis("H")
+    ab.strategy = Strategy()
+    ab.config = {}
+    ab._done_setup = True
+
+    restored = AtomicBasis.from_dict(ab.as_dict())
+    assert isinstance(restored.strategy, Strategy)
+
+
 def test_setup_strategy_default_is_not_a_shared_instance():
     # regression: strategy defaulted to a single Strategy() created at import,
     # so every setup() call without an explicit strategy shared (and mutated)

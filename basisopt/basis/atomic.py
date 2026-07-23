@@ -3,6 +3,7 @@ from typing import Any, Callable, Optional
 
 import numpy as np
 from mendeleev import element as MDElement
+from monty.json import MontyDecoder
 
 from basisopt import api, data
 from basisopt.bse_wrapper import fetch_basis
@@ -30,7 +31,7 @@ def needs_element(func: Callable) -> Callable:
     def wrapper(basis, *args, **kwargs):
         if basis.element is None:
             raise ElementNotSet
-        func(basis, *args, **kwargs)
+        return func(basis, *args, **kwargs)
 
     return wrapper
 
@@ -122,7 +123,13 @@ class AtomicBasis(Basis):
         instance.et_params = d.get("et_params", None)
         instance.leg_params = d.get("leg_params", None)
         instance.wt_params = d.get("wt_params", None)
-        instance.strategy = d.get("strategy", None)
+        # decode the strategy like JKFitBasis does; MontyDecoder does not
+        # recursively decode nested @class dicts, so without this instance.strategy
+        # is a raw dict and optimize()/as_dict() then break on it
+        strat = d.get("strategy", None)
+        instance.strategy = (
+            MontyDecoder().process_decoded(strat) if isinstance(strat, dict) else strat
+        )
         if instance.strategy:
             instance._done_setup = d.get("done_setup", False)
             instance.config = d.get("config", {})
