@@ -271,6 +271,52 @@ def test_cli_list_presets_lists_from_configured_dir(tmp_path, capsys, monkeypatc
     assert "fast" in out and "min" in out
 
 
+def test_run_energy_uses_energy_key(dummy_backend):
+    # regression: _run_energy looked up get_value(mol.method) (e.g. "linear"),
+    # which is never a stored key, so it always returned None.
+    from basisopt.autobasis.chemistry import _run_energy
+    from tests.data.factories import make_molecule
+
+    mol = make_molecule(("H", "H"), method="linear")
+    assert _run_energy(mol, {}) == -2.0  # Dummy linear energy = -natoms, not None
+
+
+def test_purification_records_real_energy(tmp_path):
+    # end-to-end via the driver: with evaluate_energy on and a (dummy) backend,
+    # the purified single-point energy must be recorded as a real number, not None.
+    import numpy as np
+
+    from basisopt.autobasis import load_basis, run_pipeline, save_basis
+    from basisopt.containers import Shell
+
+    shell = Shell()
+    shell.l = "s"
+    shell.exps = np.array([10.0, 3.0, 1.0, 0.3])
+    shell.coefs = [np.array([0.7, 0.2, 0.1, 0.0]), np.array([0.0, 0.1, 0.3, 0.9])]
+    contracted = tmp_path / "contracted.json"
+    save_basis({"n": [shell]}, contracted)
+
+    wd = tmp_path / "wd"
+    cfgfile = tmp_path / "run.yaml"
+    cfgfile.write_text(
+        yaml.safe_dump(
+            {
+                "name": "N-purify",
+                "workdir": str(wd),
+                "element": "N",
+                "backend": {"default": "dummy", "tmp_dir": str(tmp_path / "scratch")},
+                "steps": ["purification"],
+                "purification": {"input": str(contracted), "evaluate_energy": True},
+            }
+        )
+    )
+
+    run_pipeline(cfgfile, timestamp="T0")
+    rec = json.loads((wd / "05_purification" / "record.json").read_text())
+    assert rec["purified_energy"] == -1.0  # single N atom, dummy linear = -natoms
+    assert set(load_basis(wd / "05_purification" / "basis.json")) == {"n"}
+
+
 def test_real_purification_step_end_to_end(tmp_path):
     """Drive the *real* purification step (pure linear algebra, no backend)
     through the driver from an external input file - exercises the full path

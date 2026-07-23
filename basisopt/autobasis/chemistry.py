@@ -67,7 +67,9 @@ def _run_energy(mol, params) -> Optional[float]:
 
     if api.run_calculation(mol=mol, params=params) != 0:
         return None
-    return api.get_backend().get_value(mol.method if mol.method else "energy")
+    # run_calculation stores the result under the evaluate key ("energy"), not
+    # under the method name; get_value(mol.method) always missed and returned None.
+    return api.get_backend().get_value("energy")
 
 
 def _to_molpro(basis) -> str:
@@ -211,6 +213,17 @@ def step_uncontraction(state: RunState, step_cfg: dict) -> StepResult:
     uncontracted_energy = _run_energy(mol, params)
     mol.basis = contracted
     contracted_energy = _run_energy(mol, params)
+    if uncontracted_energy is None or contracted_energy is None:
+        from basisopt.exceptions import FailedCalculation
+
+        raise FailedCalculation(
+            "uncontraction reference calculation failed "
+            f"(uncontracted={uncontracted_energy}, contracted={contracted_energy})"
+        )
+    # uncontract_percentage reads these off the molecule (via get_result); without
+    # storing them it saw 0.0/0.0 and raised ZeroDivisionError.
+    mol.add_result("uncontracted_energy", uncontracted_energy)
+    mol.add_result("contracted_energy", contracted_energy)
 
     results, uncontracted_mol = uncontract_percentage(mol, state.element, percent, params)
 
