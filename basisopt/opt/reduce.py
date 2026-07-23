@@ -1,5 +1,5 @@
 import copy
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 
@@ -54,10 +54,10 @@ class ReduceStrategy(Strategy):
         eval_type: str = "energy",
         method: str = "scf",
         target: float = 1e-5,
-        shell_mins: list[int] = [],
+        shell_mins: Optional[list[int]] = None,
         max_l: int = -1,
         reopt_all: bool = True,
-        params: dict[str, Any] = {},
+        params: Optional[dict[str, Any]] = None,
     ):
         super().__init__(eval_type=eval_type, pre=make_positive)
         self.name = "Reduce"
@@ -69,8 +69,8 @@ class ReduceStrategy(Strategy):
         self.guess = self._guess
         self.guess_params = {}
         self.reopt_all = reopt_all
-        self.params = params
-        self.shell_mins = shell_mins
+        self.params = {} if params is None else params
+        self.shell_mins = [] if shell_mins is None else shell_mins
         self.max_l = max_l
         self.nexps = []
         self.reduction_step = True
@@ -137,6 +137,19 @@ class ReduceStrategy(Strategy):
         self.set_basis_shells(basis, element)
         bel = basis[element]
         self.nexps = [len(s.exps) for s in bel]
+        # pad/validate shell_mins so every shell has a defined floor: an empty
+        # default silently removed nothing, and a too-short list IndexError'd
+        # when next() indexed possible_changes by shell.
+        if len(self.shell_mins) != len(self.nexps):
+            if self.shell_mins:
+                bo_logger.warning(
+                    "shell_mins has %d entries for %d shells; padding/truncating to fit",
+                    len(self.shell_mins),
+                    len(self.nexps),
+                )
+            padded = list(self.shell_mins)[: len(self.nexps)]
+            padded += [0] * (len(self.nexps) - len(padded))
+            self.shell_mins = padded
         if self.max_l == -1:
             self.max_l = len(self.nexps) - 1
         self.last_objective = 0.0

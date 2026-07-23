@@ -108,6 +108,35 @@ def test_tempered_from_dict_preserves_basis_type(dummy_backend):
     assert restored.basis_type == "jkfit"
 
 
+def test_reduce_strategy_pads_shell_mins(dummy_backend):
+    # regression: default [] made possible_changes empty -> silent no-op, and a
+    # too-short list IndexError'd when next() indexed by shell.
+    from basisopt.opt.reduce import ReduceStrategy
+
+    basis = make_basis("h", (("s", (9.0, 3.0, 1.0, 0.3)), ("p", (1.5, 0.4))))
+
+    default = ReduceStrategy(basis)
+    default.initialise(basis, "h")
+    assert default.shell_mins == [0, 0]  # one floor per shell
+
+    short = ReduceStrategy(basis, shell_mins=[2])
+    short.initialise(basis, "h")
+    assert short.shell_mins == [2, 0]
+
+
+def test_reduce_strategy_instances_do_not_share_defaults(dummy_backend):
+    # regression: shell_mins=[]/params={} were shared mutable defaults.
+    from basisopt.opt.reduce import ReduceStrategy
+
+    basis = make_basis("h", (("s", (1.0,)),))
+    a = ReduceStrategy(basis)
+    b = ReduceStrategy(basis)
+    a.shell_mins.append(3)
+    a.params["x"] = 1
+    assert b.shell_mins == []
+    assert b.params == {}
+
+
 def test_reduce_strategy_uses_standard_next_signature(dummy_backend):
     """Reduce strategies get the molecule via set_context, not a wide next()."""
     import inspect
