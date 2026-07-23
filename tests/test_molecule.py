@@ -36,6 +36,30 @@ def test_add_atom():
     assert almost_equal(m.distance(0, 1), 1.5)
 
 
+def test_add_atom_multiplicity_defaults():
+    # single atom -> atomic ground-state multiplicity (O triplet)
+    o = Molecule()
+    o.add_atom(element="O")
+    assert o.multiplicity == 3
+
+    # polyatomic -> not inferred from one atom (H2 must not silently become a doublet)
+    h2 = Molecule()
+    h2.add_atom(element="H")
+    h2.add_atom(element="H")
+    assert h2.multiplicity is None
+
+    # explicit multiplicity is always kept
+    triplet = Molecule(mult=3)
+    triplet.add_atom(element="H")
+    triplet.add_atom(element="H")
+    assert triplet.multiplicity == 3
+
+    # element past the tabulated range (Kr) does not crash; leaves None
+    heavy = Molecule()
+    heavy.add_atom(element="Xe")
+    assert heavy.multiplicity is None
+
+
 def test_add_get_result():
     m = Molecule()
     m.add_result("energy", -0.5)

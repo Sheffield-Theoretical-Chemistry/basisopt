@@ -40,6 +40,9 @@ class Molecule(MSONable):
         self.name = name
         self.charge = charge
         self.multiplicity = mult
+        # whether the multiplicity was set explicitly; if not, add_atom defaults
+        # a single-atom molecule to the element's atomic ground state
+        self._multiplicity_explicit = mult is not None
         self.method = ""
         self.basis = {}
         self.ecps = {}
@@ -111,12 +114,17 @@ class Molecule(MSONable):
              coord (list): [x,y,z] coords in Angstrom
              dummy (bool): if True, the atom is marked as a dummy atom
         """
-        if self.multiplicity:
-            self.multiplicity = self.multiplicity
-        else:
-            self.multiplicity = getattr(GROUNDSTATE_MULTIPLICITIES, element).value
         self._coords.append(np.array(coord))
         self._atom_names.append(element)
+        # Default the spin multiplicity only for a single-atom molecule (its
+        # atomic ground state, tabulated elements only); never infer a polyatomic
+        # molecule's multiplicity from one atom. An explicit multiplicity is kept.
+        if not self._multiplicity_explicit:
+            if len(self._atom_names) == 1:
+                member = getattr(GROUNDSTATE_MULTIPLICITIES, element.capitalize(), None)
+                self.multiplicity = member.value if member is not None else None
+            else:
+                self.multiplicity = None
         if dummy:
             self.dummy_atoms.append(len(self._atom_names) - 1)
 
