@@ -147,6 +147,21 @@ def test_roundtrip_preserves_geometry():
     assert restored.get_line(0) == m.get_line(0)
 
 
+def test_get_legendre_params_consistent_shape():
+    from basisopt.basis.basis import legendre_expansion
+
+    m = Molecule(name="o2", mult=1)
+    m.add_atom(element="O")
+    m.add_atom(element="O")
+    m.basis = {"o": legendre_expansion([((1.6, -5.1, 0.05, -0.17, 0.15, 0.02), 8)])}
+
+    with_element = m.get_legendre_params("O")  # case-insensitive lookup
+    without = m.get_legendre_params()
+    # both branches return the A-coefficient list per angular momentum
+    assert isinstance(with_element["s"], list)
+    assert without["o"]["s"] == with_element["s"]
+
+
 def test_build_diatomic():
     no = build_diatomic("NO,1.3", charge=1)
     assert no.natoms() == 2

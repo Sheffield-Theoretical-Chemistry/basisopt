@@ -275,15 +275,20 @@ class Molecule(MSONable):
             momentum's legendre coefficients.
 
         """
+        def _shells(el):
+            # consistent value shape in both branches: the A-coefficient list per
+            # angular momentum, skipping shells with no Legendre params
+            return {
+                shell.l: shell.leg_params[0].tolist()
+                for shell in self.basis[el.lower()]
+                if shell.leg_params
+            }
+
         if element:
-            return {shell.l: shell.leg_params for shell in self.basis[element]}
+            return _shells(element)
         else:
             return {
-                element: {
-                    shell.l: shell.leg_params[0].tolist()
-                    for shell in self.basis[element]
-                    if shell.leg_params
-                }
+                element: _shells(element)
                 for element in self.basis.keys()
             }
 
