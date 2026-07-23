@@ -55,12 +55,14 @@ def rank_uncontract_element(mol, element, params, verbose=False):
     """
     wrapper = api.get_backend()
 
+    # one reference for all shells in this pass (each trial restores coefs)
+    api.run_calculation(mol=mol, params=params)
+    ref_energy = wrapper.get_value('energy')
+
     def rank_uncontract_angular_momentum(mol, shell, verbose=True):
         energies = []
         errors = []
         n_exps = len(shell.exps)
-        api.run_calculation(mol=mol, params=params)
-        ref_energy = wrapper.get_value('energy')
         for i in range(n_exps):
             old_coefs = copy.deepcopy(shell.coefs)
             new_coefs = np.zeros(n_exps)
@@ -105,12 +107,16 @@ def rank_uncontract_element_robust(mol, element, params, verbose=False):
     """
     wrapper = api.get_backend()
 
+    # every shell is ranked against the same full-basis reference (each trial
+    # restores the shell's coefs), so compute it once per pass rather than once
+    # per shell
+    api.run_calculation(mol=mol, params=params)
+    ref_energy = wrapper.get_value('energy')
+
     def rank_uncontract_angular_momentum_robust(mol, shell, verbose=True):
         energies = []
         errors = []
         n_exps = len(shell.exps)
-        api.run_calculation(mol=mol, params=params)
-        ref_energy = wrapper.get_value('energy')
         for i in range(n_exps):
             old_coefs = copy.deepcopy(shell.coefs)
             new_coefs = np.zeros(n_exps)

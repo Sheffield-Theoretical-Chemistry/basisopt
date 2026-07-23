@@ -289,7 +289,7 @@ def davidson_purify_extended(basis, inplace=False):
     return basis
 
 
-def rank_shell_contractions(mol, shell, params, skip_zeros=False):
+def rank_shell_contractions(mol, shell, params, skip_zeros=False, ref_energy=None):
     def argsort_inhomogeneous_array(array):
         """
         Argsorts an inhomogeneous array globally while keeping dimensional information.
@@ -326,8 +326,11 @@ def rank_shell_contractions(mol, shell, params, skip_zeros=False):
 
     energies = []
     errors = []
-    api.run_calculation(mol=mol, params=params)
-    ref_energy = api.get_backend().get_value('energy')
+    # allow the caller (e.g. prune.rank_basis over many shells) to supply a
+    # reference computed once, instead of recomputing the identical value here
+    if ref_energy is None:
+        api.run_calculation(mol=mol, params=params)
+        ref_energy = api.get_backend().get_value('energy')
     bo_logger.info(f'Ranking {shell.l} contractions')
     for idx, coeffs in enumerate(shell.coefs):
         en = []
