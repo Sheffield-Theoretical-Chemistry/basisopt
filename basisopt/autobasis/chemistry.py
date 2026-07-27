@@ -9,6 +9,7 @@ basis_set_exchange bridge) are done lazily inside the steps.
 from __future__ import annotations
 
 import copy
+import os
 from typing import Optional
 
 import numpy as np
@@ -52,17 +53,32 @@ def _method_params(
     return params
 
 
+def _num(value):
+    """Coerce a config numeric to float (None passes through). PyYAML parses
+    scientific notation without a decimal point (e.g. ``2e-4``) as a str."""
+    return None if value is None else float(value)
+
+
+def _mult_charge(step_cfg: dict):
+    """Per-step ``(multiplicity, charge)`` overrides (None -> use the reference
+    defaults). Lets an atomic stage (e.g. the H doublet) and a molecular stage
+    (e.g. the H2 singlet) run at different spin states."""
+    mult = step_cfg.get("multiplicity")
+    charge = step_cfg.get("charge")
+    return (None if mult is None else int(mult), None if charge is None else int(charge))
+
+
 def _require_cbs(state: RunState, step_name: str) -> float:
     if state.reference.cbs_limit is None:
         raise ValueError(f"Step '{step_name}' needs reference.cbs_limit; none set")
-    return state.reference.cbs_limit
+    return float(state.reference.cbs_limit)
 
 
 def _target(state: RunState, step_cfg: dict, step_name: str) -> float:
     target = step_cfg.get("target", state.reference.target)
     if target is None:
         raise ValueError(f"Step '{step_name}' needs a target (step config or reference.target)")
-    return target
+    return float(target)
 
 
 def _run_energy(mol, params) -> Optional[float]:
@@ -106,7 +122,7 @@ def step_primitives(state: RunState, step_cfg: dict) -> StepResult:
     backend = _activate_backend(state, "primitives")
     method = _method_name(step_cfg, backend)
 
-    mol = state.build_atom(method)
+    mol = state.build_atom(method, *_mult_charge(step_cfg))
     strategy = AutoBasisLegendre()
     if "n_prim" in step_cfg:
         strategy.n_prim = tuple(step_cfg["n_prim"])
@@ -114,21 +130,62 @@ def step_primitives(state: RunState, step_cfg: dict) -> StepResult:
         strategy.legendre_params = step_cfg["legendre_params"]
     strategy.set_cbs_limit(cbs_limit)
     strategy.target = target
+    # Optional growth cutoffs (all off unless set): a hard cap on primitives per
+    # shell, a global iteration cap, and a saturation (stall) tolerance. The
+    # signed CBS target is always the primary stop.
+    for key in ("max_n", "max_its", "stall_tol"):
+        if step_cfg.get(key) is not None:
+            setattr(strategy, key, step_cfg[key])
     strategy.params = _method_params(state, "primitives", backend, method)
 
-    opt.atom_auto(
-        molecule=mol,
-        strategy=strategy,
-        algorithm=step_cfg.get("algorithm", "Nelder-Mead"),
-        opt_params=step_cfg.get("opt_params", {}),
-    )
+    sampling_cfg = step_cfg.get("sampling")
+    if sampling_cfg:
+        # Parallel multi-start: run n_starts Legendre optimisations from perturbed
+        # coefficient seeds (start 0 = the default) and keep the lowest energy.
+        from basisopt.opt import sampling
+        from basisopt.opt.auto_basis import _ATOMIC_LEGENDRE_COEFFS
 
-    energy = strategy.last_objective
+        base_leg = strategy.legendre_params or _ATOMIC_LEGENDRE_COEFFS.get(
+            state.element.capitalize()
+        )
+        ray_params = {
+            "backend": backend,
+            "tmp_dir": state.config.backend.tmp_dir,
+            "threads_per_job": sampling_cfg.get("threads_per_job", 1),
+        }
+        obj, stop_reason, mol.basis, n_starts = sampling.multistart_primitives(
+            mol,
+            strategy,
+            base_leg,
+            step_cfg.get("algorithm", "Nelder-Mead"),
+            step_cfg.get("opt_params", {}),
+            sampling_cfg,
+            ray_params,
+        )
+        energy = None if obj is None else float(obj)
+    else:
+        opt.atom_auto(
+            molecule=mol,
+            strategy=strategy,
+            algorithm=step_cfg.get("algorithm", "Nelder-Mead"),
+            opt_params=step_cfg.get("opt_params", {}),
+        )
+        # native float so the record JSON-serializes (backends may return numpy scalars)
+        energy = strategy.last_objective
+        energy = None if energy is None else float(energy)
+        stop_reason = getattr(strategy, "stop_reason", None)
+        n_starts = 1
+
     record = {
         "atomic_energy": energy,
         "cbs_limit": cbs_limit,
         "dE_CBS": None if energy is None else energy - cbs_limit,
         "target": target,
+        # why the growth stopped: 'target' (CBS target met) or a cutoff
+        # ('stall'/'max_n'/'max_its'); target_met is the at-a-glance check.
+        "stop_reason": stop_reason,
+        "target_met": None if energy is None else bool((energy - cbs_limit) < target),
+        "n_starts": n_starts,
         "composition": get_composition(mol.basis, state.element),
     }
     return StepResult(basis=mol.basis, record=record)
@@ -148,13 +205,15 @@ def step_reduction(state: RunState, step_cfg: dict) -> StepResult:
     backend = _activate_backend(state, "reduction")
     method = _method_name(step_cfg, backend)
 
-    mol = state.build_atom(method)
+    mol = state.build_atom(method, *_mult_charge(step_cfg))
     mol.basis = basis
 
     strategy = AutoBasisReduceStrategy()
     strategy.set_cbs_limit(cbs_limit)
     strategy.target = target
     strategy.params = _method_params(state, "reduction", backend, method)
+    # optional Ray parallelism: fan the per-exponent ranking trials across the pool
+    strategy.parallel, strategy.ray_params = _parallel_settings(state, backend, step_cfg)
 
     opt.atom_auto_reduce(
         molecule=mol,
@@ -163,7 +222,15 @@ def step_reduction(state: RunState, step_cfg: dict) -> StepResult:
         opt_params=step_cfg.get("opt_params", {}),
     )
 
-    energy = strategy.last_objective
+    # Read the FINALISED energy, not strategy.last_objective. The reduce strategy's
+    # finalize() runs a load-bearing calculation on the *restored* basis and stores
+    # it on the molecule; last_objective is the last trial the optimiser evaluated,
+    # which -- when the final removal was rejected and rolled back -- is that rejected
+    # (worse) basis, not the one we return. Reading it left atomic_energy/dE_CBS
+    # describing the discarded trial while composition described the kept basis.
+    # native float so the record JSON-serializes (backends may return numpy scalars)
+    energy = mol.get_result(strategy.eval_type)
+    energy = None if energy is None else float(energy)
     record = {
         "atomic_energy": energy,
         "cbs_limit": cbs_limit,
@@ -240,7 +307,7 @@ def step_contraction(state: RunState, step_cfg: dict) -> StepResult:
     method = _method_name(step_cfg, backend)
     params = _method_params(state, "contraction", backend, method, wf_key="molpro_atomic")
 
-    mol = state.build_atom(method)
+    mol = state.build_atom(method, *_mult_charge(step_cfg))
     # the natural orbitals live in the primitive space, so build them from the
     # fully uncontracted input basis
     mol.basis = uncontract(copy.deepcopy(basis))
@@ -250,6 +317,7 @@ def step_contraction(state: RunState, step_cfg: dict) -> StepResult:
     record = {
         "note": f"natural-orbital contraction generated with the {backend} backend",
         "n_keep": n_keep,
+        "multiplicity": mol.multiplicity,  # the atom's spin state (e.g. H doublet)
         "occupations": occupations,
         "composition": get_composition(contracted, state.element),
     }
@@ -277,19 +345,23 @@ def step_uncontraction(state: RunState, step_cfg: dict) -> StepResult:
     from basisopt.uncontract import uncontract_percentage
 
     contracted_basis = state.require_input("uncontraction")
-    percent = step_cfg.get("decontract_error_percent")
+    percent = _num(step_cfg.get("decontract_error_percent"))
     if percent is None:
         raise ValueError("uncontraction needs 'decontract_error_percent'")
     backend = _activate_backend(state, "uncontraction")
     method = _method_name(step_cfg, backend)
 
-    mol = state.build_geometry_molecule(method)
+    mol = state.build_geometry_molecule(method, *_mult_charge(step_cfg))
     mol.basis = {el.lower(): contracted_basis[el.lower()] for el in mol.unique_atoms()}
     params = _method_params(state, "uncontraction", backend, method, wf_key="molpro_diatomic")
 
-    # contracted vs fully-uncontracted reference energies (as the scripts logged)
+    # contracted vs fully-uncontracted reference energies (as the scripts logged).
+    # uncontract() returns a NEW basis and does not mutate in place, so its result
+    # must be assigned back -- otherwise both energies are computed on the same
+    # (contracted) basis, contraction_error is 0 and uncontract_percentage divides
+    # by zero.
     contracted = copy.deepcopy(mol.basis)
-    uncontract(mol.basis)
+    mol.basis = uncontract(mol.basis)
     uncontracted_energy = _run_energy(mol, params)
     mol.basis = contracted
     contracted_energy = _run_energy(mol, params)
@@ -305,12 +377,17 @@ def step_uncontraction(state: RunState, step_cfg: dict) -> StepResult:
     mol.add_result("uncontracted_energy", uncontracted_energy)
     mol.add_result("contracted_energy", contracted_energy)
 
-    results, uncontracted_mol = uncontract_percentage(mol, state.element, percent, params)
+    # optional Ray parallelism: fan the per-function ranking trials across the pool
+    parallel, ray_params = _parallel_settings(state, backend, step_cfg)
+    results, uncontracted_mol = uncontract_percentage(
+        mol, state.element, percent, params, parallel=parallel, ray_params=ray_params
+    )
 
     record = {
         "contracted_energy": contracted_energy,
         "uncontracted_energy": uncontracted_energy,
         "decontract_error_percent": percent,
+        "multiplicity": mol.multiplicity,  # the molecule's spin state (e.g. H2 singlet)
         "log": results,
         "composition": get_composition(uncontracted_mol.basis, state.element),
     }
@@ -337,7 +414,7 @@ def step_purification(state: RunState, step_cfg: dict) -> StepResult:
         backend = _activate_backend(state, "purification")
         method = _method_name(step_cfg, backend)
         params = _method_params(state, "purification", backend, method, wf_key="molpro_atomic")
-        mol = state.build_atom(method)
+        mol = state.build_atom(method, *_mult_charge(step_cfg))
         mol.basis = purified
         record["purified_energy"] = _run_energy(mol, params)
 
@@ -352,17 +429,21 @@ def step_pruning(state: RunState, step_cfg: dict) -> StepResult:
     from basisopt.prune import prune_element
 
     basis = state.require_input("pruning")
-    energy_target = step_cfg.get("energy_target")
+    energy_target = _num(step_cfg.get("energy_target"))
     if energy_target is None:
         raise ValueError("pruning needs 'energy_target'")
-    target = energy_target * step_cfg.get("fraction", 1.0)
+    target = energy_target * float(step_cfg.get("fraction", 1.0))
     backend = _activate_backend(state, "pruning")
     method = _method_name(step_cfg, backend)
     params = _method_params(state, "pruning", backend, method, wf_key="molpro_atomic")
-    mol = state.build_atom(method)
+    mol = state.build_atom(method, *_mult_charge(step_cfg))
     mol.basis = basis
 
-    pruned = prune_element(mol, state.element, target, params)
+    # optional Ray parallelism: fan each re-ranking pass's per-coefficient trials
+    parallel, ray_params = _parallel_settings(state, backend, step_cfg)
+    pruned = prune_element(
+        mol, state.element, target, params, parallel=parallel, ray_params=ray_params
+    )
     record = {
         "energy_target": energy_target,
         "fraction": step_cfg.get("fraction", 1.0),
@@ -370,3 +451,343 @@ def step_pruning(state: RunState, step_cfg: dict) -> StepResult:
         "composition": get_composition(pruned.basis, state.element),
     }
     return StepResult(basis=pruned.basis, record=record, exports=_molpro_export(pruned.basis))
+
+
+# --------------------------------------------------------------------------- #
+# Step 7: polarisation (multi-molecule, cross-element)
+# --------------------------------------------------------------------------- #
+def _normalise_keys(basis: dict) -> dict:
+    """Lower-case the element keys of an internal basis (BSE/file bases may be
+    title-cased, while the pipeline keys everything lower-case)."""
+    return {k.lower(): v for k, v in basis.items()}
+
+
+def _spectator_basis(spectator_cfg: dict) -> tuple[str, list]:
+    """Return ``(element_lower, shells)`` for a spectator atom, from either a
+    published basis name (default pc-seg-4) or a prior-built basis file."""
+    element = spectator_cfg.get("element")
+    if not element:
+        raise ValueError("polarisation spectator needs an 'element'")
+    el = element.lower()
+
+    if spectator_cfg.get("basis_file"):
+        from .pipeline import load_basis
+
+        loaded = _normalise_keys(
+            load_basis(spectator_cfg["basis_file"], spectator_cfg.get("basis_format"))
+        )
+    else:
+        from basisopt.bse_wrapper import fetch_basis
+
+        loaded = _normalise_keys(fetch_basis(spectator_cfg.get("basis", "pcseg-4"), element))
+
+    if el not in loaded:
+        raise ValueError(f"spectator basis has no entry for element '{element}'")
+    return el, loaded[el]
+
+
+def _build_reference_molecule(mol_cfg: dict, method: str, index: int, defaults):
+    """Build one reference Molecule for the polarisation set: geometry, charge,
+    multiplicity and the molecular CBS limit (read by collective_polarize)."""
+    from basisopt.molecule import Molecule
+
+    geometry = mol_cfg.get("geometry")
+    if not geometry:
+        raise ValueError("each polarisation molecule needs a 'geometry' path")
+    if "cbs_limit" not in mol_cfg:
+        raise ValueError(f"polarisation molecule '{geometry}' needs a 'cbs_limit'")
+
+    mol = Molecule.from_xyz(geometry)
+    base = os.path.splitext(os.path.basename(geometry))[0]
+    mol.name = mol_cfg.get("name") or f"ref{index}_{base}"  # unique -> run_all key
+    mol.method = method
+    mol.charge = mol_cfg.get("charge", defaults.charge or 0)
+    mult = mol_cfg.get("multiplicity", defaults.multiplicity)
+    if mult is not None:
+        mol.multiplicity = mult
+    mol.cbs_limit = float(mol_cfg["cbs_limit"])
+    return mol
+
+
+def _parallel_settings(state: RunState, backend: str, step_cfg: Optional[dict] = None):
+    """Translate a ``parallel`` config into ``(parallel, ray_params)``.
+
+    A step may carry its own ``parallel`` block, which takes precedence over the
+    global ``backend.parallel``; either accepts ``n_cores`` (total cores for Ray),
+    ``threads_per_job`` (backend threads per calc) and an optional ``n_workers``.
+    Returns ``(False, None)`` when neither is set. Otherwise turns Ray on with the
+    requested core count and builds the ray_params the warm actor pool needs."""
+    pcfg = (step_cfg or {}).get("parallel") or state.config.backend.parallel
+    if not pcfg:
+        return False, None
+    from basisopt import api
+
+    api.set_parallel(True, pcfg.get("n_cores", 2))
+    ray_params = {
+        "backend": backend,
+        "tmp_dir": state.config.backend.tmp_dir,
+        "threads_per_job": pcfg.get("threads_per_job", 1),
+    }
+    if pcfg.get("n_workers"):
+        ray_params["n_workers"] = pcfg["n_workers"]
+    return True, ray_params
+
+
+def _reference_basis(reference_cfg, elements) -> dict:
+    """Resolve a *complete* reference basis covering every element in ``elements``.
+
+    ``reference_cfg`` is a published basis name (str) or a
+    ``{basis_file: ..., [basis_format]}`` mapping. It represents a whole prior set
+    applied to *all* atoms, so a missing element is an error, not a silent
+    fallback (that would benchmark against a different basis than intended)."""
+    from basisopt.bse_wrapper import fetch_basis
+
+    from .pipeline import load_basis
+
+    if isinstance(reference_cfg, dict) and reference_cfg.get("basis_file"):
+        loaded = _normalise_keys(
+            load_basis(reference_cfg["basis_file"], reference_cfg.get("basis_format"))
+        )
+        source = reference_cfg["basis_file"]
+        resolved = {}
+        for el in elements:
+            if el not in loaded:
+                raise ValueError(
+                    f"reference_basis '{source}' has no entry for element '{el}'; a "
+                    f"reference basis must cover every atom in the reference molecules."
+                )
+            resolved[el] = loaded[el]
+        return resolved
+
+    name = reference_cfg["basis"] if isinstance(reference_cfg, dict) else reference_cfg
+    resolved = {}
+    for el in elements:
+        loaded = _normalise_keys(fetch_basis(name, el))
+        if el not in loaded:
+            raise ValueError(
+                f"reference_basis '{name}' has no entry for element '{el}'; a reference "
+                f"basis must cover every atom in the reference molecules."
+            )
+        resolved[el] = loaded[el]
+    return resolved
+
+
+def _reference_loss(molecules, ref_basis, params, loss, parallel, ray_params) -> float:
+    """Evaluate the reference molecules with ``ref_basis`` on ALL atoms and return
+    the aggregated basis-set-incompleteness loss -- the benchmark a relative
+    ``target_ratio`` scales."""
+    from basisopt import api
+    from basisopt.opt.optimizers import POLARISATION_LOSSES
+
+    results = api.run_all(
+        evaluate="energy",
+        mols=molecules,
+        params=params,
+        parallel=parallel,
+        ray_params=ray_params,
+        shared_basis=ref_basis,
+    )
+    bsies = [max(0.0, float(results[m.name]) - m.cbs_limit) for m in molecules]
+    nelec = [m.nelectrons() for m in molecules]
+    return POLARISATION_LOSSES[loss](bsies, nelec)
+
+
+def _resolve_polarisation_target(step_cfg, molecules, params, loss, parallel, ray_params):
+    """Resolve the polarisation loss target plus a provenance record.
+
+    Absolute ``target``; or ``target_ratio`` times a reference given either
+    explicitly (``reference_loss``) or computed from a complete ``reference_basis``
+    applied to all atoms of the reference molecules (a benchmark of the prior set)."""
+    if step_cfg.get("target") is not None:
+        return float(_num(step_cfg["target"])), {"mode": "absolute"}
+
+    ratio = step_cfg.get("target_ratio")
+    if ratio is None:
+        return 1e-4, {"mode": "default"}  # historical default when nothing is set
+    ratio = float(_num(ratio))
+
+    if step_cfg.get("reference_loss") is not None:
+        reference = float(_num(step_cfg["reference_loss"]))
+        source = "reference_loss"
+    elif step_cfg.get("reference_basis") is not None:
+        elements = set()
+        for mol in molecules:
+            elements.update(a.lower() for a in mol.unique_atoms())
+        ref_basis = _reference_basis(step_cfg["reference_basis"], elements)
+        reference = _reference_loss(molecules, ref_basis, params, loss, parallel, ray_params)
+        source = "reference_basis"
+    else:
+        raise ValueError(
+            "polarisation 'target_ratio' needs a 'reference_loss' (number) or a "
+            "'reference_basis' (name or file) to scale."
+        )
+    record = {"mode": "relative", "ratio": ratio, "reference_loss": reference, "source": source}
+    return ratio * reference, record
+
+
+@register_step("polarisation")
+def step_polarisation(state: RunState, step_cfg: dict) -> StepResult:
+    """Grow polarisation shells (d/f/g; p for H) onto element X's sp basis by
+    optimising against a set of reference molecules. Each heteronuclear molecule
+    gives its non-optimised (spectator) atom a large fixed basis (pc-seg-4 by
+    default, or a prior-built basis file) so the energy lowering is attributable
+    to X. Uses the AutoBasisPolarisation strategy inside collective_polarize."""
+    from basisopt.opt import collective_polarize
+    from basisopt.opt.optimizers import POLARISATION_LOSSES
+    from basisopt.opt.polarisation import AutoBasisPolarisation
+
+    element = state.element
+    el = element.lower()
+    working = _normalise_keys(state.require_input("polarisation"))
+    if el not in working:
+        raise ValueError(f"input basis has no entry for element '{element}'")
+
+    backend = _activate_backend(state, "polarisation")
+    method = _method_name(step_cfg, backend)
+    params = _method_params(state, "polarisation", backend, method, wf_key="molpro_diatomic")
+
+    mol_cfgs = step_cfg.get("molecules")
+    if not mol_cfgs:
+        raise ValueError("polarisation step needs a non-empty 'molecules' list")
+
+    # Combined basis shared across the molecule set: element X (the working basis
+    # the strategy grows) plus a fixed spectator basis on every OTHER atom (pc-seg-4
+    # by default) so the energy lowering is attributable to X. A step-level
+    # `spectator_basis` sets the default; a per-molecule `spectator` overrides it.
+    # collective_polarize assigns this whole dict to every molecule; each backend
+    # picks out the elements it contains.
+    default_spectator = step_cfg.get("spectator_basis")
+    combined = {el: copy.deepcopy(working[el])}
+    molecules = []
+    for i, mol_cfg in enumerate(mol_cfgs):
+        mol = _build_reference_molecule(mol_cfg, method, i, state.reference)
+        molecules.append(mol)
+        spectator = mol_cfg.get("spectator")
+        if spectator:  # per-molecule override wins
+            spec_el, spec_shells = _spectator_basis(spectator)
+            if spec_el != el:
+                combined[spec_el] = spec_shells
+        if default_spectator:  # step-level default fills any remaining non-X atom
+            for mol_el in {a.lower() for a in mol.unique_atoms()}:
+                if mol_el != el and mol_el not in combined:
+                    _, spec_shells = _spectator_basis(
+                        {"element": mol_el, "basis": default_spectator}
+                    )
+                    combined[mol_el] = spec_shells
+    # every atom in every molecule must have a basis (X grows; the rest are spectators)
+    for mol in molecules:
+        for mol_el in {a.lower() for a in mol.unique_atoms()}:
+            if mol_el not in combined:
+                raise ValueError(
+                    f"molecule '{mol.name}' contains element '{mol_el}' with no basis. "
+                    f"Set a step-level 'spectator_basis' (e.g. pcseg-4) or a per-molecule "
+                    f"'spectator' block."
+                )
+
+    loss = step_cfg.get("loss", "mean_per_electron")
+    if loss not in POLARISATION_LOSSES:
+        raise ValueError(
+            f"unknown polarisation 'loss' '{loss}'; choose from {sorted(POLARISATION_LOSSES)}"
+        )
+
+    # Ray settings for the reference-loss evaluation and the single-start optimise.
+    parallel, ray_params = _parallel_settings(state, backend, step_cfg)
+
+    # Target: absolute, or target_ratio x (explicit reference_loss | reference_basis
+    # evaluated with that basis on ALL atoms of the reference molecules).
+    target, target_source = _resolve_polarisation_target(
+        step_cfg, molecules, params, loss, parallel, ray_params
+    )
+
+    min_l = int(step_cfg.get("min_l", 2))
+    strategy = AutoBasisPolarisation(
+        target=target,
+        min_l=min_l,
+        max_l=int(step_cfg.get("max_l", 3)),
+        seed_exponent=float(step_cfg.get("seed_exponent", 1.0)),
+        max_n=None if step_cfg.get("max_n") is None else int(step_cfg["max_n"]),
+        max_its=None if step_cfg.get("max_its") is None else int(step_cfg["max_its"]),
+        stall_tol=_num(step_cfg.get("stall_tol", 1e-5)),
+        delta_e=None if step_cfg.get("delta_e") is None else _num(step_cfg["delta_e"]),
+    )
+    strategy.params = params
+
+    npass = step_cfg.get("npass", 1)
+    algorithm = step_cfg.get("algorithm", "Nelder-Mead")
+    opt_params = step_cfg.get("opt_params", {})
+    result_key = strategy.eval_type + "_" + element.title()
+
+    sampling_cfg = step_cfg.get("sampling")
+    if sampling_cfg:
+        # Parallel multi-start (perturb the seed exponent); each start runs its
+        # molecule set serially, so the starts -- not the molecules -- get Ray.
+        from basisopt.opt import sampling
+
+        sampling_ray = {
+            "backend": backend,
+            "tmp_dir": state.config.backend.tmp_dir,
+            "threads_per_job": sampling_cfg.get("threads_per_job", 1),
+        }
+        obj, stop_reason, combined, n_starts = sampling.multistart_polarisation(
+            molecules,
+            combined,
+            strategy,
+            el,
+            algorithm,
+            opt_params,
+            npass,
+            sampling_cfg,
+            sampling_ray,
+            loss=loss,
+        )
+        final_loss = _opt_float(obj)
+        per_molecule = None  # each start's per-molecule errors live on its own copies
+    else:
+        # Single start; the reference-molecule calcs in each objective evaluation
+        # fan out across the warm actor pool if a parallel block is set (Level A).
+        opt_data = [(el, algorithm, strategy, (lambda x: 0), opt_params)]
+        collective_polarize(
+            molecules,
+            combined,
+            opt_data=opt_data,
+            npass=npass,
+            parallel=parallel,
+            ray_params=ray_params,
+            loss=loss,
+        )
+        stop_reason = getattr(strategy, "stop_reason", None)
+        final_loss = _opt_float(strategy.last_objective)
+        per_molecule = {mol.name: _opt_float(mol.get_result(result_key)) for mol in molecules}
+        n_starts = 1
+
+    result_basis = {el: combined[el]}
+    pol_shells = [sh.l for sh in combined[el] if AM_DICT[sh.l] >= min_l]
+    record = {
+        "note": f"polarisation shells grown with the {backend} backend",
+        "parallel": parallel,
+        "n_starts": n_starts,
+        "loss": loss,
+        "target": _opt_float(target),
+        "target_source": target_source,
+        "spectator_basis": default_spectator,
+        "stop_reason": stop_reason,
+        "polarisation_shells": pol_shells,
+        "final_loss": final_loss,
+        "per_molecule_error": per_molecule,
+        # the energy/convergence criteria that governed termination
+        "convergence": {
+            "target": _opt_float(strategy.target),
+            "delta_e": strategy.delta_e,
+            "stall_tol": strategy.stall_tol,
+            "max_n": strategy.max_n,
+            "max_l": strategy.max_l,
+            "max_its": strategy.max_its,
+        },
+        "composition": get_composition(result_basis, element),
+    }
+    return StepResult(basis=result_basis, record=record, exports=_molpro_export(result_basis))
+
+
+def _opt_float(value) -> Optional[float]:
+    """None-safe float cast so records JSON-serialize across backends."""
+    return None if value is None else float(value)

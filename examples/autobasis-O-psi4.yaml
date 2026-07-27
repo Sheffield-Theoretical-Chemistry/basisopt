@@ -19,25 +19,77 @@ element: O
 
 reference:
   # >>> set these two to your own values <<<
-  cbs_limit: -75.0603        # Eh: your extrapolated atomic BHHLYP CBS limit
-  target: 2.0e-3             # Eh: distance-to-CBS target for steps 1-2
+  cbs_limit: -75.078116829        # Eh: your extrapolated atomic BHHLYP CBS limit
+  target: 100e-3           # Eh: distance-to-CBS target for steps 1-2
   geometry: ./examples/data/O2.xyz    # used by the molecular (uncontraction) step
-  multiplicity: 3            # O atom is 3P and O2 is a triplet -> 3 fits both
+  multiplicity: 3            # default spin for EVERY stage. O atom (3P) and O2 are
+                             # both triplets, so 3 fits both. When the atomic and
+                             # molecular ground states differ (e.g. the H atom is a
+                             # doublet but H2 is a singlet), set `multiplicity:` (and
+                             # `charge:`) on the individual steps to override per stage
+                             # -- atomic stages (primitives/reduction/contraction/
+                             # purification/pruning) use the atom, uncontraction uses
+                             # the geometry molecule.
 
 backend:
   default: psi4              # every step uses Psi4
   tmp_dir: ./tmp
+  # parallel:                # optional: fan multi-molecule steps (polarisation)
+  #   n_cores: 8             # total cores Ray may use
+  #   threads_per_job: 2     # psi4 threads per molecule calc (Ray reserves this
+  #                          # many cores per job, so n_cores/threads run at once)
+  #   # n_workers: 4         # default: n_cores // threads_per_job
+
+# Optional export: write the finished basis out in a program format. A top-level
+# `export:` writes the FINAL basis at the end of the flow; a per-step `export:`
+# (see the primitives block below) writes that step's basis too. Format is taken
+# per-export, else this global format, else 'molpro'; 'json'/'internal' writes the
+# resumable internal format. Global and per-step are independent -- use either or
+# both. Exported molpro/json files can be fed straight back as a step `input:`.
+# export:
+#   path: ./runs/O-psi4/O-final.mpro
+#   format: molpro           # molpro | psi4 | gaussian94 | nwchem | ... | json
 
 defaults:
   method:
     psi4:
       functional: BHHLYP     # 0.5 HF + 0.5 Becke88 exchange, LYP correlation
+      reference: uks         # SCF reference. UKS = unrestricted Kohn-Sham, needed
+                             # for the open-shell O atom / O2 triplet. Omit this
+                             # and it auto-picks uks/uhf for any open shell and
+                             # rks/rhf for singlets; set it (e.g. rohf) to force a
+                             # specific reference.
+      # --- accuracy settings ---
+      # ANY psi4 option can be set here (they are passed straight to
+      # psi4.set_options). Tight SCF convergence + a fine DFT grid MATTER for
+      # basis optimisation: every step optimises on small energy DIFFERENCES,
+      # and loose convergence / a coarse grid would swamp them with noise.
+      scf_type: pk
+      dft_spherical_points: 974
+      dft_radial_points: 175
+      dft_pruning_scheme: none
+      e_convergence: 1.0e-8
+      d_convergence: 1.0e-8
 
-steps: [primitives, reduction, contraction, uncontraction, purification, pruning]
+steps: [primitives, reduction, contraction, uncontraction, purification, pruning, polarisation]
 
 # Step 1 - primitive exponents from a Legendre expansion (built-in O coefficients).
+# The growth stops when (energy - cbs_limit) < reference.target. If cbs_limit is
+# set too shallow the basis saturates without reaching it, so these optional
+# safety cutoffs bound the growth (all off unless set):
 primitives:
   n_prim: [8, 6]             # 8 s + 6 p primitives (O's minimal config is s, p)
+  # export:                  # optional: write THIS step's basis out too
+  #   path: ./runs/O-psi4/O-primitives.psi4
+  #   format: psi4           # per-step format (defaults to the global export format)
+  # max_n: 20                # hard cap on primitives per shell
+  # max_its: 100             # cap on total growth iterations
+  # stall_tol: 1.0e-7        # stop a shell once adding a primitive moves the
+                             # energy by less than this (saturation)
+  #sampling:                # optional parallel multi-start: run N optimisations
+  #  n_starts: 8            # from perturbed Legendre seeds, keep the best.
+  #  seed_spread: 0.25      # relative perturbation (start 0 = the default seed)
+  #  rng_seed: 0            # reproducible; starts run across Ray (inner serial)
 
 # Step 2 - drop the least-important exponents down to reference.target.
 #   (needs no extra keys; uses reference.cbs_limit and reference.target)
@@ -49,13 +101,63 @@ contraction:
   evaluate_energy: true      # also record the contraction error (mEh) as a check
 
 # Step 4 - re-uncontract functions until the decontraction error <= this percent.
+# This is the only MOLECULAR stage (runs on reference.geometry), so for species
+# whose molecule differs in spin from the atom, override its multiplicity here.
 uncontraction:
-  decontract_error_percent: 3
+  decontract_error_percent: 5
+  # multiplicity: 1          # e.g. H2 is a singlet while the H atom (atomic stages)
+  #                          # stays a doublet via reference.multiplicity/per-step
 
 # Step 5 - purify the contraction coefficients (extended Davidson).
 purification:
   evaluate_energy: true
 
 # Step 6 - prune contraction coefficients to zero within an energy budget.
+# Fast tier = 10 mEh base x 2% = 0.2 mEh prune target (matches the old scripts).
 pruning:
-  energy_target: 2.0e-4
+  energy_target: 1.0e-2      # fast-tier base: 10 mEh
+  fraction: 0.02             # x 2% -> 0.2 mEh actual prune target
+
+# Step 7 - polarisation: grow d/f shells on O against reference molecules. During
+# the optimisation O grows its new shells while every OTHER atom carries a fixed
+# large "spectator" basis (pc-seg-4), so the energy lowering is attributable to O.
+# Every stop is energy/convergence centred; the FIRST to trip wins, and record.json's
+# `stop_reason` says which ('target' / 'converged' / 'max_n' / 'max_l' / 'max_its').
+polarisation:
+  # --- the loss the targets are measured in ---
+  loss: mean_per_electron    # mean BSIE per electron over the molecules (default).
+                             # others: mean | total | max | max_per_electron (Eh).
+  # --- when is it good enough? pick ONE of the three target forms ---
+  target: 5.0e-4             # ABSOLUTE: stop once the loss falls below this (loss units)
+  # target_ratio: 0.1        # RELATIVE: target = ratio x a reference (below), e.g. 0.1x
+  #                          #   the previous tier -- one of:
+  #   reference_loss: 3.2e-4 #   (a) the previous tier's loss, passed explicitly, OR
+  #   reference_basis: ./runs/O-min/basis.json   # (b) a COMPLETE basis used on ALL atoms
+  #                          #       of the molecules (O and H) to benchmark the prior set
+  # --- convergence / cutoffs (each active only if set) ---
+  delta_e: 1.0e-5            # CONVERGED: if a step lowers the loss by less than this,
+                             # drop that function (restore the previous step) and stop
+  stall_tol: 1.0e-5          # within-shell: saturate a shell (advance to next l) when one
+                             # more primitive helps by less than this
+  max_l: 3                   # backstop: highest angular momentum to add (grow up to f)
+  max_n: 4                   # backstop: cap primitives per polarisation shell
+  # max_its: 100             # backstop: cap on total growth steps
+  # --- run the reference molecules concurrently on the Ray pool ---
+  # parallel:
+  #   n_cores: 8             # total cores Ray may use (overrides backend.parallel here)
+  #   threads_per_job: 2     # psi4 threads per molecule calc -> n_cores/threads at once
+  #   # n_workers: 4         # default: n_cores // threads_per_job
+  # sampling:                # optional parallel multi-start over the seed exponent
+  #   n_starts: 8            # (starts run across Ray; each start's molecule set
+  #   seed_spread: 0.25      #  runs serially -- no nested parallelism)
+  #   rng_seed: 0
+  spectator_basis: pcseg-4   # default fixed basis for ALL non-O atoms (Jensen pc-seg-4);
+                             # a per-molecule `spectator:` block overrides it below.
+  molecules:
+    - geometry: ./examples/data/OH.xyz
+      # spectator: {element: H, basis_file: ./runs/H-accu/basis.json}  # optional override
+      cbs_limit: -75.742479180      # >>> set: molecular BHHLYP CBS limit for OH (Eh)
+      multiplicity: 2
+    - geometry: ./examples/data/O2.xyz
+      cbs_limit: -150.321420696     # >>> set: molecular BHHLYP CBS limit for O2 (Eh)
+      multiplicity: 3        # (homonuclear: both atoms O, no spectator needed)

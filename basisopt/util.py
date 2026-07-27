@@ -153,7 +153,52 @@ def get_composition(basis, element):
     return prim_conf
 
 
-def natural_orbitals_from_density_block(density_block, overlap_block):
+def _canonicalise_degenerate_naos(occupations, coefficients, resolver_block, degeneracy_tol):
+    """Resolve the arbitrary rotation within occupation-degenerate NAO groups.
+
+    Two natural orbitals with (numerically) equal occupation span a subspace in
+    which ``np.linalg.eigh`` returns an *arbitrary* orthonormal pair -- an atom's
+    core-1s and valence-2s both have occupation ~2, so the raw NAOs come out as
+    unphysical mixtures that differ run-to-run and code-to-code. Within each
+    degenerate group we diagonalise a one-electron operator (the Fock matrix)
+    restricted to that subspace -- the columns are S-orthonormal, so the
+    restriction ``F_ab = c_a^T F c_b`` is a proper Hermitian matrix -- and reorder
+    by *ascending* orbital energy, the most tightly bound (core) function first.
+    Diagonalising the Fock operator within the occupied subspace yields exactly
+    the CANONICAL orbitals, matching what programs like Molpro contract on. Column
+    signs are fixed so the largest-magnitude coefficient is positive. The span,
+    occupations and energy are unchanged; only the (otherwise arbitrary)
+    orientation within each degenerate block is pinned down.
+    """
+    occ = occupations.copy()
+    coefs = coefficients.copy()
+    n = len(occ)
+    start = 0
+    while start < n:
+        stop = start + 1
+        while stop < n and abs(occ[stop] - occ[start]) <= degeneracy_tol:
+            stop += 1
+        if stop - start > 1:  # a degenerate group -> resolve into canonical orbitals
+            block = coefs[:, start:stop]
+            f_sub = block.T @ resolver_block @ block
+            energies, rot = np.linalg.eigh(f_sub)
+            rot = rot[:, np.argsort(energies)]  # core (lowest orbital energy) first
+            new_block = block @ rot
+            for k in range(new_block.shape[1]):  # largest |coef| positive
+                col = new_block[:, k]
+                if col[np.argmax(np.abs(col))] < 0:
+                    new_block[:, k] = -col
+            # occupations within the group are ~equal; the exact per-orbital value
+            # is the rotation-weighted average, which stays ~unchanged.
+            occ[start:stop] = (rot**2 * occ[start:stop][:, None]).sum(axis=0)
+            coefs[:, start:stop] = new_block
+        start = stop
+    return occ, coefs
+
+
+def natural_orbitals_from_density_block(
+    density_block, overlap_block, resolver_block=None, degeneracy_tol=1e-3
+):
     """Natural orbitals of one angular-momentum block.
 
     A natural orbital is an eigenvector of the one-particle density matrix D; its
@@ -167,9 +212,22 @@ def natural_orbitals_from_density_block(density_block, overlap_block):
     Psi4 averages the AO density over a shell's 2l+1 m-components), and this
     returns the shell's natural orbitals.
 
+    When a ``resolver_block`` -- a one-electron operator, e.g. the Fock matrix --
+    is supplied, occupation-*degenerate* natural orbitals (core-1s and valence-2s,
+    both occ ~2), whose orientation the density eigenproblem leaves arbitrary, are
+    canonicalised into the CANONICAL orbitals of that subspace (Fock eigenvectors,
+    ordered by ascending orbital energy) via :func:`_canonicalise_degenerate_naos`.
+    Without it the raw (arbitrarily rotated) NAOs are returned, preserving the
+    historical behaviour.
+
     Arguments:
         density_block (np.ndarray): the (n x n) density matrix block
         overlap_block (np.ndarray): the (n x n) overlap (S) matrix block
+        resolver_block (np.ndarray): optional (n x n) one-electron operator (the
+            Fock matrix) whose lowest eigenvalues mark the core orbitals; used to
+            resolve occupation-degenerate NAOs. ``None`` skips canonicalisation
+        degeneracy_tol (float): occupations within this tolerance are treated as
+            degenerate (default 1e-3)
 
     Returns:
         (occupations, coefficients): occupations sorted in decreasing order, and
@@ -182,7 +240,13 @@ def natural_orbitals_from_density_block(density_block, overlap_block):
     s_inv_half = v @ np.diag(1.0 / np.sqrt(w)) @ v.T
     occupations, u = np.linalg.eigh(s_half @ density_block @ s_half)
     order = np.argsort(occupations)[::-1]
-    return occupations[order], (s_inv_half @ u)[:, order]
+    occupations = occupations[order]
+    coefficients = (s_inv_half @ u)[:, order]
+    if resolver_block is not None:
+        occupations, coefficients = _canonicalise_degenerate_naos(
+            occupations, coefficients, resolver_block, degeneracy_tol
+        )
+    return occupations, coefficients
 
 
 def inside_out(basis_coefficients, inside_out=True):

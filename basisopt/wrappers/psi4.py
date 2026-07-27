@@ -104,6 +104,15 @@ class Psi4Wrapper(Wrapper):
             if k not in self._restricted_options:
                 options[k] = v
 
+        # Choose the SCF reference. An explicit `reference` (from a config's
+        # method params or a global) always wins -- full flexibility. Otherwise,
+        # open-shell species need an unrestricted reference: psi4 defaults to
+        # RHF/RKS and hard-errors on non-singlets ("RHF reference is only for
+        # singlets"), so auto-pick uks (DFT) / uhf (HF & post-HF) per the
+        # molecule's multiplicity. Singlets keep psi4's rks/rhf default.
+        if not any(k.lower() == "reference" for k in options) and (m.multiplicity or 1) > 1:
+            options["reference"] = "uks" if m.method.lower() == "dft" else "uhf"
+
         # logic to check global options
         # TODO: expand option handling
         if "memory" in options:
@@ -192,11 +201,24 @@ class Psi4Wrapper(Wrapper):
             params["reference"] = "uks" if (mol.multiplicity or 1) > 1 else "rks"
 
         self.initialise(mol, name="nao", **params)
+        # The NAOs are built from the full AO-basis density/overlap. Force C1 so
+        # psi4 returns single (un-blocked) matrices; with point-group symmetry
+        # ``to_array()`` returns a list of per-irrep blocks and the AO indexing
+        # below breaks. The averaged density/overlap are symmetry-independent, so
+        # this changes nothing physically (it matches the validated route).
+        self.psi4_mol.reset_point_group("c1")
+        self.psi4_mol.update_geometry()
         runstring = self._command_string(mol.method, **params)
         _, wfn = psi4.energy(runstring, return_wfn=True)
 
         overlap = wfn.S().to_array()
         density = wfn.Da().to_array() + wfn.Db().to_array()
+        # Spin-averaged Fock (KS) matrix: used downstream to resolve occupation-
+        # degenerate natural orbitals (e.g. core-1s vs valence-2s, both occ ~2) into
+        # the CANONICAL orbitals of that subspace -- its Fock eigenvectors, ordered
+        # by orbital energy -- matching the canonical orbitals programs like Molpro
+        # contract on, instead of an arbitrary rotation of the degenerate pair.
+        fock = 0.5 * (wfn.Fa().to_array() + wfn.Fb().to_array())
 
         # starting AO index of each primitive shell, grouped by angular momentum
         basisset = wfn.basisset()
@@ -222,7 +244,14 @@ class Psi4Wrapper(Wrapper):
                 )
                 / n_m
             )
-            result[am] = natural_orbitals_from_density_block(density_l, overlap_l)
+            fock_l = (
+                sum(
+                    fock[np.ix_([s + c for s in starts], [s + c for s in starts])]
+                    for c in range(n_m)
+                )
+                / n_m
+            )
+            result[am] = natural_orbitals_from_density_block(density_l, overlap_l, fock_l)
         return result
 
     def ao_coefficients(self, mol, **params):

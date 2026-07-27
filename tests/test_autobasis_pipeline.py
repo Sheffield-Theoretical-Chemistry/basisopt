@@ -394,3 +394,355 @@ def test_real_purification_step_end_to_end(tmp_path):
     out_basis = load_basis(wd / "05_purification" / "basis.json")
     assert set(out_basis) == {"n"}
     assert (wd / "05_purification" / "record.json").exists()
+
+
+# --------------------------------------------------------------------------- #
+# Step 7: polarisation (multi-molecule, spectator bases)
+# --------------------------------------------------------------------------- #
+def test_step_polarisation_grows_shells_end_to_end(tmp_path):
+    """Grow d/f polarisation shells onto an sp basis via the dummy backend.
+
+    The dummy energy is basis-independent, so the loss is constant: each shell
+    'stalls' immediately and the strategy advances d -> f -> stop (max_l). This
+    exercises the whole step (combined basis, reference molecule, strategy,
+    record) end-to-end through the driver, without a real backend.
+    """
+    from basisopt.autobasis import save_basis
+
+    sp = make_basis("o", (("s", (10.0, 3.0, 1.0, 0.3)), ("p", (1.5, 0.4))))
+    infile = tmp_path / "sp.json"
+    save_basis(sp, infile)
+
+    geom = tmp_path / "o2.xyz"
+    geom.write_text("2\nO2\nO 0.0 0.0 0.0\nO 0.0 0.0 1.2\n")
+
+    wd = tmp_path / "wd"
+    cfgfile = tmp_path / "run.yaml"
+    cfgfile.write_text(
+        yaml.safe_dump(
+            {
+                "name": "O-pol",
+                "workdir": str(wd),
+                "element": "O",
+                "backend": {"default": "dummy", "tmp_dir": str(tmp_path / "scratch")},
+                "steps": ["polarisation"],
+                "polarisation": {
+                    "input": str(infile),
+                    "min_l": 2,
+                    "max_l": 3,
+                    "target": 1e-9,  # unreachable with constant dummy energy
+                    "stall_tol": 1e-6,  # constant energy -> stall -> advance l
+                    "opt_params": {"options": {"maxiter": 20}},
+                    "molecules": [
+                        {"geometry": str(geom), "cbs_limit": -2.5, "multiplicity": 3},
+                    ],
+                },
+            }
+        )
+    )
+
+    run_pipeline(cfgfile, timestamp="T0")
+
+    shells = load_basis(wd / "07_polarisation" / "basis.json")["o"]
+    ls = [sh.l for sh in shells]
+    assert ls[:2] == ["s", "p"]  # sp preserved, untouched
+    assert "d" in ls and "f" in ls  # polarisation shells added
+
+    rec = json.loads((wd / "07_polarisation" / "record.json").read_text())
+    assert rec["stop_reason"] == "max_l"
+    assert set(rec["polarisation_shells"]) == {"d", "f"}
+    assert list(rec["per_molecule_error"])  # one entry per reference molecule
+
+
+def test_spectator_basis_from_published_name():
+    """A spectator can pull a published basis (default pc-seg-4) by name."""
+    from basisopt.autobasis.chemistry import _spectator_basis
+
+    el, shells = _spectator_basis({"element": "H", "basis": "sto-3g"})
+    assert el == "h"  # normalised to lower-case
+    assert len(shells) >= 1
+
+
+def test_spectator_basis_from_file(tmp_path):
+    """A spectator can point at a prior-built basis file."""
+    from basisopt.autobasis import save_basis
+    from basisopt.autobasis.chemistry import _spectator_basis
+
+    f = tmp_path / "h.json"
+    save_basis(make_basis("h", (("s", (1.0, 0.3)),)), f)
+    el, shells = _spectator_basis({"element": "H", "basis_file": str(f)})
+    assert el == "h"
+    assert len(shells) == 1
+
+
+def test_parallel_settings_step_block_overrides_global(monkeypatch):
+    """A per-step `parallel` block wins over global backend.parallel; absent, it
+    falls back to global; absent both, serial. (Ray-free: set_parallel is stubbed.)"""
+    from types import SimpleNamespace
+
+    import basisopt.api as api
+    from basisopt.autobasis.chemistry import _parallel_settings
+
+    calls = {}
+    monkeypatch.setattr(api, "set_parallel", lambda value, n: calls.update(value=value, n=n))
+    backend_cfg = SimpleNamespace(parallel={"n_cores": 2, "threads_per_job": 1}, tmp_dir="./tmp")
+    state = SimpleNamespace(config=SimpleNamespace(backend=backend_cfg))
+
+    parallel, rp = _parallel_settings(
+        state, "psi4", {"parallel": {"n_cores": 8, "threads_per_job": 2, "n_workers": 3}}
+    )
+    assert parallel is True and calls["n"] == 8  # the step block, not the global 2
+    assert rp == {"backend": "psi4", "tmp_dir": "./tmp", "threads_per_job": 2, "n_workers": 3}
+
+    parallel2, rp2 = _parallel_settings(state, "psi4", {})  # fall back to the global block
+    assert parallel2 is True and calls["n"] == 2 and "n_workers" not in rp2
+
+    serial_state = SimpleNamespace(
+        config=SimpleNamespace(backend=SimpleNamespace(parallel=None, tmp_dir="./tmp"))
+    )
+    assert _parallel_settings(serial_state, "psi4", None) == (False, None)
+
+
+def test_resolve_polarisation_target_absolute_and_reference_loss():
+    """Absolute target passes through; target_ratio scales an explicit reference_loss;
+    a target_ratio with no reference errors clearly."""
+    from basisopt.autobasis.chemistry import _resolve_polarisation_target
+
+    t, rec = _resolve_polarisation_target({"target": 1e-3}, [], None, "mean", False, None)
+    assert t == 1e-3 and rec == {"mode": "absolute"}
+
+    t, rec = _resolve_polarisation_target(
+        {"target_ratio": 0.1, "reference_loss": 4e-3}, [], None, "mean", False, None
+    )
+    assert t == pytest.approx(4e-4)
+    assert rec == {
+        "mode": "relative",
+        "ratio": 0.1,
+        "reference_loss": 4e-3,
+        "source": "reference_loss",
+    }
+
+    with pytest.raises(ValueError, match="reference_loss"):
+        _resolve_polarisation_target({"target_ratio": 0.1}, [], None, "mean", False, None)
+
+
+def test_reference_basis_requires_every_element(tmp_path):
+    """A reference basis must cover every atom in the molecules (no silent fallback)."""
+    from basisopt.autobasis import save_basis
+    from basisopt.autobasis.chemistry import _reference_basis
+
+    f = tmp_path / "o_only.json"
+    save_basis(make_basis("o", (("s", (5.0, 1.0)),)), f)
+    with pytest.raises(ValueError, match="no entry for element 'h'"):
+        _reference_basis({"basis_file": str(f)}, {"o", "h"})
+
+
+def test_step_polarisation_spectator_default_applied(tmp_path):
+    """A heteronuclear molecule with no per-molecule spectator picks up the
+    step-level `spectator_basis` default (so the coverage check is satisfied)."""
+    from basisopt.autobasis import save_basis
+
+    sp = make_basis("o", (("s", (10.0, 3.0, 1.0, 0.3)), ("p", (1.5, 0.4))))
+    infile = tmp_path / "sp.json"
+    save_basis(sp, infile)
+
+    geom = tmp_path / "oh.xyz"
+    geom.write_text("2\nOH\nO 0.0 0.0 0.0\nH 0.0 0.0 0.96\n")
+
+    wd = tmp_path / "wd"
+    cfgfile = tmp_path / "run.yaml"
+    cfgfile.write_text(
+        yaml.safe_dump(
+            {
+                "name": "O-pol",
+                "workdir": str(wd),
+                "element": "O",
+                "backend": {"default": "dummy", "tmp_dir": str(tmp_path / "scratch")},
+                "steps": ["polarisation"],
+                "polarisation": {
+                    "input": str(infile),
+                    "min_l": 2,
+                    "max_l": 2,
+                    "target": 1e-9,  # unreachable with constant dummy energy
+                    "stall_tol": 1e-6,
+                    "spectator_basis": "sto-3g",  # default fixed basis for the H
+                    "opt_params": {"options": {"maxiter": 10}},
+                    "molecules": [
+                        {"geometry": str(geom), "cbs_limit": -2.5, "multiplicity": 2},
+                    ],
+                },
+            }
+        )
+    )
+    run_pipeline(cfgfile, timestamp="T0")
+
+    rec = json.loads((wd / "07_polarisation" / "record.json").read_text())
+    assert rec["spectator_basis"] == "sto-3g"
+    assert rec["loss"] == "mean_per_electron"
+    # the H acquired a basis from the default (else the coverage check would raise),
+    # and a d polarisation shell was grown on O
+    shells = load_basis(wd / "07_polarisation" / "basis.json")["o"]
+    assert "d" in [sh.l for sh in shells]
+
+
+# --------------------------------------------------------------------------- #
+# config-driven export (global end-of-flow + per-step)
+# --------------------------------------------------------------------------- #
+def test_export_format_resolution():
+    """Per-step format wins; else the global export format; else the default."""
+    from basisopt.autobasis.pipeline import _export_format, _normalize_export
+
+    assert _normalize_export("x.mpro") == {"path": "x.mpro"}
+    assert _normalize_export({"path": "x", "format": "psi4"}) == {"path": "x", "format": "psi4"}
+    assert _normalize_export(None) is None
+    assert _export_format({"format": "psi4"}, {"format": "molpro"}) == "psi4"  # step wins
+    assert _export_format({"path": "x"}, {"format": "nwchem"}) == "nwchem"  # falls to global
+    assert _export_format({"path": "x"}, None) == "molpro"  # falls to the built-in default
+
+
+def test_global_export_at_end_of_flow(tmp_path):
+    """A global `export` writes the final step's basis once, at the end."""
+    wd = tmp_path / "wd"
+    out = tmp_path / "final.json"
+    cfgfile = _write_config(
+        tmp_path / "run.yaml",
+        wd,
+        ["primitives", "reduction"],
+        export={"path": str(out), "format": "json"},
+    )
+    run_pipeline(cfgfile, registry=_dummy_registry([]), timestamp="T0")
+    assert out.exists()  # the final (reduction) basis exported at end of flow
+    assert set(load_basis(out)) == {"h"}  # reloadable internal JSON
+
+
+def test_per_step_export_without_global(tmp_path):
+    """A per-step export fires with NO global export set, and is recorded."""
+    wd = tmp_path / "wd"
+    prim_out = tmp_path / "prim.json"
+    cfgfile = _write_config(
+        tmp_path / "run.yaml",
+        wd,
+        ["primitives", "reduction"],
+        primitives={"export": {"path": str(prim_out), "format": "json"}},
+    )
+    run_pipeline(cfgfile, registry=_dummy_registry([]), timestamp="T0")
+    assert prim_out.exists()
+    rec = json.loads((wd / "01_primitives" / "record.json").read_text())
+    assert rec["export"] == {"path": str(prim_out), "format": "json"}
+    # only the configured step exported; reduction (no export) wrote nothing extra
+    assert not (tmp_path / "red.json").exists()
+
+
+def test_per_step_export_reexports_on_skip(tmp_path):
+    """On a resume where the step is skipped, its export still refreshes."""
+    wd = tmp_path / "wd"
+    out = tmp_path / "prim.json"
+    cfgfile = _write_config(
+        tmp_path / "run.yaml",
+        wd,
+        ["primitives"],
+        primitives={"export": {"path": str(out), "format": "json"}},
+    )
+    run_pipeline(cfgfile, registry=_dummy_registry([]), timestamp="T0")
+    assert out.exists()
+    out.unlink()
+    run_pipeline(cfgfile, registry=_dummy_registry([]), timestamp="T1")  # primitives skipped
+    assert out.exists()  # export re-fired from the manifest basis
+
+
+def test_export_basis_molpro_roundtrip(tmp_path):
+    """A molpro export round-trips through load_basis -- i.e. it can seed a resume
+    input in a non-JSON format."""
+    from basisopt.autobasis import export_basis
+    from basisopt.bse_wrapper import fetch_basis
+
+    basis = {k.lower(): v for k, v in fetch_basis("sto-3g", "o").items()}
+    out = tmp_path / "o.mpro"
+    export_basis(basis, out, "molpro")
+    assert out.exists() and out.read_text().strip()
+    reloaded = load_basis(out, "molpro")  # the resume path (load_basis reads molpro)
+    assert any(k.lower() == "o" for k in reloaded)
+
+
+# --------------------------------------------------------------------------- #
+# per-step multiplicity / charge overrides (e.g. H atom doublet vs H2 singlet)
+# --------------------------------------------------------------------------- #
+def test_build_atom_multiplicity_and_charge_override():
+    from basisopt.autobasis.config import parse_config
+    from basisopt.autobasis.state import RunState
+
+    cfg = parse_config(
+        {
+            "name": "x",
+            "workdir": "w",
+            "element": "H",
+            "steps": ["primitives"],
+            "reference": {"multiplicity": 2, "charge": 0},
+        }
+    )
+    state = RunState(config=cfg, element="H")
+    assert state.build_atom("dft").multiplicity == 2  # reference default (H doublet)
+    assert state.build_atom("dft", multiplicity=1).multiplicity == 1  # per-step override wins
+    m = state.build_atom("dft", multiplicity=1, charge=-1)
+    assert (m.multiplicity, m.charge) == (1, -1)
+
+
+def test_build_geometry_molecule_multiplicity_override(tmp_path):
+    from basisopt.autobasis.config import parse_config
+    from basisopt.autobasis.state import RunState
+
+    geom = tmp_path / "h2.xyz"
+    geom.write_text("2\nH2\nH 0.0 0.0 0.0\nH 0.0 0.0 0.74\n")
+    cfg = parse_config(
+        {
+            "name": "x",
+            "workdir": "w",
+            "element": "H",
+            "steps": ["uncontraction"],
+            "reference": {"multiplicity": 2, "geometry": str(geom)},
+        }
+    )
+    state = RunState(config=cfg, element="H")
+    assert state.build_geometry_molecule("dft").multiplicity == 2  # reference default
+    assert state.build_geometry_molecule("dft", multiplicity=1).multiplicity == 1  # H2 singlet
+
+
+def test_mult_charge_parses_step_overrides():
+    from basisopt.autobasis.chemistry import _mult_charge
+
+    assert _mult_charge({}) == (None, None)
+    assert _mult_charge({"multiplicity": "1", "charge": "-1"}) == (1, -1)
+    assert _mult_charge({"multiplicity": 3}) == (3, None)
+
+
+def test_step_multiplicity_override_reaches_record(tmp_path):
+    """A per-step `multiplicity` overrides the reference for that stage only."""
+    from basisopt.autobasis import save_basis
+
+    uncontracted = make_basis("n", (("s", (10.0, 3.0, 1.0, 0.3)), ("p", (1.5, 0.4))))
+    infile = tmp_path / "u.json"
+    save_basis(uncontracted, infile)
+
+    wd = tmp_path / "wd"
+    cfgfile = tmp_path / "run.yaml"
+    cfgfile.write_text(
+        yaml.safe_dump(
+            {
+                "name": "N-nao",
+                "workdir": str(wd),
+                "element": "N",
+                "backend": {"default": "dummy", "tmp_dir": str(tmp_path / "scratch")},
+                "reference": {"multiplicity": 4},  # atomic default
+                "steps": ["contraction"],
+                "contraction": {
+                    "input": str(infile),
+                    "generate": True,
+                    "n_keep": {"s": 2, "p": 1},
+                    "multiplicity": 2,  # override just this stage
+                },
+            }
+        )
+    )
+    run_pipeline(cfgfile, timestamp="T0")
+    rec = json.loads((wd / "03_contraction" / "record.json").read_text())
+    assert rec["multiplicity"] == 2  # the per-step override, not the reference's 4

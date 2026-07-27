@@ -48,22 +48,32 @@ class RunState:
             )
         return self.input_basis
 
-    def build_atom(self, method: str) -> Molecule:
+    def build_atom(
+        self, method: str, multiplicity: Optional[int] = None, charge: Optional[int] = None
+    ) -> Molecule:
         """Build the single-atom Molecule for atomic steps (primitives, reduction,
-        purification, pruning), applying the config's charge/multiplicity."""
+        contraction, purification, pruning). ``multiplicity``/``charge`` override the
+        reference defaults for this stage -- e.g. the H atom is a doublet even when
+        the molecular stage uses a singlet."""
         mol = Molecule(self.element)
         mol.add_atom(self.element, [0.0, 0.0, 0.0])
         mol.name = self.element
         mol.method = method
-        if self.reference.charge:
-            mol.charge = self.reference.charge
-        if self.reference.multiplicity is not None:
-            mol.multiplicity = self.reference.multiplicity
+        charge = charge if charge is not None else self.reference.charge
+        if charge:
+            mol.charge = charge
+        mult = multiplicity if multiplicity is not None else self.reference.multiplicity
+        if mult is not None:
+            mol.multiplicity = mult
         return mol
 
-    def build_geometry_molecule(self, method: str) -> Molecule:
-        """Build the (di)atomic Molecule for molecular steps (uncontraction) from
-        the reference geometry."""
+    def build_geometry_molecule(
+        self, method: str, multiplicity: Optional[int] = None, charge: Optional[int] = None
+    ) -> Molecule:
+        """Build the (di)atomic Molecule for molecular steps (uncontraction) from the
+        reference geometry. ``multiplicity``/``charge`` override the reference
+        defaults for this stage -- set them per step when the atomic and molecular
+        ground states differ (e.g. the H atom is a doublet but H2 is a singlet)."""
         if not self.reference.geometry:
             raise ValueError(
                 f"Step needs reference.geometry for element {self.element}, none given"
@@ -71,11 +81,10 @@ class RunState:
         mol = Molecule.from_xyz(self.reference.geometry)
         mol.name = self.element
         mol.method = method
-        if self.reference.charge:
-            mol.charge = self.reference.charge
-        # NOTE: a single reference.multiplicity is applied to both the atom
-        # (build_atom) and this (di)atomic; for species whose atomic and
-        # molecular ground states differ (e.g. N vs N2) set it per run/step.
-        if self.reference.multiplicity is not None:
-            mol.multiplicity = self.reference.multiplicity
+        charge = charge if charge is not None else self.reference.charge
+        if charge:
+            mol.charge = charge
+        mult = multiplicity if multiplicity is not None else self.reference.multiplicity
+        if mult is not None:
+            mol.multiplicity = mult
         return mol

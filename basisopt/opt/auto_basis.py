@@ -41,6 +41,19 @@ class AutoBasisStrategy(Strategy):
         self.guess_params = {}
         self.params = {}
         self.cbs_limit = None
+        # Optional growth cutoffs (None = disabled). The growth strategies stop
+        # primarily on the signed CBS target; these are safety nets set by the
+        # caller/config. See AutoBasisLegendre.next / AutoBasisFree.next.
+        self.max_n = None  # hard cap on primitives per shell
+        self.max_its = None  # cap on total growth iterations
+        self.stall_tol = None  # stop a shell once adding a primitive moves the
+        #                        objective by less than this (saturation)
+        # Set by next() to why it stopped: 'target' | 'stall' | 'max_n' | 'max_its'
+        self.stop_reason = None
+        # Optional Ray parallelism for the reduce strategies' ranking trials
+        # (set by the pipeline step from backend.parallel). None -> serial.
+        self.parallel = False
+        self.ray_params = None
 
     def set_cbs_limit(self, cbs_limit: float):
         """Sets the CBS limit used as the optimization target."""
@@ -62,6 +75,9 @@ class AutoBasisStrategy(Strategy):
         d["@module"] = type(self).__module__
         d["@class"] = type(self).__name__
         d["cbs_limit"] = self.cbs_limit
+        d["max_n"] = self.max_n
+        d["max_its"] = self.max_its
+        d["stall_tol"] = self.stall_tol
         return d
 
     @classmethod
@@ -84,6 +100,9 @@ class AutoBasisStrategy(Strategy):
         instance.orbital_basis = strategy.orbital_basis
         instance.pre_params = strategy.pre_params
         instance.cbs_limit = d.get("cbs_limit", None)
+        instance.max_n = d.get("max_n", None)
+        instance.max_its = d.get("max_its", None)
+        instance.stall_tol = d.get("stall_tol", None)
         return instance
 
 
@@ -104,14 +123,16 @@ class AutoBasisFree(AutoBasisStrategy):
         self,
         eval_type: str = 'energy',
         target: float = 1e-6,
-        max_n: int = 9,
-        l: int = -1,
-        max_n_a: int = 6,
-        n_exp_cutoff: int = 6,
+        max_n: Optional[int] = None,
+        max_its: Optional[int] = None,
+        stall_tol: Optional[float] = None,
         pre: Preconditioner = make_positive,
     ):
         super().__init__(eval_type=eval_type, target=target, pre=pre)
         self.name = 'AutoBasisFree'
+        self.max_n = max_n
+        self.max_its = max_its
+        self.stall_tol = stall_tol
 
     def initialise(self, basis: InternalBasis, element: str):
         """Resets per-run state and checks the CBS limit has been set.
@@ -128,6 +149,10 @@ class AutoBasisFree(AutoBasisStrategy):
         self.first_run = [True] * len(basis[element])
         self.init_run = True
         self.just_added = [False] * len(basis[element])
+        self._iter = 0
+        self._grown_once = False
+        self._shell_capped = [False] * len(basis[element])
+        self.stop_reason = None
         if self.cbs_limit is None:
             raise ValueError('CBS limit not set. This can be set with the .set_cbs_limit method.')
 
@@ -142,12 +167,13 @@ class AutoBasisFree(AutoBasisStrategy):
         Returns:
             True if there is a next step, False if strategy is finished
         """
-        element_cbs_limit = self.cbs_limit
-
         self.delta_objective = np.abs(objective - self.last_objective)
         self.last_objective = objective
-
-        objective_diff = np.abs(objective - element_cbs_limit)
+        # Signed distance to the CBS limit (see AutoBasisLegendre.next for why
+        # this must not be abs()): energy approaches the limit from above, so
+        # <= target -- including a negative overshoot of a too-shallow limit --
+        # means converged.
+        objective_diff = objective - self.cbs_limit
 
         if self.init_run:
             if self._step == -1:
@@ -161,8 +187,52 @@ class AutoBasisFree(AutoBasisStrategy):
                 else:
                     return True
 
+        # (1) primary stop: reached the energy target (converged from above)
         if objective_diff < self.target:
+            self.stop_reason = "target"
             return False
+
+        # (2) optional stall cutoff: the last growth barely moved the objective
+        if (
+            self.stall_tol is not None
+            and self._grown_once
+            and self.delta_objective < self.stall_tol
+        ):
+            self.stop_reason = "stall"
+            bo_logger.warning(
+                "AutoBasisFree: objective stalled (delta=%.2e < stall_tol=%.2e) at "
+                "dE_CBS=%.2e Eh; stopping before the CBS target was met.",
+                self.delta_objective,
+                self.stall_tol,
+                objective_diff,
+            )
+            return False
+
+        # (3) optional global iteration cap
+        if self.max_its is not None and self._iter >= self.max_its:
+            self.stop_reason = "max_its"
+            bo_logger.warning(
+                "AutoBasisFree: hit max_its=%d at dE_CBS=%.2e Eh; stopping before "
+                "the CBS target was met.",
+                self.max_its,
+                objective_diff,
+            )
+            return False
+
+        # (4) optional per-shell cap: skip a shell already at max_n; stop if all are
+        if self.max_n is not None and len(basis[element][self._step].exps) >= self.max_n:
+            self._shell_capped[self._step] = True
+            if all(self._shell_capped):
+                self.stop_reason = "max_n"
+                bo_logger.warning(
+                    "AutoBasisFree: every shell reached max_n=%d at dE_CBS=%.2e Eh; "
+                    "stopping before the CBS target was met.",
+                    self.max_n,
+                    objective_diff,
+                )
+                return False
+            self._step = (self._step + 1) % len(basis[element])
+            return True
 
         x = self.get_active(basis, element)
         last_func, penult_func = x[-1], x[-2]
@@ -170,6 +240,8 @@ class AutoBasisFree(AutoBasisStrategy):
         x = np.append(x, last_func * ratio)
         self.set_active(x, basis, element)
         uncontract_shell(basis[element][self._step])
+        self._iter += 1
+        self._grown_once = True
         self._step += 1
         if self._step == len(basis[element]):
             self._step = 0
@@ -197,15 +269,17 @@ class AutoBasisLegendre(AutoBasisStrategy):
         self,
         eval_type: str = 'energy',
         target: float = 1e-6,
-        max_n: int = 9,
-        l: int = -1,
-        max_n_a: int = 6,
-        n_exp_cutoff: int = 6,
+        max_n: Optional[int] = None,
+        max_its: Optional[int] = None,
+        stall_tol: Optional[float] = None,
         n_coefs: Optional[tuple] = None,
     ):
         super().__init__(eval_type=eval_type, target=target, pre=unit)
         self.name = 'AutoBasisLegendre'
         self.n_prim = n_coefs
+        self.max_n = max_n
+        self.max_its = max_its
+        self.stall_tol = stall_tol
         # Legendre A-coefficients per shell; if left as None, initialise() falls
         # back to the built-in _ATOMIC_LEGENDRE_COEFFS for the element.
         self.legendre_params = None
@@ -280,6 +354,10 @@ class AutoBasisLegendre(AutoBasisStrategy):
         self.first_run = [True] * len(basis[element])
         self.init_run = True
         self.just_added = [False] * len(basis[element])
+        self._iter = 0
+        self._grown_once = False
+        self._shell_capped = [False] * len(basis[element])
+        self.stop_reason = None
         if self.cbs_limit is None:
             raise ValueError('CBS limit not set. This can be set with the .set_cbs_limit method.')
 
@@ -302,7 +380,7 @@ class AutoBasisLegendre(AutoBasisStrategy):
             basis: internal basis dictionary
             element: symbol of atom being optimized
         """
-        (A_vals, n) = basis[element][self._step].leg_params
+        A_vals, n = basis[element][self._step].leg_params
         self._shells[self._step] = (values, n)
         basis[element][self._step].leg_params = (values, n)
 
@@ -328,23 +406,21 @@ class AutoBasisLegendre(AutoBasisStrategy):
         Returns:
             True if there is a next step, False if strategy is finished
         """
-        # element_cbs_limit = _ATOMIC_DFT_CBS[el]  # Get the CBS limit for the element DFT BHHLYP
         element_cbs_limit = self.cbs_limit
 
-        self.delta_objective = np.abs(
-            objective - self.last_objective
-        )  # Calculate the difference in objective function
-        self.last_objective = (
-            objective  # Set the last objective function to the current objective function
-        )
+        self.delta_objective = np.abs(objective - self.last_objective)
+        self.last_objective = objective
 
-        objective_diff = np.abs(
-            objective - element_cbs_limit
-        )  # Calculate the difference between the objective function and the CBS limit
+        # Signed distance to the CBS limit -- deliberately NOT abs(). The
+        # (variational-ish) energy approaches the limit from above, so
+        # objective_diff starts positive and shrinks; <= target means converged.
+        # A negative value means the energy has passed a too-shallow cbs_limit,
+        # which is also "done". Taking abs() here turned that overshoot into an
+        # ever-growing gap and looped forever appending saturated primitives.
+        objective_diff = objective - element_cbs_limit
 
-        # If the strategy is in the initial run then it will optimize the
-        # parameters for each shell once, sequentially to ensure the
-        # A_vals are suitable for the number of primitives functions in the shell
+        # Initial run: optimise each shell's A_vals once, sequentially, so they
+        # suit the requested primitive count before any growth.
         if self.init_run:
             if self._step == -1:
                 self._step = 0
@@ -357,27 +433,67 @@ class AutoBasisLegendre(AutoBasisStrategy):
                 else:
                     return True
 
-        # If the difference between the objective function and the CBS limit is less than the target
+        # (1) primary stop: reached the energy target (converged from above)
         if objective_diff < self.target:
+            self.stop_reason = "target"
             return False
 
         A_vals, n = self._shells[self._step]
         if not self.just_added[self._step]:
+            # (2) optional global iteration cap (checked before growing)
+            if self.max_its is not None and self._iter >= self.max_its:
+                self.stop_reason = "max_its"
+                bo_logger.warning(
+                    "AutoBasisLegendre: hit max_its=%d at dE_CBS=%.2e Eh; stopping "
+                    "before the CBS target was met.",
+                    self.max_its,
+                    objective_diff,
+                )
+                return False
+            # (3) optional per-shell cap: skip a shell at max_n; stop if all are
+            if self.max_n is not None and n >= self.max_n:
+                self._shell_capped[self._step] = True
+                if all(self._shell_capped):
+                    self.stop_reason = "max_n"
+                    bo_logger.warning(
+                        "AutoBasisLegendre: every shell reached max_n=%d at "
+                        "dE_CBS=%.2e Eh; stopping before the CBS target was met.",
+                        self.max_n,
+                        objective_diff,
+                    )
+                    return False
+                self._step = (self._step + 1) % len(basis[element])
+                return True
             bo_logger.info(
                 f'Increasing number of {basis[element][self._step].l} functions from {n} to {n+1}'
             )
             self._shells[self._step] = (A_vals, n + 1)
             self.set_basis_shell(basis, element)
             self.just_added[self._step] = True
+            self._iter += 1
+            self._grown_once = True
             return True
         else:
-            # If the shell just added and reoptimised new primitive function then set the
-            # just_added flag to False and increment the step to the next shell in the basis set
+            # The freshly-grown shell was just re-optimised.
             self.just_added[self._step] = False
+            # (4) optional stall cutoff: if that growth barely moved the
+            # objective the shell is saturated for this l -- stop rather than
+            # keep appending dead functions (this is limit-independent, so it
+            # catches a wrong cbs_limit too).
+            if self.stall_tol is not None and self.delta_objective < self.stall_tol:
+                self.stop_reason = "stall"
+                bo_logger.warning(
+                    "AutoBasisLegendre: objective stalled (delta=%.2e < "
+                    "stall_tol=%.2e) at dE_CBS=%.2e Eh; stopping before the CBS "
+                    "target was met.",
+                    self.delta_objective,
+                    self.stall_tol,
+                    objective_diff,
+                )
+                return False
             bo_logger.info(f'Shell exponents: {list(basis[element][self._step].exps)}')
             self._step += 1
             if self._step == len(basis[element]):
-                # If the step is equal to the number of shells in the basis set then set the step to 0
                 self._step = 0
 
         return True
@@ -469,6 +585,8 @@ class AutoBasisReduceStrategy(AutoBasisStrategy):
                 self.cbs_limit,
                 self.eval_type,
                 self.params,
+                parallel=self.parallel,
+                ray_params=self.ray_params,
             )
             # Find the (shell, exponent) with the globally smallest error.
             # The shells can have different numbers of exponents, so index the
@@ -586,6 +704,8 @@ class AutoBasisReduceStrategyAll(AutoBasisStrategy):
                     self.cbs_limit,
                     self.eval_type,
                     self.params,
+                    parallel=self.parallel,
+                    ray_params=self.ray_params,
                 )
                 removed_index = ranks[self._step][0]
                 self._removed_index = removed_index

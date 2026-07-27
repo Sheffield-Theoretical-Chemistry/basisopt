@@ -505,6 +505,7 @@ def _collective(
     ray_params: dict,
     *,
     contribution: Callable[[Molecule, Any, Strategy, str], float],
+    aggregate: Optional[Callable] = None,
     normalize: bool = False,
     accumulate_total: bool = False,
 ) -> OptCollection:
@@ -532,20 +533,22 @@ def _collective(
                 Regularisation only applied once at end.
                 """
                 strategy.set_active(x, basis, el)
-                for mol in molecules:
-                    mol.basis = basis
-
+                # The whole set shares this basis; run_all applies it to each
+                # molecule (and, in parallel, ships it once via the object store).
                 run_results = api.run_all(
                     evaluate=strategy.eval_type,
                     mols=molecules,
                     params=strategy.params,
                     parallel=parallel,
                     ray_params=ray_params,
+                    shared_basis=basis,
                 )
-                local_total = 0.0
-                for mol in molecules:
-                    local_total += contribution(mol, run_results[mol.name], strategy, el)
-                out = local_total + reg(x)
+                contribs = [
+                    contribution(mol, run_results[mol.name], strategy, el) for mol in molecules
+                ]
+                if aggregate is not None:
+                    return aggregate(molecules, contribs) + reg(x)
+                out = sum(contribs) + reg(x)
                 return out / len(molecules) if normalize else out
 
             strategy.initialise(basis, el)
@@ -726,6 +729,66 @@ def contraction_optimize(
     return _atomic_contract(basis, element, algorithm, strategy, opt_params, objective)
 
 
+# ---- polarisation loss functions -------------------------------------------
+# Each aggregates the list of per-molecule (floored, non-negative) BSIE values
+# in Eh plus the matching electron counts into the scalar the strategy's
+# target/convergence act on. Units follow the choice: *_per_electron give
+# Eh/electron, the rest give Eh (so a "1 mEh" target uses e.g. loss='mean').
+def _pol_loss_mean_per_electron(bsies, nelec):
+    return sum(b / n for b, n in zip(bsies, nelec)) / len(bsies)
+
+
+def _pol_loss_mean(bsies, nelec):
+    return sum(bsies) / len(bsies)
+
+
+def _pol_loss_total(bsies, nelec):
+    return sum(bsies)
+
+
+def _pol_loss_max(bsies, nelec):
+    return max(bsies)
+
+
+def _pol_loss_max_per_electron(bsies, nelec):
+    return max(b / n for b, n in zip(bsies, nelec))
+
+
+POLARISATION_LOSSES = {
+    "mean_per_electron": _pol_loss_mean_per_electron,
+    "mean": _pol_loss_mean,
+    "total": _pol_loss_total,
+    "max": _pol_loss_max,
+    "max_per_electron": _pol_loss_max_per_electron,
+}
+
+
+def _polarize_contribution(mol, value, strategy, el):
+    """Per-molecule polarisation BSIE (raw, non-negative, in Eh).
+
+    Records the *signed* distance to the molecular CBS limit for diagnostics, but
+    FLOORS the returned value at 0: the optimiser must never be rewarded for
+    driving the energy *below* the limit (which only happens when cbs_limit is set
+    too shallow, or from numerical noise) -- that would grow junk functions and
+    trip the convergence test for the wrong reason. The selected loss aggregate
+    (see ``POLARISATION_LOSSES``) turns these per-molecule values into the scalar
+    objective.
+    """
+    signed = value - mol.cbs_limit
+    mol.add_result(strategy.eval_type + "_" + el.title(), signed)
+    if signed < 0.0:
+        bo_logger.warning(
+            "collective_polarize: %s energy %.6f is below its cbs_limit %.6f "
+            "(by %.2e Eh); cbs_limit may be too shallow. Flooring its "
+            "contribution at 0.",
+            mol.name,
+            value,
+            mol.cbs_limit,
+            -signed,
+        )
+    return max(0.0, signed)
+
+
 def collective_polarize(
     molecules: list[Molecule],
     basis: InternalBasis,
@@ -733,31 +796,34 @@ def collective_polarize(
     npass: int = 1,
     parallel: bool = False,
     ray_params: dict = None,
+    loss: str = "mean_per_electron",
 ) -> OptCollection:
-    """General purpose optimizer for a collection of atomic bases
+    """Optimize polarisation shells against a set of reference molecules.
+
+    The per-molecule basis-set incompleteness error ``E_mol - cbs_limit`` (floored
+    at 0) is aggregated into one scalar by the named ``loss`` (one of
+    ``POLARISATION_LOSSES``); the strategy's target/convergence act on that scalar.
 
      Arguments:
-          molecules (list): list of Molecule objects to be included in objective
-          basis: internal basis dictionary, will be used for all molecules
-          opt_data (list): list of tuples, with one tuple for each atomic basis to be
-              optimized, (element, algorithm, strategy, regularizer, opt_params) - see the
-              signature of _atomic_opt or optimize
-          npass (int): number of passes to do, i.e. it will optimize each atomic basis
-              listed in opt_data in order, then loop back and iterate npass times
-          parallel (bool): if True, will try to run Molecule calcs in parallel
-
-    Returns:
-          dictionary of dictionaries of scipy.optimize results for each step,
-          corresponding to tuple in opt_data
+          molecules (list): reference Molecule objects (all share ``basis``)
+          basis: combined internal basis (grown element + fixed spectators)
+          opt_data (list): one tuple (element, algorithm, strategy, reg, opt_params)
+          npass (int): number of passes over opt_data
+          parallel (bool): run the molecule calcs concurrently on the Ray pool
+          loss (str): aggregate loss name (default mean BSIE per electron)
 
     Raises:
-          FailedCalculation
+          FailedCalculation; ValueError for an unknown loss name
     """
+    try:
+        loss_fn = POLARISATION_LOSSES[loss]
+    except KeyError:
+        raise ValueError(
+            f"unknown polarisation loss '{loss}'; choose from {sorted(POLARISATION_LOSSES)}"
+        )
 
-    def contribution(mol, value, strategy, el):
-        polarisation = abs(value - mol.cbs_limit)
-        mol.add_result(strategy.eval_type + "_" + el.title(), polarisation)
-        return polarisation / mol.nelectrons()
+    def aggregate(mols, contribs):
+        return loss_fn(contribs, [m.nelectrons() for m in mols])
 
     return _collective(
         molecules,
@@ -766,8 +832,8 @@ def collective_polarize(
         npass,
         parallel,
         ray_params,
-        contribution=contribution,
-        normalize=True,
+        contribution=_polarize_contribution,
+        aggregate=aggregate,
     )
 
 

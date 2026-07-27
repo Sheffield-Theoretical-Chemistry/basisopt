@@ -11,53 +11,73 @@ from basisopt.exceptions import FailedCalculation
 from basisopt.molecule import Molecule
 
 
-def _drop_each_exponent(mol, shell, eval_type, params, reference):
-    """Remove each exponent of ``shell`` in turn and evaluate ``eval_type``.
+def _rank_exponents(
+    mol,
+    element,
+    shells_idx,
+    eval_type,
+    params,
+    reference,
+    parallel=False,
+    ray_params=None,
+    basis_attr="basis",
+):
+    """Rank every exponent of the given shells by how much removing it changes
+    ``eval_type`` (relative to ``reference``).
 
-    For each exponent i, the shell is rebuilt without it, a calculation is run
-    on ``mol``, and the absolute difference of the result from ``reference`` is
-    recorded. The shell's original exps/coefs are restored before returning.
+    Builds one independent trial molecule per exponent (that exponent dropped
+    from its shell) and evaluates them via :func:`api.run_all`: serially by
+    default, or fanned across the warm actor pool when ``parallel`` is set. The
+    trials are identical either way -- parallelism only changes wall-clock, not
+    the ranking -- which is why the ranking steps stay behaviour-preserving.
 
     Arguments:
-        mol (Molecule): the molecule to run calculations on
-        shell (Shell): the shell whose exponents are ranked (mutated then restored)
+        mol (Molecule): the molecule whose basis is ranked (not mutated)
+        element (str): element key in ``mol.basis``
+        shells_idx (list[int]): indices of the shells to rank
         eval_type (str): property to evaluate
         params (dict): backend parameters
         reference (float): baseline to difference each result against (the
             full-basis value for rank_primitives, the CBS limit for
             rank_mol_basis_cbs)
+        parallel (bool): fan the trial calcs across Ray
+        ray_params (dict): Ray settings (backend/tmp_dir/threads_per_job/...)
 
     Returns:
-        (err, energies) where err[i] = |value_without_exponent_i - reference|
-        and energies[i] is the raw evaluated value
+        (errors, energies), each a list aligned with ``shells_idx``; ``errors``
+        entries are numpy arrays with ``|value_without_exponent_i - reference|``.
 
     Raises:
         FailedCalculation
     """
-    exps = shell.exps.copy()
-    coefs = shell.coefs.copy()
-    n = len(exps)
+    trials = []  # (position in shells_idx, exponent index, trial molecule)
+    for pos, s in enumerate(shells_idx):
+        base_exps = getattr(mol, basis_attr)[element][s].exps
+        for i in range(len(base_exps)):
+            trial = copy.deepcopy(mol)
+            tshell = getattr(trial, basis_attr)[element][s]
+            tshell.exps = np.delete(base_exps, i)
+            uncontract_shell(tshell)
+            trial.name = f"{mol.name}__rank_s{s}_e{i}"  # unique -> run_all key
+            trials.append((pos, i, trial))
 
-    # make uncontracted with one fewer exponent
-    shell.exps = np.zeros(n - 1)
-    uncontract_shell(shell)
-    err = np.zeros(n)
-    energies = []
+    values = api.run_all(
+        evaluate=eval_type,
+        mols=[t[2] for t in trials],
+        params=params,
+        parallel=parallel,
+        ray_params=ray_params,
+    )
 
-    # remove each exponent one at a time
-    for i in range(n):
-        shell.exps[:i] = exps[:i]
-        shell.exps[i:] = exps[i + 1 :]
-        if api.run_calculation(evaluate=eval_type, mol=mol, params=params) != 0:
+    errors = [np.zeros(len(getattr(mol, basis_attr)[element][s].exps)) for s in shells_idx]
+    energies = [np.zeros(len(getattr(mol, basis_attr)[element][s].exps)) for s in shells_idx]
+    for pos, i, trial in trials:
+        value = values.get(trial.name)
+        if value is None:
             raise FailedCalculation
-        value = api.get_backend().get_value(eval_type)
-        energies.append(value)
-        err[i] = np.abs(value - reference)
-
-    # reset shell to original
-    shell.exps = exps
-    shell.coefs = coefs
-    return err, energies
+        errors[pos][i] = np.abs(value - reference)
+        energies[pos][i] = value
+    return errors, energies
 
 
 def rank_primitives(
@@ -66,6 +86,8 @@ def rank_primitives(
     eval_type: str = "energy",
     basis_type: str = "orbital",
     params=None,
+    parallel: bool = False,
+    ray_params: dict = None,
 ) -> tuple[list[np.ndarray], list[np.ndarray]]:
     """Systematically eliminates exponents from shells in an AtomicBasis
     to determine how much they contribute to the target property
@@ -91,30 +113,31 @@ def rank_primitives(
     """
     params = {} if params is None else params
     mol = copy.copy(atomic._molecule)
-    if basis_type == "jfit":
-        basis = mol.jbasis[atomic._symbol]
-    elif basis_type == "jkfit":
-        basis = mol.jkbasis[atomic._symbol]
-    else:
-        basis = mol.basis[atomic._symbol]
+    basis_attr = {"jfit": "jbasis", "jkfit": "jkbasis"}.get(basis_type, "basis")
+    basis = getattr(mol, basis_attr)[atomic._symbol]
 
     if not shells:
         shells = list(range(len(basis)))  # do all
 
-    # Calculate reference value
+    # Calculate reference value (full basis)
     if api.run_calculation(evaluate=eval_type, mol=mol, params=params) != 0:
         raise FailedCalculation
     reference = api.get_backend().get_value(eval_type)
     # prefix result  as being for ranking
     atomic._molecule.add_reference("rank_" + eval_type, reference)
 
-    errors = []
-    ranks = []
-    for s in shells:
-        err, _ = _drop_each_exponent(mol, basis[s], eval_type, params, reference)
-        errors.append(err)
-        ranks.append(np.argsort(err))
-
+    errors, _ = _rank_exponents(
+        mol,
+        atomic._symbol,
+        shells,
+        eval_type,
+        params,
+        reference,
+        parallel=parallel,
+        ray_params=ray_params,
+        basis_attr=basis_attr,
+    )
+    ranks = [np.argsort(err) for err in errors]
     return errors, ranks
 
 
@@ -124,6 +147,8 @@ def rank_mol_basis_cbs(
     cbs_limit: float,
     eval_type: str = 'energy',
     backend_params: dict = None,
+    parallel: bool = False,
+    ray_params: dict = None,
 ):
     """Rank the primitive functions in a basis.
 
@@ -150,15 +175,19 @@ def rank_mol_basis_cbs(
     new_mol = copy.deepcopy(mol)
     reference_energy = api.get_backend().get_value(eval_type)
     dE_CBS_INITIAL = reference_energy - cbs_limit
-    errors = []
-    ranks = []
-    energies = []
 
-    for shell in new_mol.basis[element]:
-        # rank each exponent by how close removing it leaves us to the CBS limit
-        err, ens = _drop_each_exponent(new_mol, shell, eval_type, backend_params, cbs_limit)
-        errors.append(err)
-        ranks.append(np.argsort(err))
-        energies.append(ens)
+    # rank each exponent by how close removing it leaves us to the CBS limit
+    shells_idx = list(range(len(new_mol.basis[element])))
+    errors, energies = _rank_exponents(
+        new_mol,
+        element,
+        shells_idx,
+        eval_type,
+        backend_params,
+        cbs_limit,
+        parallel=parallel,
+        ray_params=ray_params,
+    )
+    ranks = [np.argsort(err) for err in errors]
 
     return errors, ranks, energies, dE_CBS_INITIAL

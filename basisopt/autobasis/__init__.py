@@ -12,14 +12,14 @@ or on the command line:
     python -m basisopt.autobasis run my-run.yaml
 """
 
+# Importing chemistry registers the concrete steps (1-6) in STEP_REGISTRY as a
+# side effect (it imports the registry it needs, so ordering here is not fragile).
+from . import chemistry  # noqa: F401
 from .config import CANONICAL_STEPS, ConfigError, PipelineConfig, load_config
 from .manifest import Manifest
-from .pipeline import load_basis, run_config, run_pipeline, save_basis
+from .pipeline import export_basis, load_basis, run_config, run_pipeline, save_basis
 from .state import RunState, StepResult
 from .steps import STEP_REGISTRY, get_step, register_step
-
-# Registers the concrete steps (1-6) in STEP_REGISTRY on import.
-from . import chemistry  # noqa: E402,F401  (import for side effect; must follow the above)
 
 __all__ = [
     "CANONICAL_STEPS",
@@ -36,4 +36,5 @@ __all__ = [
     "run_config",
     "load_basis",
     "save_basis",
+    "export_basis",
 ]

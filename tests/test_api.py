@@ -21,6 +21,55 @@ def test_run_all_parallel_requires_ray_params(dummy_backend):
         api.run_all(evaluate="energy", mols=[mol], parallel=True)
 
 
+def test_run_all_serial_applies_shared_basis(dummy_backend):
+    """The shared basis is assigned to every molecule in the serial path."""
+    from tests.data.factories import make_basis, make_molecule
+
+    mols = [make_molecule(("H", "H"), method="linear", name=f"s{i}") for i in range(2)]
+    shared = make_basis("h", (("s", (2.0,)),))
+    results = api.run_all(
+        evaluate="energy", mols=mols, params={}, parallel=False, shared_basis=shared
+    )
+    assert set(results) == {"s0", "s1"}
+    for m in mols:
+        assert m.basis is shared  # serial path assigns the shared basis directly
+        assert results[m.name] == -m.natoms()  # dummy 'linear' energy = -natoms
+
+
+def test_run_all_parallel_actor_pool_dummy():
+    """The warm actor pool fans a molecule set out in parallel (dummy backend),
+    returns correct per-molecule energies, applies shared_basis in-actor, and
+    restores the callers' molecule bases afterwards."""
+    if not api._PARALLEL:
+        pytest.skip("Ray not available; parallel path inactive")
+    import ray
+
+    from tests.data.factories import make_basis, make_molecule
+
+    mols = [make_molecule(("H", "H"), method="linear", name=f"m{i}") for i in range(3)]
+    originals = [m.basis for m in mols]
+    shared = make_basis("h", (("s", (1.0, 0.3)),))
+    ray_params = {"backend": "dummy", "tmp_dir": "./tmp/", "threads_per_job": 1}
+    try:
+        results = api.run_all(
+            evaluate="energy",
+            mols=mols,
+            params={},
+            parallel=True,
+            ray_params=ray_params,
+            shared_basis=shared,
+        )
+        assert set(results) == {m.name for m in mols}
+        for m in mols:
+            assert results[m.name] == -m.natoms()
+        # local molecule bases are restored (the shared basis travelled via Ray)
+        for m, original in zip(mols, originals):
+            assert m.basis is original
+    finally:
+        api.shutdown_actor_pool()
+        ray.shutdown()
+
+
 def test_backend_registration():
     assert len(api._BACKENDS.keys()) > 0
     assert "dummy" in api._BACKENDS.keys()

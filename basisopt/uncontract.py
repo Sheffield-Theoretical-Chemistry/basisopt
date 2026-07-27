@@ -96,60 +96,74 @@ def rank_uncontract_element(mol, element, params, verbose=False):
     return energies, errors, ranks, ranked_idx, sorted_errors
 
 
-def rank_uncontract_element_robust(mol, element, params, verbose=False):
+def rank_uncontract_element_robust(
+    mol, element, params, verbose=False, parallel=False, ray_params=None
+):
     """Rank the uncontracted functions of an element by energy contribution.
-    This one is more robust than the previous one, as it will not fail if uncontracting a function results in a linear dependency.
+    Robust: freeing a function that causes a linear dependency yields -1 for that
+    trial rather than failing the pass.
+
+    Each trial (append one free function to a shell, evaluate) is independent, so
+    they are dispatched through :func:`api.run_all` -- serially by default, or
+    fanned across the warm actor pool when ``parallel`` is set. ``robust=True`` so
+    a raising trial (e.g. a linear dependency) becomes ``None`` -> -1, matching the
+    previous per-trial try/except. Behaviour is identical either way.
 
     Args:
         mol (Molecule): BasisOpt Molecule object
         element (str): Element to rank in basis set
         verbose (bool, optional): Print rankings. Defaults to False.
+        parallel (bool): fan the trial calcs across Ray
+        ray_params (dict): Ray settings (backend/tmp_dir/threads_per_job/...)
     """
     wrapper = api.get_backend()
+    el = element.lower()
 
-    # every shell is ranked against the same full-basis reference (each trial
-    # restores the shell's coefs), so compute it once per pass rather than once
-    # per shell
+    # every shell is ranked against the same full-basis reference; compute once
     api.run_calculation(mol=mol, params=params)
     ref_energy = wrapper.get_value('energy')
 
-    def rank_uncontract_angular_momentum_robust(mol, shell, verbose=True):
-        energies = []
-        errors = []
+    shells = mol.basis[el]
+    # per-shell/per-function results, pre-filled with the "already free" value 0
+    energies = [[0] * len(sh.exps) for sh in shells]
+    errors = [[0] * len(sh.exps) for sh in shells]
+
+    # build one trial molecule per (shell, function) that isn't already free
+    trials = []  # (shell idx, function idx, trial molecule)
+    for s, shell in enumerate(shells):
         n_exps = len(shell.exps)
         for i in range(n_exps):
-            old_coefs = copy.deepcopy(shell.coefs)
             new_coefs = np.zeros(n_exps)
             new_coefs[i] = 1.0
             if any(np.array_equal(new_coefs, coef) for coef in shell.coefs):
-                energies.append(0)
-                errors.append(0)
-                continue
-            shell.coefs.append(new_coefs)
-            try:
-                api.run_calculation(mol=mol, params=params)
-                energies.append(wrapper.get_value('energy'))
-                errors.append(abs(energies[-1] - ref_energy))
-            except Exception as e:
-                bo_logger.error(f'Failed to calculate {shell.l} {i}: {e}')
-                energies.append(-1)
-                errors.append(-1)
-            shell.coefs = old_coefs
-            if verbose:
-                bo_logger.info(
-                    f'Ranking {shell.l} {i}:\n Energy {energies[-1]}\n Delta: {errors[-1]}'
-                )
-        ranks = np.argsort(errors)
-        return energies, errors, ranks
+                continue  # already a free function -> skip (stays 0)
+            trial = copy.deepcopy(mol)
+            trial.basis[el][s].coefs.append(new_coefs)
+            trial.name = f"{mol.name}__unc_s{s}_e{i}"  # unique -> run_all key
+            trials.append((s, i, trial))
 
-    energies = []
-    errors = []
-    ranks = []
-    for shell in mol.basis[element.lower()]:
-        en, er, ra = rank_uncontract_angular_momentum_robust(mol, shell, verbose)
-        energies.append(en)
-        errors.append(er)
-        ranks.append(ra)
+    values = api.run_all(
+        evaluate='energy',
+        mols=[t[2] for t in trials],
+        params=params,
+        parallel=parallel,
+        ray_params=ray_params,
+        robust=True,
+    )
+    for s, i, trial in trials:
+        value = values.get(trial.name)
+        if value is None:  # linear dependency / failed calc -> mark like the old path
+            energies[s][i] = -1
+            errors[s][i] = -1
+        else:
+            energies[s][i] = value
+            errors[s][i] = abs(value - ref_energy)
+        if verbose:
+            bo_logger.info(
+                f'Ranking {shells[s].l} {i}:\n Energy {energies[s][i]}\n Delta: {errors[s][i]}'
+            )
+
+    ranks = [np.argsort(er) for er in errors]
     ranked_idx, sorted_errors = argsort_inhomogeneous_array(errors)
     return energies, errors, ranks, ranked_idx, sorted_errors
 
@@ -277,7 +291,7 @@ def uncontract_single_function(mol, element, ang, exp, params):
     return energy
 
 
-def uncontract_percentage(mol, element, percentage_target, params):
+def uncontract_percentage(mol, element, percentage_target, params, parallel=False, ray_params=None):
     wrapper = api.get_backend()
     uncontracted_molecule = copy.deepcopy(mol)  # Create a copy of the molecule object
     uncontracted_energy = mol.get_result('uncontracted_energy')
@@ -304,7 +318,12 @@ def uncontract_percentage(mol, element, percentage_target, params):
     energy = contracted_energy
     while np.floor(((energy - uncontracted_energy) / contraction_error) * 100) >= threshold_final:
         rank1 = rank_uncontract_element_robust(
-            uncontracted_molecule, element, params, verbose=False
+            uncontracted_molecule,
+            element,
+            params,
+            verbose=False,
+            parallel=parallel,
+            ray_params=ray_params,
         )
         ranks = list(zip(rank1[3], rank1[4]))
 
@@ -316,25 +335,43 @@ def uncontract_percentage(mol, element, percentage_target, params):
 
         s_ranks = ranks_array[ranks_array[:, 0] == 0]
         p_ranks = ranks_array[ranks_array[:, 0] == 1]
+        have_s = len(s_ranks) > 0
+        have_p = len(p_ranks) > 0
+        if not (have_s or have_p):
+            # nothing left to uncontract (e.g. a single-shell element like H whose
+            # functions are all already uncontracted) -- stop rather than index an
+            # empty ranking or spin the loop forever.
+            bo_logger.warning('No s or p functions left to uncontract; stopping')
+            break
 
-        s_ang, s_exp, s_contrib = s_ranks[-1]
-        p_ang, p_exp, p_contrib = p_ranks[-1]
-        bo_logger.warning(f'{int(s_exp+1)}s: {s_contrib}')
-        bo_logger.warning(f'{int(p_exp+1)}p: {p_contrib}')
-        bo_logger.warning(
-            f'Difference between contributions: {s_contrib - p_contrib} ({(s_contrib - p_contrib)/p_contrib*100}%)'
-        )
-        contrib_difference = abs(s_contrib - p_contrib)
-
-        if s_contrib > p_contrib:
-            uncontract_single_function(
-                uncontracted_molecule, element, int(s_ang), int(s_exp), params
+        s_ang, s_exp, s_contrib = s_ranks[-1] if have_s else (0.0, 0.0, -np.inf)
+        p_ang, p_exp, p_contrib = p_ranks[-1] if have_p else (1.0, 0.0, -np.inf)
+        if have_s:
+            bo_logger.warning(f'{int(s_exp+1)}s: {s_contrib}')
+        if have_p:
+            bo_logger.warning(f'{int(p_exp+1)}p: {p_contrib}')
+        if have_s and have_p:
+            bo_logger.warning(
+                f'Difference between contributions: {s_contrib - p_contrib} '
+                f'({(s_contrib - p_contrib)/p_contrib*100}%)'
             )
-            out_dict['ang'].append(s_ang)
-            out_dict['exp'].append(s_exp)
-            out_dict['contribution'].append(s_contrib)
-            s_funcs_removed += 1
-        elif s_contrib < p_contrib and abs(s_contrib - p_contrib) <= threshold_exp * abs(p_contrib):
+            contrib_difference = abs(s_contrib - p_contrib)
+        else:
+            contrib_difference = 0.0
+
+        # Bias toward lower angular momentum: take s when it wins outright, when it is
+        # only marginally beaten by p (within threshold_exp), or when there is no p to
+        # compare against; otherwise take p. (When p is absent, s_contrib beats the
+        # -inf sentinel; when s is absent, take_s is False and we fall through to p.)
+        take_s = have_s and (
+            (not have_p)
+            or s_contrib > p_contrib
+            or (
+                s_contrib < p_contrib
+                and abs(s_contrib - p_contrib) <= threshold_exp * abs(p_contrib)
+            )
+        )
+        if take_s:
             uncontract_single_function(
                 uncontracted_molecule, element, int(s_ang), int(s_exp), params
             )

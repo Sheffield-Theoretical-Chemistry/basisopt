@@ -6,6 +6,12 @@ timer.dat
 *.DS_Store
 auto-basis-data/
 
+# psi4 output / scratch artifacts written to the working directory
+*.out
+psi.*.clean
+# auto-basis pipeline run outputs (basis.json / record.json per step)
+runs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

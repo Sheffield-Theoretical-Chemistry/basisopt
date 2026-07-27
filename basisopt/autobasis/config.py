@@ -27,6 +27,7 @@ CANONICAL_STEPS = (
     "uncontraction",
     "purification",
     "pruning",
+    "polarisation",
 )
 
 # Presets (the min/fast/mid/accu tier definitions) are NOT shipped with basisopt
@@ -66,6 +67,18 @@ class ReferenceConfig:
     charge: int = 0
     wf_cards: dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self):
+        # PyYAML parses scientific notation WITHOUT a decimal point (e.g. `100e-3`,
+        # `2e-4`) as a str, not a float -- which then crashes deep in the optimizer.
+        # Coerce the numeric fields so any valid YAML number form works.
+        if self.cbs_limit is not None:
+            self.cbs_limit = float(self.cbs_limit)
+        if self.target is not None:
+            self.target = float(self.target)
+        if self.multiplicity is not None:
+            self.multiplicity = int(self.multiplicity)
+        self.charge = int(self.charge)
+
 
 @dataclass
 class BackendConfig:
@@ -73,6 +86,11 @@ class BackendConfig:
 
     default: str = "psi4"
     tmp_dir: str = "./tmp"
+    # Optional Ray parallelism for multi-molecule steps (e.g. polarisation).
+    # None -> serial. A mapping accepts: n_cores (total cores for Ray),
+    # threads_per_job (backend threads per calc), n_workers (default
+    # n_cores // threads_per_job).
+    parallel: Optional[dict] = None
 
 
 @dataclass
@@ -183,9 +201,7 @@ def parse_config(raw: dict) -> PipelineConfig:
         raise ConfigError("'steps' must be a non-empty list")
     unknown = [s for s in steps if s not in CANONICAL_STEPS]
     if unknown:
-        raise ConfigError(
-            f"Unknown step(s): {unknown}. Valid steps: {', '.join(CANONICAL_STEPS)}"
-        )
+        raise ConfigError(f"Unknown step(s): {unknown}. Valid steps: {', '.join(CANONICAL_STEPS)}")
 
     ref_raw = raw.get("reference", {}) or {}
     known_ref = {f for f in ReferenceConfig.__dataclass_fields__}

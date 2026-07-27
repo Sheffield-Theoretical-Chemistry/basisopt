@@ -15,6 +15,7 @@ from basisopt.opt.auto_basis import (
     AutoBasisLegendre,
     AutoBasisReduceStrategy,
 )
+from basisopt.opt.polarisation import AutoBasisPolarisation
 from basisopt.opt.strategies import Strategy
 from tests.data.factories import make_basis
 
@@ -373,3 +374,409 @@ def test_autobasislegendre_missing_element_raises(dummy_backend):
     strategy.set_cbs_limit(0.0)
     with pytest.raises(ValueError, match="No built-in Legendre coefficients"):
         strategy.initialise({}, "h")
+
+
+# --------------------------------------------------------------------------- #
+# AutoBasisLegendre growth cutoffs (signed CBS target + max_n/max_its/stall)
+# --------------------------------------------------------------------------- #
+def _legendre_o(target=2.0e-3, cbs_limit=-75.0603, n_coefs=(4, 4), **cutoffs):
+    """Initialised AutoBasisLegendre on O, past construction, ready to drive."""
+    strategy = AutoBasisLegendre(target=target, n_coefs=n_coefs)
+    strategy.set_cbs_limit(cbs_limit)
+    strategy.legendre_params = [
+        np.array([1.6, -5.1, 0.05, -0.17]),
+        np.array([-0.97, 1.77, -0.27]),
+    ]
+    for key, value in cutoffs.items():
+        setattr(strategy, key, value)
+    basis = {}
+    strategy.initialise(basis, "o")
+    return strategy, basis
+
+
+def test_autobasislegendre_signed_convergence_stops_on_overshoot(dummy_backend):
+    """Regression for the runaway: the stop test is signed
+    ``energy - cbs_limit < target``, not ``abs(...)``. When the energy shoots
+    past a too-shallow cbs_limit, abs() reported an ever-growing gap and looped
+    forever appending saturated primitives; the signed test terminates."""
+    strategy, basis = _legendre_o(target=2.0e-3, cbs_limit=-75.0603)
+    # sequential init pass over the two shells
+    assert strategy.next(basis, "o", -74.5) is True
+    assert strategy.next(basis, "o", -74.5) is True
+    # energy is 17.7 mEh *below* the (too-shallow) limit; abs() -> "17.7 mEh
+    # away, keep going"; signed -> converged, stop.
+    assert strategy.next(basis, "o", -75.078) is False
+    assert strategy.stop_reason == "target"
+
+
+def test_autobasislegendre_far_from_limit_keeps_growing(dummy_backend):
+    """Above the limit by more than target -> keep adding functions, no stop."""
+    strategy, basis = _legendre_o(target=2.0e-3, cbs_limit=-75.0603)
+    assert strategy.next(basis, "o", -74.0) is True
+    assert strategy.next(basis, "o", -74.0) is True
+    assert strategy.next(basis, "o", -74.0) is True  # still 1.06 Eh above limit
+    assert strategy.stop_reason is None
+
+
+def test_autobasislegendre_max_n_cutoff(dummy_backend):
+    """max_n caps primitives per shell: once every shell is at the cap and the
+    target is still unmet, stop with reason 'max_n'."""
+    strategy, basis = _legendre_o(n_coefs=(4, 4), max_n=4)  # both shells start at cap
+    assert strategy.next(basis, "o", -74.0) is True  # init: -1 -> 0
+    assert strategy.next(basis, "o", -74.0) is True  # init: 0 -> 1
+    assert strategy.next(basis, "o", -74.0) is True  # shell 0 capped -> skip to shell 1
+    assert strategy.next(basis, "o", -74.0) is False  # shell 1 capped -> all capped, stop
+    assert strategy.stop_reason == "max_n"
+
+
+def test_autobasislegendre_max_its_cutoff(dummy_backend):
+    """max_its bounds the total number of growth steps regardless of the target."""
+    strategy, basis = _legendre_o(n_coefs=(4, 4), max_its=2)
+    stopped = False
+    for _ in range(50):  # far from the limit, so only max_its can stop it
+        if not strategy.next(basis, "o", -74.0):
+            stopped = True
+            break
+    assert stopped
+    assert strategy.stop_reason == "max_its"
+    assert strategy._iter == 2
+
+
+def test_autobasislegendre_stall_cutoff(dummy_backend):
+    """stall_tol stops a shell once an added primitive barely moves the objective
+    (saturation) -- limit-independent, so it catches a wrong cbs_limit too."""
+    strategy, basis = _legendre_o(n_coefs=(4, 4), stall_tol=1.0e-6)
+    assert strategy.next(basis, "o", -74.0) is True  # init: -1 -> 0
+    assert strategy.next(basis, "o", -74.0) is True  # init: 0 -> 1
+    assert strategy.next(basis, "o", -74.0) is True  # grow shell 0
+    # re-optimised the added primitive but it barely changed the objective
+    assert strategy.next(basis, "o", -74.0 - 1.0e-9) is False
+    assert strategy.stop_reason == "stall"
+
+
+def test_autobasis_cutoffs_survive_serialization(dummy_backend):
+    """max_n/max_its/stall_tol must round-trip through as_dict/from_dict."""
+    strategy = AutoBasisLegendre(target=1e-4, n_coefs=(4, 3), max_n=15, max_its=50, stall_tol=1e-7)
+    strategy.set_cbs_limit(-75.0)
+    restored = AutoBasisLegendre.from_dict(strategy.as_dict())
+    assert restored.max_n == 15
+    assert restored.max_its == 50
+    assert restored.stall_tol == 1e-7
+    assert restored.cbs_limit == -75.0
+
+
+# --------------------------------------------------------------------------- #
+# AutoBasisPolarisation (grows d/f/g shells onto an existing sp basis)
+# --------------------------------------------------------------------------- #
+def _sp_basis():
+    return make_basis("o", (("s", (5.0, 1.0, 0.2)), ("p", (1.5, 0.3))))
+
+
+def test_polarisation_adds_shells_then_stops_on_max_l(dummy_backend):
+    """Add d, grow it, advance to f on stall, then stop at max_l."""
+    basis = _sp_basis()
+    strat = AutoBasisPolarisation(target=1e-9, min_l=2, max_l=3, stall_tol=1e-3)
+    strat.initialise(basis, "o")
+    assert [sh.l for sh in basis["o"]] == ["s", "p"]  # no polarisation shells yet
+
+    assert strat.next(basis, "o", 0.05) is True  # add d
+    assert basis["o"][-1].l == "d"
+    assert strat.next(basis, "o", 0.03) is True  # grow d -> 2 primitives
+    assert len(basis["o"][-1].exps) == 2
+    assert strat.next(basis, "o", 0.0295) is True  # d stalled -> add f
+    assert basis["o"][-1].l == "f"
+    assert strat.next(basis, "o", 0.02) is True  # grow f
+    assert strat.next(basis, "o", 0.0199) is False  # f stalled, no higher l -> stop
+    assert strat.stop_reason == "max_l"
+
+
+def test_polarisation_stops_on_target(dummy_backend):
+    """Loss below target stops immediately (whichever trips first)."""
+    basis = _sp_basis()
+    strat = AutoBasisPolarisation(target=1e-3, min_l=2, max_l=4, stall_tol=1e-9)
+    strat.initialise(basis, "o")
+    assert strat.next(basis, "o", 0.05) is True
+    assert strat.next(basis, "o", 0.02) is True
+    assert strat.next(basis, "o", 5e-4) is False  # loss below target
+    assert strat.stop_reason == "target"
+
+
+def test_polarisation_max_n_advances_to_next_l(dummy_backend):
+    """A shell at max_n is treated as saturated -> advance to the next l."""
+    basis = _sp_basis()
+    strat = AutoBasisPolarisation(target=1e-9, min_l=2, max_l=3, max_n=2, stall_tol=None)
+    strat.initialise(basis, "o")
+    strat.next(basis, "o", 0.05)  # add d (1 primitive)
+    strat.next(basis, "o", 0.04)  # grow d -> 2 primitives (== max_n)
+    assert len(basis["o"][-1].exps) == 2
+    strat.next(basis, "o", 0.03)  # d at max_n -> add f
+    assert basis["o"][-1].l == "f"
+
+
+def test_polarisation_max_its_backstop(dummy_backend):
+    """Constant loss (never target/stall) is bounded by max_its."""
+    basis = _sp_basis()
+    strat = AutoBasisPolarisation(target=1e-9, min_l=2, max_l=9, max_its=3, stall_tol=None)
+    strat.initialise(basis, "o")
+    stopped = False
+    for _ in range(50):
+        if not strat.next(basis, "o", 0.05):
+            stopped = True
+            break
+    assert stopped
+    assert strat.stop_reason == "max_its"
+    assert strat._iter == 3
+
+
+def test_polarisation_leaves_sp_untouched(dummy_backend):
+    """The existing sp shells must not be modified while polarising."""
+    basis = _sp_basis()
+    s_exps = np.array(basis["o"][0].exps, copy=True)
+    strat = AutoBasisPolarisation(target=1e-9, min_l=2, max_l=2, stall_tol=1e-3)
+    strat.initialise(basis, "o")
+    for loss in (0.05, 0.03, 0.0299):
+        if not strat.next(basis, "o", loss):
+            break
+    assert basis["o"][0].l == "s" and basis["o"][1].l == "p"
+    assert np.allclose(basis["o"][0].exps, s_exps)
+
+
+def test_polarisation_max_l_below_min_l_raises(dummy_backend):
+    strat = AutoBasisPolarisation(min_l=3, max_l=2)
+    with pytest.raises(ValueError, match="max_l"):
+        strat.initialise(_sp_basis(), "o")
+
+
+def test_polarisation_serialization_roundtrip(dummy_backend):
+    strat = AutoBasisPolarisation(
+        target=1e-4,
+        min_l=2,
+        max_l=3,
+        seed_exponent=0.8,
+        max_n=5,
+        max_its=20,
+        stall_tol=1e-6,
+        delta_e=2e-5,
+    )
+    restored = AutoBasisPolarisation.from_dict(strat.as_dict())
+    assert (restored.min_l, restored.max_l, restored.seed_exponent) == (2, 3, 0.8)
+    assert (restored.max_n, restored.max_its, restored.stall_tol) == (5, 20, 1e-6)
+    assert restored.delta_e == 2e-5
+    assert restored.name == "AutoBasisPolarisation"
+
+
+def test_polarisation_delta_e_restores_last_grow(dummy_backend):
+    """A grown primitive that barely helps is dropped (previous step restored)."""
+    basis = _sp_basis()
+    strat = AutoBasisPolarisation(target=1e-12, min_l=2, max_l=3, stall_tol=1e-12, delta_e=1e-3)
+    strat.initialise(basis, "o")
+    assert strat.next(basis, "o", 0.20) is True  # baseline 0.20 -> add d (1 primitive)
+    assert basis["o"][-1].l == "d" and len(basis["o"][-1].exps) == 1
+    assert strat.next(basis, "o", 0.05) is True  # d seed helped a lot -> grow d (2 primitives)
+    assert len(basis["o"][-1].exps) == 2
+    # the 2nd d primitive helps by only 1e-4 < delta_e 1e-3 -> drop it and stop
+    assert strat.next(basis, "o", 0.0499) is False
+    assert strat.stop_reason == "converged"
+    assert basis["o"][-1].l == "d" and len(basis["o"][-1].exps) == 1  # primitive restored
+
+
+def test_polarisation_delta_e_restores_seed_shell(dummy_backend):
+    """A newly-seeded l-shell that barely helps is dropped entirely."""
+    basis = _sp_basis()
+    strat = AutoBasisPolarisation(target=1e-12, min_l=2, max_l=3, stall_tol=1e12, delta_e=1e-3)
+    strat.initialise(basis, "o")
+    assert strat.next(basis, "o", 0.20) is True  # baseline -> add d
+    # d seed helps by only 1e-4 < delta_e -> remove the whole d shell and stop
+    assert strat.next(basis, "o", 0.1999) is False
+    assert strat.stop_reason == "converged"
+    assert [sh.l for sh in basis["o"]] == ["s", "p"]  # d shell restored away
+
+
+def test_polarisation_loss_registry():
+    """The named loss aggregates behave as documented (Eh vs Eh/electron)."""
+    from basisopt.opt.optimizers import POLARISATION_LOSSES
+
+    bsies, nelec = [1.0, 3.0], [10, 20]
+    assert POLARISATION_LOSSES["mean"](bsies, nelec) == 2.0
+    assert POLARISATION_LOSSES["total"](bsies, nelec) == 4.0
+    assert POLARISATION_LOSSES["max"](bsies, nelec) == 3.0
+    assert POLARISATION_LOSSES["mean_per_electron"](bsies, nelec) == pytest.approx(
+        (1.0 / 10 + 3.0 / 20) / 2
+    )
+    assert POLARISATION_LOSSES["max_per_electron"](bsies, nelec) == pytest.approx(
+        max(1.0 / 10, 3.0 / 20)
+    )
+
+
+def test_polarize_contribution_floors_below_limit():
+    """Below the CBS limit the objective is floored at 0, but the signed value
+    is still recorded on the molecule for diagnostics."""
+    from types import SimpleNamespace
+
+    from basisopt.opt.optimizers import _polarize_contribution
+
+    recorded = {}
+    mol = SimpleNamespace(
+        cbs_limit=-1.0,
+        name="m",
+        nelectrons=lambda: 2,
+        add_result=lambda k, v: recorded.__setitem__(k, v),
+    )
+    strat = SimpleNamespace(eval_type="energy")
+    # above the limit: raw positive BSIE returned and recorded
+    assert _polarize_contribution(mol, -0.9, strat, "o") == pytest.approx(0.1)
+    assert recorded["energy_O"] == pytest.approx(0.1)
+    # below the limit: floored to 0, but the (negative) signed value still recorded
+    assert _polarize_contribution(mol, -1.2, strat, "o") == 0.0
+    assert recorded["energy_O"] == pytest.approx(-0.2)
+
+
+# --------------------------------------------------------------------------- #
+# Exponent ranking (reduction) -- serial correctness + parallel == serial
+# --------------------------------------------------------------------------- #
+def test_rank_mol_basis_cbs_ranks_by_removal_impact(dummy_backend, monkeypatch):
+    """With energy = -sum(exponents), dropping exponent e_i gives err_i = e_i, so
+    ranks order smallest-exponent (least important) first. Pins the refactored
+    serial ranking to a known, non-degenerate answer."""
+    import basisopt.api as api
+    from basisopt.testing.rank import rank_mol_basis_cbs
+    from tests.data.factories import make_molecule
+
+    basis = make_basis("o", (("s", (5.0, 1.0, 0.2)),))
+    mol = make_molecule(("O",), method="linear", basis=basis, name="Oatom")
+    total = 5.0 + 1.0 + 0.2
+
+    def fake_energy(m, tmp="", **p):
+        return -sum(float(x) for shells in m.basis.values() for sh in shells for x in sh.exps)
+
+    monkeypatch.setitem(api.get_backend()._methods, "energy", fake_energy)
+
+    errors, ranks, _, dE = rank_mol_basis_cbs(mol, "o", cbs_limit=-total)
+    assert np.allclose(errors[0], [5.0, 1.0, 0.2])  # err_i = e_i
+    assert list(ranks[0]) == [2, 1, 0]  # 0.2 least important
+    assert dE == pytest.approx(0.0)  # full-basis energy == cbs_limit here
+
+
+def test_rank_mol_basis_cbs_parallel_matches_serial():
+    """The parallel ranking (actor-pool fan-out) returns identical errors/ranks to
+    serial -- catching any lost or misordered trial in the run_all mapping."""
+    import basisopt.api as api
+
+    if not api._PARALLEL:
+        pytest.skip("Ray not available; parallel path inactive")
+    import ray
+
+    from basisopt.testing.rank import rank_mol_basis_cbs
+    from tests.data.factories import make_molecule
+
+    basis = make_basis("o", (("s", (5.0, 1.0, 0.2)), ("p", (1.5, 0.3))))
+    mol = make_molecule(("O",), method="linear", basis=basis, name="Oatom")
+    ray_params = {"backend": "dummy", "tmp_dir": "./tmp/", "threads_per_job": 1}
+    try:
+        s_err, s_ranks, _, s_dE = rank_mol_basis_cbs(mol, "o", -1.0, parallel=False)
+        p_err, p_ranks, _, p_dE = rank_mol_basis_cbs(
+            mol, "o", -1.0, parallel=True, ray_params=ray_params
+        )
+        assert len(p_err) == len(s_err) == 2
+        for pe, se in zip(p_err, s_err):
+            assert np.allclose(pe, se)
+        for pr, sr in zip(p_ranks, s_ranks):
+            assert list(pr) == list(sr)
+        assert p_dE == s_dE
+    finally:
+        api.shutdown_actor_pool()
+        ray.shutdown()
+
+
+# --------------------------------------------------------------------------- #
+# Contraction-coefficient ranking (uncontraction + pruning) parallelism
+# --------------------------------------------------------------------------- #
+def _contracted_o_molecule():
+    """An O 'molecule' with genuinely contracted shells (non-identity coefs), so
+    the uncontraction/pruning rankings have real trials to build."""
+    from basisopt.containers import Shell
+    from basisopt.molecule import Molecule
+
+    s = Shell()
+    s.l = "s"
+    s.exps = np.array([5.0, 1.0, 0.2])
+    s.coefs = [np.array([0.6, 0.3, 0.1])]
+    p = Shell()
+    p.l = "p"
+    p.exps = np.array([1.5, 0.3])
+    p.coefs = [np.array([0.7, 0.3])]
+    mol = Molecule(name="Ocontr")
+    mol.add_atom("O", [0.0, 0.0, 0.0])
+    mol.method = "linear"
+    mol.basis = {"o": [s, p]}
+    return mol
+
+
+def test_rank_uncontract_serial_ranks_by_contribution(dummy_backend, monkeypatch):
+    """With energy = -sum(exp . coef), freeing exponent e_i adds e_i, so err_i = e_i:
+    ranks order smallest-exponent first. Pins the refactored serial uncontraction
+    ranking to a known, non-degenerate answer."""
+    import basisopt.api as api
+    from basisopt.uncontract import rank_uncontract_element_robust
+
+    mol = _contracted_o_molecule()
+
+    def fake_energy(m, tmp="", **p):
+        return -sum(
+            float(np.dot(sh.exps, coef))
+            for shells in m.basis.values()
+            for sh in shells
+            for coef in sh.coefs
+        )
+
+    monkeypatch.setitem(api.get_backend()._methods, "energy", fake_energy)
+    _, errors, ranks, _, _ = rank_uncontract_element_robust(mol, "o", {})
+    assert np.allclose(errors[0], [5.0, 1.0, 0.2])  # s shell: err_i = exponent
+    assert list(ranks[0]) == [2, 1, 0]
+    assert np.allclose(errors[1], [1.5, 0.3])  # p shell
+
+
+def test_rank_uncontract_parallel_matches_serial():
+    import basisopt.api as api
+
+    if not api._PARALLEL:
+        pytest.skip("Ray not available; parallel path inactive")
+    import ray
+
+    from basisopt.uncontract import rank_uncontract_element_robust
+
+    mol = _contracted_o_molecule()
+    ray_params = {"backend": "dummy", "tmp_dir": "./tmp/", "threads_per_job": 1}
+    try:
+        _, s_er, _, s_ri, s_se = rank_uncontract_element_robust(mol, "o", {}, parallel=False)
+        _, p_er, _, p_ri, p_se = rank_uncontract_element_robust(
+            mol, "o", {}, parallel=True, ray_params=ray_params
+        )
+        for pe, se in zip(p_er, s_er):
+            assert np.allclose(pe, se)
+        assert p_ri == s_ri
+        assert np.allclose(p_se, s_se)
+    finally:
+        api.shutdown_actor_pool()
+        ray.shutdown()
+
+
+def test_rank_basis_prune_parallel_matches_serial():
+    import basisopt.api as api
+
+    if not api._PARALLEL:
+        pytest.skip("Ray not available; parallel path inactive")
+    import ray
+
+    from basisopt.prune import rank_basis
+
+    mol = _contracted_o_molecule()
+    ray_params = {"backend": "dummy", "tmp_dir": "./tmp/", "threads_per_job": 1}
+    try:
+        _, s_er, s_ri, s_se = rank_basis(mol, "o", {}, parallel=False)
+        _, p_er, p_ri, p_se = rank_basis(mol, "o", {}, parallel=True, ray_params=ray_params)
+        assert p_ri == s_ri  # identical jagged (shell, contraction, primitive) ranking
+        assert np.allclose(p_se, s_se)
+    finally:
+        api.shutdown_actor_pool()
+        ray.shutdown()

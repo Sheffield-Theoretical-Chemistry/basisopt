@@ -6,6 +6,7 @@ from basisopt.basis.basis import uncontract_shell
 from basisopt.containers import Shell
 from basisopt.data import get_even_temper_params, get_legendre_params
 from basisopt.util import (
+    _canonicalise_degenerate_naos,
     fit_poly,
     format_with_prefix,
     get_composition,
@@ -131,3 +132,57 @@ def test_natural_orbitals_diagonal_case():
     occ, C = natural_orbitals_from_density_block(D, np.eye(3))
     assert np.allclose(occ, [2.0, 1.0, 0.0])
     assert np.allclose(np.abs(C), np.eye(3), atol=1e-10)  # up to column sign
+
+
+def test_canonicalise_degenerate_naos_unmixes_by_fock():
+    # Two occupation-degenerate NAOs (occ 2, 2) handed in as an arbitrary 45-degree
+    # mixture of the true core/valence axes; a third, distinct NAO (occ 0.5). The
+    # Fock block marks axis 0 as core (lowest orbital energy, F=1) and axis 1 as
+    # valence (F=5), so canonicalisation puts the core first.
+    r = 1.0 / np.sqrt(2.0)
+    coefficients = np.array([[r, r, 0.0], [r, -r, 0.0], [0.0, 0.0, 1.0]])
+    occupations = np.array([2.0, 2.0, 0.5])
+    fock = np.diag([1.0, 5.0, 3.0])
+
+    occ, C = _canonicalise_degenerate_naos(occupations, coefficients, fock, 1e-3)
+
+    # the mixture is resolved back to the clean axes, core (lowest energy) first
+    assert np.allclose(np.abs(C[:, 0]), [1.0, 0.0, 0.0], atol=1e-10)
+    assert np.allclose(np.abs(C[:, 1]), [0.0, 1.0, 0.0], atol=1e-10)
+    assert np.allclose(C[:, 2], [0.0, 0.0, 1.0], atol=1e-10)
+    assert np.allclose(occ, [2.0, 2.0, 0.5])
+    # sign convention: largest-magnitude coefficient of each column is positive
+    for k in range(C.shape[1]):
+        assert C[np.argmax(np.abs(C[:, k])), k] > 0
+
+
+def test_natural_orbitals_fock_orders_degenerate_by_energy_and_preserves_span():
+    # A degenerate density block (occ 2, 2) with a distinct third orbital (occ 0.5).
+    # Fock puts the lower orbital energy ("core") on axis 1, so canonicalisation must
+    # reorder the degenerate pair to put axis 1 first -- while span, occupations and
+    # the S-orthonormality all survive unchanged.
+    D = np.diag([2.0, 2.0, 0.5])
+    S = np.eye(3)
+    F = np.diag([5.0, 1.0, 3.0])
+
+    occ, C = natural_orbitals_from_density_block(D, S, F)
+
+    assert np.allclose(occ, [2.0, 2.0, 0.5])
+    assert np.allclose(np.abs(C[:, 0]), [0.0, 1.0, 0.0], atol=1e-10)  # core = lowest energy
+    assert np.allclose(np.abs(C[:, 1]), [1.0, 0.0, 0.0], atol=1e-10)
+    assert np.allclose(C.T @ S @ C, np.eye(3), atol=1e-10)  # still S-orthonormal
+    assert np.allclose(C @ np.diag(occ) @ C.T, D, atol=1e-10)  # span/energy preserved
+
+
+def test_natural_orbitals_resolver_noop_when_nondegenerate():
+    # distinct occupations -> no degenerate group -> passing a resolver (Fock) block
+    # must not change the result versus omitting it.
+    S = np.array([[1.0, 0.3, 0.1], [0.3, 1.0, 0.25], [0.1, 0.25, 1.0]])
+    D = np.array([[1.5, 0.2, 0.05], [0.2, 0.8, 0.1], [0.05, 0.1, 0.3]])
+    F = np.diag([4.0, 2.0, 1.0])
+
+    occ0, C0 = natural_orbitals_from_density_block(D, S)
+    occ1, C1 = natural_orbitals_from_density_block(D, S, F)
+
+    assert np.allclose(occ0, occ1)
+    assert np.allclose(C0, C1)

@@ -6,6 +6,7 @@ import colorlog
 
 from basisopt.exceptions import FailedCalculation
 from basisopt.molecule import Molecule
+from basisopt.parallelise import chunk
 from basisopt.wrappers.dummy import DummyWrapper
 from basisopt.wrappers.wrapper import Wrapper
 
@@ -256,6 +257,81 @@ if _PARALLEL:
     _run_one_job = ray.remote(_run_one_job)
 
 
+# --------------------------------------------------------------------------- #
+# Warm backend actor pool
+# --------------------------------------------------------------------------- #
+class _BackendActorImpl:
+    """A persistent Ray actor that sets up the backend ONCE (keeping e.g. psi4
+    warm) and then processes many molecules across successive ``run_all`` calls,
+    avoiding the per-task ``set_backend`` of the stateless path. Never decorated
+    at import (so a Ray-less import is fine); wrapped with ``ray.remote`` in
+    :func:`_get_actor_pool`, which only runs under the parallel branch."""
+
+    def __init__(self, ray_params):
+        set_backend(ray_params["backend"], verbose=False)
+        set_tmp_dir(ray_params.get("tmp_dir", "./tmp/"), verbose=False)
+        _apply_additional_params(ray_params)
+
+    def run_batch(self, molecules, evaluate, params, shared_basis=None, robust=False):
+        """Run a chunk of molecules on the warm backend. ``shared_basis`` (if
+        given, resolved by Ray from a single object-store entry) is applied to
+        each molecule so the basis travels once per call, not once per molecule.
+        ``robust`` makes any per-molecule failure (e.g. a linear dependency that
+        raises rather than returning a failure code) yield ``None`` instead of
+        killing the whole batch -- needed by the ranking passes."""
+        out = []
+        for mol in molecules:
+            if shared_basis is not None:
+                mol.basis = shared_basis
+            try:
+                success = _CURRENT_BACKEND.run(evaluate, mol, params, tmp=_TMP_DIR)
+                value = _CURRENT_BACKEND.get_value(evaluate) if success == 0 else None
+            except FailedCalculation:
+                value = None
+            except Exception:
+                if not robust:
+                    raise
+                value = None
+            _CURRENT_BACKEND.clean()
+            out.append((mol.name, value))
+        return out
+
+
+_ACTOR_POOL = None
+_ACTOR_POOL_KEY = None
+
+
+def _get_actor_pool(ray_params: dict, pool_size: int) -> list:
+    """Return a cached pool of ``pool_size`` warm backend actors, (re)building it
+    only when the backend / scratch / threads / size change. Each actor reserves
+    ``threads_per_job`` CPUs so Ray does not oversubscribe the cores (previously
+    every task took 1 CPU while psi4 span up ``threads_per_job`` threads)."""
+    global _ACTOR_POOL, _ACTOR_POOL_KEY
+    threads = ray_params.get("threads_per_job") or 1
+    key = (ray_params.get("backend"), ray_params.get("tmp_dir"), threads, pool_size)
+    if _ACTOR_POOL is not None and _ACTOR_POOL_KEY == key:
+        return _ACTOR_POOL
+    shutdown_actor_pool()
+    actor_cls = ray.remote(num_cpus=threads)(_BackendActorImpl)
+    _ACTOR_POOL = [actor_cls.remote(ray_params) for _ in range(pool_size)]
+    _ACTOR_POOL_KEY = key
+    return _ACTOR_POOL
+
+
+def shutdown_actor_pool():
+    """Tear down the cached actor pool (between differently-configured runs, or
+    at shutdown). Best-effort: ignores actors already gone."""
+    global _ACTOR_POOL, _ACTOR_POOL_KEY
+    if _ACTOR_POOL:
+        for actor in _ACTOR_POOL:
+            try:
+                ray.kill(actor)
+            except Exception:  # noqa: BLE001 - best-effort teardown
+                pass
+    _ACTOR_POOL = None
+    _ACTOR_POOL_KEY = None
+
+
 def run_all(
     evaluate: str = 'energy',
     mols: list = None,
@@ -263,6 +339,8 @@ def run_all(
     parallel: bool = False,
     count=None,
     ray_params=None,
+    shared_basis=None,
+    robust=False,
 ) -> dict:
     """Runs calculations over a set of molecules, optionally in parallel
 
@@ -271,6 +349,12 @@ def run_all(
         mols (list): a list of Molecule objects to run
         params (dict): parameters for backend
         parallel (bool): if True, will try to run distributed
+        shared_basis: a basis dict applied to every molecule (shipped once via
+            the object store in the parallel path)
+        robust (bool): if True, any per-molecule failure -- including a backend
+            error that raises rather than returning a failure code (e.g. a linear
+            dependency from freeing a function) -- yields ``None`` for that
+            molecule instead of propagating. Used by the ranking passes.
 
     Returns:
         a dictionary of the form {molecule name: value}
@@ -278,6 +362,8 @@ def run_all(
     mols = [] if mols is None else mols
     params = {} if params is None else params
     results = {}
+    if not mols:
+        return results
 
     if parallel and _PARALLEL:
         # Ray workers start fresh and must be told which backend to use; without
@@ -288,18 +374,44 @@ def run_all(
                 "run_all(parallel=True) requires ray_params with at least a "
                 "'backend' key so the Ray workers can set the backend."
             )
-        # Ensure Ray is initialized
         if not ray.is_initialized():
             ray.init(ignore_reinit_error=True, num_cpus=num_cores)
 
-        # Submit jobs to Ray
-        futures = [_run_one_job.remote(m, evaluate, params, ray_params) for m in mols]
-        tmp_results = ray.get(futures)
+        # Size the pool by cores/threads (stable across iterations so the actors
+        # stay warm); use a subset when there are fewer molecules than workers.
+        threads = ray_params.get('threads_per_job') or 1
+        pool_size = ray_params.get('n_workers') or max(1, num_cores // threads)
+        pool = _get_actor_pool(ray_params, pool_size)
+        active = max(1, min(pool_size, len(mols)))
 
-        # Collect results
-        for name, value in tmp_results:
-            if value is not None:
-                results[name] = value
+        # Put the (large, shared) basis and params in the object store ONCE; Ray
+        # resolves the refs to values in each actor call, so they are serialized
+        # once per run_all rather than once per molecule.
+        params_ref = ray.put(params)
+        basis_ref = ray.put(shared_basis) if shared_basis is not None else None
+        # Drop the shared basis from each molecule while submitting (it travels
+        # via basis_ref), then restore, so molecule serialization stays light.
+        stashed = None
+        if shared_basis is not None:
+            stashed = [m.basis for m in mols]
+            for m in mols:
+                m.basis = {}
+        try:
+            batches = chunk(mols, active)
+            futures = [
+                pool[i].run_batch.remote(batches[i], evaluate, params_ref, basis_ref, robust)
+                for i in range(active)
+            ]
+            gathered = ray.get(futures)
+        finally:
+            if stashed is not None:
+                for m, saved in zip(mols, stashed):
+                    m.basis = saved
+
+        for batch in gathered:
+            for name, value in batch:
+                if value is not None:
+                    results[name] = value
     else:
         # Sequential processing: use the already-configured backend and scratch
         # directory unless ray_params explicitly overrides them (previously this
@@ -309,11 +421,18 @@ def run_all(
             set_backend(ray_params['backend'], verbose=False)
             set_tmp_dir(ray_params['tmp_dir'], verbose=False)
         for m in mols:
+            if shared_basis is not None:
+                m.basis = shared_basis
             try:
                 name, value = _one_job(m, evaluate=evaluate, params=params)
                 results[name] = value
             except FailedCalculation:
                 bo_logger.error(f"Calculation failed for molecule: {m.name}")
+                results[m.name] = None
+            except Exception:
+                if not robust:
+                    raise
+                bo_logger.error(f"Calculation errored for molecule: {m.name}")
                 results[m.name] = None
 
     return results
