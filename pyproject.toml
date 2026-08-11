@@ -2,6 +2,11 @@
 requires = ["setuptools>=40.6.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+# Only package basisopt and its subpackages -- stops setuptools' flat-layout
+# auto-discovery from tripping over run-output dirs (tmp/, runs/) at the repo root.
+[tool.setuptools.packages.find]
+include = ["basisopt*"]
+
 [project]
 name = "basisopt"
 version = "1.2.2"
@@ -34,13 +39,18 @@ dependencies = [
     "matplotlib>=3.7.1",
     "ray>=2.11.0",
     "toml",
-    "pyyaml>=6.0"
+    "pyyaml>=6.0",
+    "typer>=0.12",
+    "rich>=13"
 
 ]
 
 [project.urls]
 Documentation = "https://basisopt.readthedocs.io/en/latest/"
 Source = "https://github.com/Sheffield-Theoretical-Chemistry/basisopt"
+
+[project.scripts]
+autobasis = "basisopt.autobasis.cli:app"
 
 [project.optional-dependencies]
 dev = [
