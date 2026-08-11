@@ -37,6 +37,26 @@ AM_DICT = {
 INV_AM_DICT = dict((v, k) for k, v in AM_DICT.items())
 """Dictionary converting back from l quantum number to letter value"""
 
+_NOBLE_GAS_ELECTRONS = (2, 10, 18, 36, 54, 86, 118)
+"""Cumulative electron counts at each noble gas (He, Ne, Ar, Kr, Xe, Rn, Og)."""
+
+
+def n_core_electrons(z: int) -> int:
+    """Number of inner-shell (noble-gas-core) electrons for atomic number ``z``.
+
+    The core is the electron count of the nearest noble gas *below* ``z`` (so 0 for
+    H and He, 2 for Li--Ne, 10 for Na--Ar, ...). Valence electrons are then
+    ``z - n_core_electrons(z)``. ECPs are not accounted for.
+    """
+    core = 0
+    for n in _NOBLE_GAS_ELECTRONS:
+        if n < z:
+            core = n
+        else:
+            break
+    return core
+
+
 _EVEN_TEMPERED_DATA = {}
 """Dictionary with pre-optimised even-tempered expansions for atoms"""
 

@@ -589,7 +589,8 @@ def _reference_loss(molecules, ref_basis, params, loss, parallel, ray_params) ->
     )
     bsies = [max(0.0, float(results[m.name]) - m.cbs_limit) for m in molecules]
     nelec = [m.nelectrons() for m in molecules]
-    return POLARISATION_LOSSES[loss](bsies, nelec)
+    nvalence = [m.nvalence_electrons() for m in molecules]
+    return POLARISATION_LOSSES[loss](bsies, nelec, nvalence)
 
 
 def _resolve_polarisation_target(step_cfg, molecules, params, loss, parallel, ray_params):
@@ -700,65 +701,133 @@ def step_polarisation(state: RunState, step_cfg: dict) -> StepResult:
     )
 
     min_l = int(step_cfg.get("min_l", 2))
-    strategy = AutoBasisPolarisation(
-        target=target,
-        min_l=min_l,
-        max_l=int(step_cfg.get("max_l", 3)),
-        seed_exponent=float(step_cfg.get("seed_exponent", 1.0)),
-        max_n=None if step_cfg.get("max_n") is None else int(step_cfg["max_n"]),
-        max_its=None if step_cfg.get("max_its") is None else int(step_cfg["max_its"]),
-        stall_tol=_num(step_cfg.get("stall_tol", 1e-5)),
-        delta_e=None if step_cfg.get("delta_e") is None else _num(step_cfg["delta_e"]),
-    )
-    strategy.params = params
-
+    max_l = int(step_cfg.get("max_l", 3))
+    seed_exponent = float(step_cfg.get("seed_exponent", 1.0))
     npass = step_cfg.get("npass", 1)
     algorithm = step_cfg.get("algorithm", "Nelder-Mead")
     opt_params = step_cfg.get("opt_params", {})
-    result_key = strategy.eval_type + "_" + element.title()
+    result_key = "energy_" + element.title()
+    # 'greedy' (default): AutoBasisPolarisation saturates one l then advances.
+    # 'config_search': compare competing d/f/g configurations at equal budget
+    # (the row-2 method; see opt/polarisation_search.py).
+    mode = step_cfg.get("mode", "greedy")
+    trace = None
 
-    sampling_cfg = step_cfg.get("sampling")
-    if sampling_cfg:
-        # Parallel multi-start (perturb the seed exponent); each start runs its
-        # molecule set serially, so the starts -- not the molecules -- get Ray.
-        from basisopt.opt import sampling
+    if mode == "config_search":
+        from basisopt.opt.polarisation_search import config_search_polarisation
 
-        sampling_ray = {
-            "backend": backend,
-            "tmp_dir": state.config.backend.tmp_dir,
-            "threads_per_job": sampling_cfg.get("threads_per_job", 1),
-        }
-        obj, stop_reason, combined, n_starts = sampling.multistart_polarisation(
+        max_l = int(step_cfg.get("max_l", 4))  # d..g by default for the search
+        max_n = None if step_cfg.get("max_n") is None else int(step_cfg["max_n"])
+        max_total = None if step_cfg.get("max_total") is None else int(step_cfg["max_total"])
+        min_improvement = _num(step_cfg.get("min_improvement", 0.0))
+        non_increasing = bool(step_cfg.get("non_increasing", True))
+        pcfg = (step_cfg.get("parallel") or state.config.backend.parallel) or {}
+        dispatch_cfg = (
+            {
+                "n_cores": pcfg.get("n_cores", 2),
+                "threads_per_job": pcfg.get("threads_per_job", 1),
+            }
+            if pcfg
+            else {}
+        )
+        final_loss, stop_reason, combined, final_config, trace = config_search_polarisation(
             molecules,
             combined,
-            strategy,
             el,
             algorithm,
             opt_params,
-            npass,
-            sampling_cfg,
-            sampling_ray,
+            params,
+            min_l=min_l,
+            max_l=max_l,
+            seed_exponent=seed_exponent,
+            target=target,
             loss=loss,
-        )
-        final_loss = _opt_float(obj)
-        per_molecule = None  # each start's per-molecule errors live on its own copies
-    else:
-        # Single start; the reference-molecule calcs in each objective evaluation
-        # fan out across the warm actor pool if a parallel block is set (Level A).
-        opt_data = [(el, algorithm, strategy, (lambda x: 0), opt_params)]
-        collective_polarize(
-            molecules,
-            combined,
-            opt_data=opt_data,
+            max_n=max_n,
+            max_total=max_total,
+            min_improvement=min_improvement,
+            non_increasing=non_increasing,
             npass=npass,
             parallel=parallel,
             ray_params=ray_params,
-            loss=loss,
+            dispatch_cfg=dispatch_cfg,
         )
-        stop_reason = getattr(strategy, "stop_reason", None)
-        final_loss = _opt_float(strategy.last_objective)
-        per_molecule = {mol.name: _opt_float(mol.get_result(result_key)) for mol in molecules}
+        final_loss = _opt_float(final_loss)
+        per_molecule = None  # per-molecule diagnostics live in the trace instead
         n_starts = 1
+        convergence = {
+            "mode": "config_search",
+            "target": _opt_float(target),
+            "min_improvement": min_improvement,
+            "max_n": max_n,
+            "max_l": max_l,
+            "max_total": max_total,
+            "non_increasing": non_increasing,
+            "final_config": final_config,
+        }
+    else:
+        strategy = AutoBasisPolarisation(
+            target=target,
+            min_l=min_l,
+            max_l=max_l,
+            seed_exponent=seed_exponent,
+            max_n=None if step_cfg.get("max_n") is None else int(step_cfg["max_n"]),
+            max_its=None if step_cfg.get("max_its") is None else int(step_cfg["max_its"]),
+            stall_tol=_num(step_cfg.get("stall_tol", 1e-5)),
+            delta_e=None if step_cfg.get("delta_e") is None else _num(step_cfg["delta_e"]),
+        )
+        strategy.params = params
+
+        sampling_cfg = step_cfg.get("sampling")
+        if sampling_cfg:
+            # Parallel multi-start (perturb the seed exponent); each start runs its
+            # molecule set serially, so the starts -- not the molecules -- get Ray.
+            from basisopt.opt import sampling
+
+            sampling_ray = {
+                "backend": backend,
+                "tmp_dir": state.config.backend.tmp_dir,
+                "threads_per_job": sampling_cfg.get("threads_per_job", 1),
+            }
+            obj, stop_reason, combined, n_starts = sampling.multistart_polarisation(
+                molecules,
+                combined,
+                strategy,
+                el,
+                algorithm,
+                opt_params,
+                npass,
+                sampling_cfg,
+                sampling_ray,
+                loss=loss,
+            )
+            final_loss = _opt_float(obj)
+            per_molecule = None  # each start's per-molecule errors live on its own copies
+        else:
+            # Single start; the reference-molecule calcs in each objective evaluation
+            # fan out across the warm actor pool if a parallel block is set (Level A).
+            opt_data = [(el, algorithm, strategy, (lambda x: 0), opt_params)]
+            collective_polarize(
+                molecules,
+                combined,
+                opt_data=opt_data,
+                npass=npass,
+                parallel=parallel,
+                ray_params=ray_params,
+                loss=loss,
+            )
+            stop_reason = getattr(strategy, "stop_reason", None)
+            final_loss = _opt_float(strategy.last_objective)
+            per_molecule = {mol.name: _opt_float(mol.get_result(result_key)) for mol in molecules}
+            n_starts = 1
+        convergence = {
+            "mode": "greedy",
+            "target": _opt_float(strategy.target),
+            "delta_e": strategy.delta_e,
+            "stall_tol": strategy.stall_tol,
+            "max_n": strategy.max_n,
+            "max_l": strategy.max_l,
+            "max_its": strategy.max_its,
+        }
 
     result_basis = {el: combined[el]}
     pol_shells = [sh.l for sh in combined[el] if AM_DICT[sh.l] >= min_l]
@@ -767,6 +836,7 @@ def step_polarisation(state: RunState, step_cfg: dict) -> StepResult:
         "parallel": parallel,
         "n_starts": n_starts,
         "loss": loss,
+        "mode": mode,
         "target": _opt_float(target),
         "target_source": target_source,
         "spectator_basis": default_spectator,
@@ -775,16 +845,11 @@ def step_polarisation(state: RunState, step_cfg: dict) -> StepResult:
         "final_loss": final_loss,
         "per_molecule_error": per_molecule,
         # the energy/convergence criteria that governed termination
-        "convergence": {
-            "target": _opt_float(strategy.target),
-            "delta_e": strategy.delta_e,
-            "stall_tol": strategy.stall_tol,
-            "max_n": strategy.max_n,
-            "max_l": strategy.max_l,
-            "max_its": strategy.max_its,
-        },
+        "convergence": convergence,
         "composition": get_composition(result_basis, element),
     }
+    if trace is not None:
+        record["trace"] = trace
     return StepResult(basis=result_basis, record=record, exports=_molpro_export(result_basis))
 
 

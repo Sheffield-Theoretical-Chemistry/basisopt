@@ -23,6 +23,29 @@ def test_nelectrons():
     assert m.nelectrons() == 102
 
 
+def test_nvalence_electrons():
+    """Valence = total minus the noble-gas core per atom (see n_core_electrons)."""
+    from basisopt.data import n_core_electrons
+
+    # H:0, He:0, Li-Ne:2, Na-Ar:10 core electrons
+    assert n_core_electrons(1) == 0 and n_core_electrons(8) == 2 and n_core_electrons(16) == 10
+
+    m = Molecule()
+    assert m.nvalence_electrons() == 0
+
+    s2 = Molecule(name="S2")
+    s2.add_atom(element="S", coord=[0.0, 0.0, 0.0])
+    s2.add_atom(element="S", coord=[0.0, 0.0, 1.9])
+    assert s2.nelectrons() == 32  # 2 x 16
+    assert s2.nvalence_electrons() == 12  # 2 x (16 - 10)
+
+    h2s = Molecule(name="H2S")
+    h2s.add_atom(element="S", coord=[0.0, 0.0, 0.0])
+    h2s.add_atom(element="H", coord=[0.0, 0.9, 0.9])
+    h2s.add_atom(element="H", coord=[0.0, -0.9, 0.9])
+    assert h2s.nvalence_electrons() == 8  # S:6 + 2 x H:1
+
+
 def test_add_atom():
     m = Molecule()
 

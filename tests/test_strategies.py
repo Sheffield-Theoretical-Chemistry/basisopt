@@ -593,18 +593,27 @@ def test_polarisation_delta_e_restores_seed_shell(dummy_backend):
 
 
 def test_polarisation_loss_registry():
-    """The named loss aggregates behave as documented (Eh vs Eh/electron)."""
+    """The named loss aggregates behave as documented (Eh vs Eh/electron vs
+    Eh/valence-electron). All share the (bsies, nelec, nvalence) signature."""
     from basisopt.opt.optimizers import POLARISATION_LOSSES
 
-    bsies, nelec = [1.0, 3.0], [10, 20]
-    assert POLARISATION_LOSSES["mean"](bsies, nelec) == 2.0
-    assert POLARISATION_LOSSES["total"](bsies, nelec) == 4.0
-    assert POLARISATION_LOSSES["max"](bsies, nelec) == 3.0
-    assert POLARISATION_LOSSES["mean_per_electron"](bsies, nelec) == pytest.approx(
+    bsies, nelec, nval = [1.0, 3.0], [10, 20], [4, 6]
+    assert POLARISATION_LOSSES["mean"](bsies, nelec, nval) == 2.0
+    assert POLARISATION_LOSSES["total"](bsies, nelec, nval) == 4.0
+    assert POLARISATION_LOSSES["max"](bsies, nelec, nval) == 3.0
+    assert POLARISATION_LOSSES["mean_per_electron"](bsies, nelec, nval) == pytest.approx(
         (1.0 / 10 + 3.0 / 20) / 2
     )
-    assert POLARISATION_LOSSES["max_per_electron"](bsies, nelec) == pytest.approx(
+    assert POLARISATION_LOSSES["max_per_electron"](bsies, nelec, nval) == pytest.approx(
         max(1.0 / 10, 3.0 / 20)
+    )
+    # valence variants divide by valence electrons only -- larger numbers, because the
+    # inert core no longer dilutes the valence-driven basis-incompleteness signal.
+    assert POLARISATION_LOSSES["mean_per_valence_electron"](bsies, nelec, nval) == pytest.approx(
+        (1.0 / 4 + 3.0 / 6) / 2
+    )
+    assert POLARISATION_LOSSES["max_per_valence_electron"](bsies, nelec, nval) == pytest.approx(
+        max(1.0 / 4, 3.0 / 6)
     )
 
 

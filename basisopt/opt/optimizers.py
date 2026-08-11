@@ -731,27 +731,39 @@ def contraction_optimize(
 
 # ---- polarisation loss functions -------------------------------------------
 # Each aggregates the list of per-molecule (floored, non-negative) BSIE values
-# in Eh plus the matching electron counts into the scalar the strategy's
-# target/convergence act on. Units follow the choice: *_per_electron give
-# Eh/electron, the rest give Eh (so a "1 mEh" target uses e.g. loss='mean').
-def _pol_loss_mean_per_electron(bsies, nelec):
+# in Eh plus the matching total- and valence-electron counts into the scalar the
+# strategy's target/convergence act on. Units follow the choice: *_per_electron and
+# *_per_valence_electron give Eh/electron, the rest give Eh (so a "1 mEh" target
+# uses e.g. loss='mean'). The valence variants divide by valence electrons only, so
+# the inert noble-gas core of heavier (e.g. second-row) atoms doesn't dilute the
+# valence-driven signal. All share the signature (bsies, nelec, nvalence); losses
+# that don't need a count simply ignore it.
+def _pol_loss_mean_per_electron(bsies, nelec, nvalence):
     return sum(b / n for b, n in zip(bsies, nelec)) / len(bsies)
 
 
-def _pol_loss_mean(bsies, nelec):
+def _pol_loss_mean(bsies, nelec, nvalence):
     return sum(bsies) / len(bsies)
 
 
-def _pol_loss_total(bsies, nelec):
+def _pol_loss_total(bsies, nelec, nvalence):
     return sum(bsies)
 
 
-def _pol_loss_max(bsies, nelec):
+def _pol_loss_max(bsies, nelec, nvalence):
     return max(bsies)
 
 
-def _pol_loss_max_per_electron(bsies, nelec):
+def _pol_loss_max_per_electron(bsies, nelec, nvalence):
     return max(b / n for b, n in zip(bsies, nelec))
+
+
+def _pol_loss_mean_per_valence_electron(bsies, nelec, nvalence):
+    return sum(b / v for b, v in zip(bsies, nvalence)) / len(bsies)
+
+
+def _pol_loss_max_per_valence_electron(bsies, nelec, nvalence):
+    return max(b / v for b, v in zip(bsies, nvalence))
 
 
 POLARISATION_LOSSES = {
@@ -760,6 +772,8 @@ POLARISATION_LOSSES = {
     "total": _pol_loss_total,
     "max": _pol_loss_max,
     "max_per_electron": _pol_loss_max_per_electron,
+    "mean_per_valence_electron": _pol_loss_mean_per_valence_electron,
+    "max_per_valence_electron": _pol_loss_max_per_valence_electron,
 }
 
 
@@ -823,7 +837,11 @@ def collective_polarize(
         )
 
     def aggregate(mols, contribs):
-        return loss_fn(contribs, [m.nelectrons() for m in mols])
+        return loss_fn(
+            contribs,
+            [m.nelectrons() for m in mols],
+            [m.nvalence_electrons() for m in mols],
+        )
 
     return _collective(
         molecules,

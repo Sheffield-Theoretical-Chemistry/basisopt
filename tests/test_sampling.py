@@ -34,6 +34,44 @@ def test_best_picks_min_objective_and_raises_when_all_fail():
         sampling._best([None, None], n_jobs=2)
 
 
+def test_multistart_polarisation_over_dummy(dummy_backend):
+    """End-to-end multi-start polarisation over the dummy backend: n_starts seed
+    exponents are perturbed, each start grows shells serially, and the best combined
+    basis (with the grown polarisation shells on the target element) is returned."""
+    import basisopt.api as api
+    from basisopt.opt.polarisation import AutoBasisPolarisation
+    from tests.data.factories import make_basis, make_molecule
+
+    combined = make_basis("o", config=(("s", (5.0, 1.0, 0.2)), ("p", (1.5, 0.3))))
+    mol = make_molecule(("O", "O"), method="linear", basis=combined, name="O2", cbs_limit=-2.0)
+    strat = AutoBasisPolarisation(target=1e-6, min_l=2, max_l=2, seed_exponent=1.0, max_n=2)
+    strat.params = {}
+    sampling_cfg = {"n_starts": 2, "seed_spread": 0.2, "rng_seed": 0, "n_cores": 2}
+    ray_params = {"backend": "dummy", "tmp_dir": "./tmp/", "threads_per_job": 1}
+    try:
+        obj, reason, basis, n_starts = sampling.multistart_polarisation(
+            [mol],
+            combined,
+            strat,
+            "o",
+            "Nelder-Mead",
+            {},
+            1,
+            sampling_cfg,
+            ray_params,
+            loss="mean_per_valence_electron",
+        )
+        assert n_starts == 2
+        # a d polarisation shell was grown onto the sp base
+        assert any(sh.l == "d" for sh in basis["o"])
+    finally:
+        if api._PARALLEL:
+            import ray
+
+            if ray.is_initialized():
+                ray.shutdown()
+
+
 def test_multistart_primitives_over_dummy(dummy_backend):
     """End-to-end multi-start over the dummy backend: n_starts Legendre
     optimisations run (via Ray if available, else serial) and the best basis is

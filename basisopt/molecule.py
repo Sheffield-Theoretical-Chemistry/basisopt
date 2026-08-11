@@ -6,7 +6,7 @@ import numpy as np
 from monty.json import MSONable
 
 from .containers import basis_to_dict, dict_to_basis
-from .data import GROUNDSTATE_MULTIPLICITIES, atomic_number
+from .data import GROUNDSTATE_MULTIPLICITIES, atomic_number, n_core_electrons
 from .exceptions import InvalidDiatomic
 from .util import bo_logger, dict_decode
 
@@ -100,6 +100,21 @@ class Molecule(MSONable):
         for a in unique:
             nel += self._atom_names.count(a) * atomic_number(a)
         return nel
+
+    def nvalence_electrons(self) -> int:
+        """Returns the number of valence electrons in the molecule.
+
+        Valence = total minus the noble-gas core per atom (see
+        :func:`basisopt.data.n_core_electrons`); not accounting for any ECPs. Used
+        by the ``*_per_valence_electron`` polarisation losses so that core-heavy
+        second-row atoms don't dilute the valence-driven basis-incompleteness signal.
+        """
+        unique = self.unique_atoms()
+        nval = 0
+        for a in unique:
+            z = atomic_number(a)
+            nval += self._atom_names.count(a) * (z - n_core_electrons(z))
+        return nval
 
     def add_atom(
         self,
