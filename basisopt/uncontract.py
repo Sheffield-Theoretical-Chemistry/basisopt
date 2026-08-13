@@ -7,6 +7,7 @@ from . import api
 # from .api import _CURRENT_BACKEND as wrapper
 from .api import bo_logger
 from .basis.basis import uncontract
+from .util import format_with_prefix
 
 
 def argsort_inhomogeneous_array(array):
@@ -72,7 +73,6 @@ def rank_uncontract_element(mol, element, params, verbose=False):
                 errors.append(0)
                 continue
             shell.coefs.append(new_coefs)
-            # print(shell.coefs)
             api.run_calculation(mol=mol, params=params)
             energies.append(wrapper.get_value('energy'))
             errors.append(abs(energies[-1] - ref_energy))
@@ -258,7 +258,6 @@ def add_uncontracted_functions(mol, element, target, params, verbose=False):
         shell.coefs.append(np.zeros(len(shell.exps)))
         shell.coefs[-1][exp_idx] = 1.0
         shell.coefs = sort_by_length_and_nonzero_index(shell.coefs)
-        # print(f'{shell.l}: {shell.coefs}')
         api.run_calculation(mol=mol, params=params)
         energy = wrapper.get_value('energy')
     return uncontracted_functions
@@ -280,14 +279,20 @@ def uncontract_single_function(mol, element, ang, exp, params):
     api.run_calculation(mol=mol, params=params)
     wrapper = api.get_backend()
     ref_energy = np.floor(wrapper.get_value('energy') * 10**6) / 10**6
-    bo_logger.info(f'Uncontracting {element} {ang} {exp+1}')
+    bo_logger.debug("Uncontracting %s %s %d", element, ang, exp + 1)
     new_contraction = np.zeros(len(mol.basis[element.lower()][ang].exps))
     new_contraction[exp] = 1
     mol.basis[element.lower()][ang].coefs.append(new_contraction)
     api.run_calculation(mol=mol, params=params)
     energy = np.floor(wrapper.get_value('energy') * 10**6) / 10**6
     delta = energy - ref_energy
-    bo_logger.info(f'New energy: {energy} Delta: {delta}')
+    bo_logger.debug(
+        "uncontract %s %s: E=%s, ΔE=%s",
+        element,
+        ang,
+        format_with_prefix(energy, 'Eh'),
+        format_with_prefix(delta, 'Eh'),
+    )
     return energy
 
 
@@ -341,19 +346,20 @@ def uncontract_percentage(mol, element, percentage_target, params, parallel=Fals
             # nothing left to uncontract (e.g. a single-shell element like H whose
             # functions are all already uncontracted) -- stop rather than index an
             # empty ranking or spin the loop forever.
-            bo_logger.warning('No s or p functions left to uncontract; stopping')
+            bo_logger.info('No s or p functions left to uncontract; stopping')
             break
 
         s_ang, s_exp, s_contrib = s_ranks[-1] if have_s else (0.0, 0.0, -np.inf)
         p_ang, p_exp, p_contrib = p_ranks[-1] if have_p else (1.0, 0.0, -np.inf)
         if have_s:
-            bo_logger.warning(f'{int(s_exp+1)}s: {s_contrib}')
+            bo_logger.debug("s contribution: %ds = %.6g", int(s_exp + 1), s_contrib)
         if have_p:
-            bo_logger.warning(f'{int(p_exp+1)}p: {p_contrib}')
+            bo_logger.debug("p contribution: %dp = %.6g", int(p_exp + 1), p_contrib)
         if have_s and have_p:
-            bo_logger.warning(
-                f'Difference between contributions: {s_contrib - p_contrib} '
-                f'({(s_contrib - p_contrib)/p_contrib*100}%)'
+            bo_logger.debug(
+                "Δ(s,p) contribution: %.6g (%.2f%%)",
+                s_contrib - p_contrib,
+                (s_contrib - p_contrib) / p_contrib * 100,
             )
             contrib_difference = abs(s_contrib - p_contrib)
         else:

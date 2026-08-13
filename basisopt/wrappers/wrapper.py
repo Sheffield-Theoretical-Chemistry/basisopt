@@ -127,6 +127,7 @@ class Wrapper:
              0 on success, -1 if method isn't available, -2 otherwise
         """
         method_str = f"{molecule.method}.{evaluate}".lower()
+        bo_logger.debug("running %s on '%s' (%s backend)", method_str, molecule.name, self._name)
         try:
             if self.verify_method_string(method_str):
                 self._values[evaluate] = self._methods[evaluate](
@@ -135,7 +136,7 @@ class Wrapper:
                 return 0
             raise MethodNotAvailable(method_str)
         except KeyError as e:
-            bo_logger.error(e)
+            bo_logger.error("run failed for %s (KeyError: %s)", method_str, e)
             return -2
         except MethodNotAvailable:
             bo_logger.error("Unable to run %s with %s backend", method_str, self._name)

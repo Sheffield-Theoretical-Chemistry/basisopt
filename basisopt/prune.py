@@ -3,7 +3,7 @@ import copy
 import numpy as np
 
 from . import api, bo_logger
-from .util import rank_shell_contractions
+from .util import format_with_prefix, rank_shell_contractions
 
 
 def argsort_inhomogeneous_3d_array(array):
@@ -124,15 +124,21 @@ def prune_element(mol, element, target, params, parallel=False, ray_params=None)
         shell = mol.basis[element.lower()][ang_idx]
         old_coefs = copy.deepcopy(shell.coefs)
         shell.coefs[idx][exp_idx] = 0.0
-        bo_logger.info(f'Pruned {shell.l} {idx} {exp_idx}')
         api.run_calculation(mol=mol, params=params)
         energy = api.get_backend().get_value('energy')
-        bo_logger.info(f'Energy: {energy}')
-        bo_logger.info(f'Target: {reference_energy + target}')
-        bo_logger.info(f'Diff: {energy - reference_energy}')
+        bo_logger.debug(
+            "prune %s %s[%d,%d]: E=%s, target=%s, ΔE=%s",
+            element,
+            shell.l,
+            idx,
+            exp_idx,
+            format_with_prefix(energy, 'Eh'),
+            format_with_prefix(reference_energy + target, 'Eh'),
+            format_with_prefix(energy - reference_energy, 'Eh'),
+        )
 
     # revert the last prune that pushed the energy over target, if any was made
     if shell is not None and old_coefs is not None:
         shell.coefs = old_coefs
-        bo_logger.info(f'Reverted Prune of {shell.l} {idx} {exp_idx}')
+        bo_logger.debug("reverted prune %s %s[%d,%d]", element, shell.l, idx, exp_idx)
     return mol

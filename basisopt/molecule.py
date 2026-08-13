@@ -160,6 +160,7 @@ class Molecule(MSONable):
         try:
             return self._results[name]
         except KeyError:
+            bo_logger.debug("no result '%s' on molecule '%s'; returning 0.0", name, self.name)
             return 0.0
 
     def add_reference(self, name: str, value: Any):
@@ -171,6 +172,7 @@ class Molecule(MSONable):
         try:
             return self._references[name]
         except KeyError:
+            bo_logger.debug("no reference '%s' on molecule '%s'; returning 0.0", name, self.name)
             return 0.0
 
     def get_delta(self, name: str) -> Any:
@@ -193,19 +195,21 @@ class Molecule(MSONable):
             # Read in xyz file
             with open(filename, "r") as f:
                 lines = f.readlines()
-            # parse
-            # first line should be natoms
+            # parse: first line is natoms, second is the title, then atom lines
             nat = int(lines[0])
-            # second line is title
             for line in lines[2 : 2 + nat]:
                 words = line.split()
                 element = words[0]
                 coords = np.array([float(w) for w in words[1:4]])
                 instance.add_atom(element=element, coord=coords)
-        except IOError as e:
-            bo_logger.error("I/O error(%d): %s", e.errno, e.strerror)
-        except Exception:
-            bo_logger.error("Incorrect formatting in %s", filename)
+        except OSError as exc:
+            bo_logger.error("could not read xyz file '%s': %s", filename, exc)
+            raise
+        except (ValueError, IndexError) as exc:
+            # a half-built molecule silently returned here caused failures far from the
+            # cause; surface the real parse error instead.
+            bo_logger.error("malformed xyz file '%s': %s", filename, exc)
+            raise
         return instance
 
     def to_xyz(self, export_path: str = None) -> str:

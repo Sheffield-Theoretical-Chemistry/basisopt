@@ -58,6 +58,7 @@ def _activate(ray_params):
         api.set_backend(ray_params["backend"], verbose=False)
         api.set_tmp_dir(ray_params.get("tmp_dir", "./tmp/"), verbose=False)
         api._apply_additional_params(ray_params)
+        api._apply_worker_log_level(ray_params)
 
 
 def _primitives_start(mol, strategy, algorithm, opt_params, ray_params):

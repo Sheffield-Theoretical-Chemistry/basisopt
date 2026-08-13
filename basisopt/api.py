@@ -4,7 +4,7 @@ from typing import Any, Callable
 
 import colorlog
 
-from basisopt.exceptions import FailedCalculation
+from basisopt.exceptions import BackendNotFound, FailedCalculation
 from basisopt.molecule import Molecule
 from basisopt.parallelise import chunk
 from basisopt.wrappers.dummy import DummyWrapper
@@ -17,7 +17,7 @@ try:
     num_cores = 2
     import ray
 except ImportError:
-    bo_logger.error('RAY Import Error')
+    bo_logger.debug("Ray not installed; parallelism disabled")
     _PARALLEL = False
 
 _BACKENDS = {}
@@ -37,7 +37,7 @@ def set_parallel(value: bool = True, number_cores: int = 2):
                 _PARALLEL = True
             except Exception as e:
                 _PARALLEL = False
-                bo_logger.warning(f"Could not initialize Ray: {str(e)}")
+                bo_logger.warning("Could not initialize Ray: %s", e)
         else:
             _PARALLEL = True
             ray.shutdown()  # Restart Ray to configure with new number of cores
@@ -120,22 +120,78 @@ def which_backend() -> str:
     return _CURRENT_BACKEND._name
 
 
-def set_logger(level: int = logging.INFO, filename: str = None):
-    """Initialises Python logging, formatting it nicely,
-    and optionally printing to a file.
+def set_logger(
+    level: int = logging.INFO,
+    filename: str = None,
+    *,
+    rich: bool = False,
+    console=None,
+):
+    """(Re)configure the ``basisopt`` logger.
+
+    Owns a single console handler on ``bo_logger`` itself (not the root logger), so
+    repeat calls actually change the level/handler instead of being a no-op, and
+    handlers never stack. ``bo_logger.propagate`` is left at its default ``True`` and
+    the root logger is never configured, so there is no double output and pytest's
+    ``caplog`` (which captures at the root) still sees records.
+
+    Arguments:
+        level: logging level for the console (and file) handler.
+        filename: if given, also tee to this file (plain, uncoloured format).
+        rich: render the console handler through ``rich.logging.RichHandler`` so log
+            lines share the auto-basis CLI's visual system.
+        console: an optional ``rich.console.Console`` for the RichHandler to write to
+            (implies ``rich=True``); defaults to Rich's own stderr console.
     """
     log_format = '%(asctime)s - ' '%(funcName)s - ' '%(levelname)s - ' '%(message)s'
-    bold_seq = '\033[1m'
-    colorlog_format = f'{bold_seq} ' '%(log_color)s ' f'{log_format}'
-    colorlog.basicConfig(format=colorlog_format)
+
+    # Drop any handler we installed on a previous call (idempotent reconfigure).
+    for handler in list(bo_logger.handlers):
+        if getattr(handler, "_basisopt_managed", False):
+            bo_logger.removeHandler(handler)
+
+    if rich or console is not None:
+        from rich.logging import RichHandler
+
+        console_handler = RichHandler(
+            console=console, rich_tracebacks=True, show_path=False, markup=False
+        )
+        console_handler.setFormatter(logging.Formatter('%(funcName)s: %(message)s'))
+    else:
+        bold_seq = '\033[1m'
+        colorlog_format = f'{bold_seq} ' '%(log_color)s ' f'{log_format}'
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(colorlog.ColoredFormatter(colorlog_format))
+
+    console_handler.setLevel(level)
+    console_handler._basisopt_managed = True
+    bo_logger.addHandler(console_handler)
     bo_logger.setLevel(level)
 
     if filename is not None:
         fh = logging.FileHandler(filename)
         fh.setLevel(level)
-        formatter = logging.Formatter(log_format)
-        fh.setFormatter(formatter)
+        fh.setFormatter(logging.Formatter(log_format))
+        fh._basisopt_managed = True
         bo_logger.addHandler(fh)
+
+
+class _AutoBasisAdapter(logging.LoggerAdapter):
+    """Tags every message with ``[auto-basis]`` so pipeline lines stand out in a run."""
+
+    def process(self, msg, kwargs):
+        return f"[auto-basis] {msg}", kwargs
+
+
+# Child logger for the auto-basis pipeline: records propagate up to ``bo_logger``'s handlers.
+ab_logger = _AutoBasisAdapter(logging.getLogger("basisopt.autobasis"), {})
+
+
+def _apply_worker_log_level(ray_params) -> None:
+    """Inside a Ray worker, match the driver's log level when it was threaded through
+    ``ray_params`` (each worker otherwise re-initialises at INFO on import)."""
+    if ray_params and ray_params.get("log_level") is not None:
+        bo_logger.setLevel(ray_params["log_level"])
 
 
 @register_backend
@@ -155,8 +211,11 @@ def psi4(path: str):
         from basisopt.wrappers.psi4 import Psi4Wrapper
 
         _CURRENT_BACKEND = Psi4Wrapper()
-    except ImportError:
-        bo_logger.error("Psi4 backend not found!")
+    except ImportError as exc:
+        raise BackendNotFound(
+            "Psi4 backend not found. Install psi4 (e.g. `conda install -c psi4 psi4`) "
+            "to use it, or choose another backend."
+        ) from exc
 
 
 @register_backend
@@ -177,8 +236,10 @@ def molpro(path: str):
         from basisopt.wrappers.molpro import MolproWrapper
 
         _CURRENT_BACKEND = MolproWrapper()
-    except ImportError:
-        bo_logger.error("Molpro backend (using pymolpro) not found!")
+    except ImportError as exc:
+        raise BackendNotFound(
+            "Molpro backend not found. Install pymolpro to use it, or choose another backend."
+        ) from exc
 
 
 def run_calculation(
@@ -233,6 +294,7 @@ def _run_one_job(molecule, evaluate, params, ray_params=None):
     try:
         set_backend(ray_params['backend'], verbose=False)
         _apply_additional_params(ray_params)
+        _apply_worker_log_level(ray_params)
     except TypeError:
         bo_logger.error(
             'No backend set for Ray. Please pass a dictionary with the "backend" key assigned to a valid backend. The ray parameters should be passed into the optimization through the ray_params argument.'
@@ -245,7 +307,7 @@ def _run_one_job(molecule, evaluate, params, ray_params=None):
         name, value = _one_job(molecule, evaluate=evaluate, params=params)
         return name, value
     except FailedCalculation:
-        bo_logger.error(f"Calculation failed for molecule: {molecule.name}")
+        bo_logger.warning("Calculation failed for molecule '%s'", molecule.name)
         return molecule.name, None
 
 
@@ -271,6 +333,7 @@ class _BackendActorImpl:
         set_backend(ray_params["backend"], verbose=False)
         set_tmp_dir(ray_params.get("tmp_dir", "./tmp/"), verbose=False)
         _apply_additional_params(ray_params)
+        _apply_worker_log_level(ray_params)
 
     def run_batch(self, molecules, evaluate, params, shared_basis=None, robust=False):
         """Run a chunk of molecules on the warm backend. ``shared_basis`` (if
@@ -287,10 +350,12 @@ class _BackendActorImpl:
                 success = _CURRENT_BACKEND.run(evaluate, mol, params, tmp=_TMP_DIR)
                 value = _CURRENT_BACKEND.get_value(evaluate) if success == 0 else None
             except FailedCalculation:
+                bo_logger.warning("Calculation failed for molecule '%s'", mol.name)
                 value = None
             except Exception:
                 if not robust:
                     raise
+                bo_logger.exception("Unexpected error for molecule '%s'", mol.name)
                 value = None
             _CURRENT_BACKEND.clean()
             out.append((mol.name, value))
@@ -427,12 +492,12 @@ def run_all(
                 name, value = _one_job(m, evaluate=evaluate, params=params)
                 results[name] = value
             except FailedCalculation:
-                bo_logger.error(f"Calculation failed for molecule: {m.name}")
+                bo_logger.warning("Calculation failed for molecule '%s'", m.name)
                 results[m.name] = None
             except Exception:
                 if not robust:
                     raise
-                bo_logger.error(f"Calculation errored for molecule: {m.name}")
+                bo_logger.exception("Unexpected error for molecule '%s'", m.name)
                 results[m.name] = None
 
     return results

@@ -21,6 +21,12 @@ class FailedCalculation(Exception):
     pass
 
 
+class BackendNotFound(Exception):
+    """A requested calculation backend could not be imported/initialised."""
+
+    pass
+
+
 class ElementNotSet(Exception):
     pass
 

@@ -72,6 +72,19 @@ def _load(config: Path):
         raise typer.Exit(1)
 
 
+def _configure_logging(verbose: bool, quiet: bool) -> None:
+    """Map ``--verbose``/``--quiet`` to a level and route ``bo_logger`` through Rich,
+    so log lines share the CLI's visual system instead of clashing with colorlog."""
+    import logging
+
+    from basisopt.api import set_logger
+
+    if verbose and quiet:
+        raise typer.BadParameter("--verbose and --quiet are mutually exclusive")
+    level = logging.DEBUG if verbose else logging.WARNING if quiet else logging.INFO
+    set_logger(level, rich=True, console=err_console)
+
+
 def _chain(steps) -> Text:
     """Render a step list as a coloured ``a → b → c`` chain."""
     text = Text()
@@ -141,11 +154,18 @@ def run(
     force: bool = typer.Option(
         False, "--force", "-f", help="Re-run steps even if already recorded in the manifest"
     ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show DEBUG detail (per-iteration optimiser output)"
+    ),
+    quiet: bool = typer.Option(
+        False, "--quiet", "-q", help="Only warnings/errors and step results"
+    ),
 ) -> None:
     """[green]Run[/] the steps listed in a config file (resuming finished ones)."""
     from .config import CANONICAL_STEPS
     from .pipeline import run_pipeline
 
+    _configure_logging(verbose, quiet)
     cfg = _load(config)
     console.print(_header(cfg))
     console.print("running ", Text("→ ", style="dim"), _chain(cfg.steps), "\n")
@@ -157,8 +177,9 @@ def run(
         err_console.print(
             Panel(f"{type(exc).__name__}: {exc}", title="[red]pipeline failed", border_style="red")
         )
-        # ...plus the full (colourful) traceback so the failure stays debuggable.
-        err_console.print_exception(show_locals=False)
+        # Full traceback only when asked for; otherwise the one-line panel is enough.
+        if verbose:
+            err_console.print_exception(show_locals=False)
         raise typer.Exit(1)
 
     done = [s for s in CANONICAL_STEPS if manifest.has(s)]
@@ -178,10 +199,13 @@ def status(
     config: Path = typer.Argument(
         ..., exists=True, dir_okay=False, help="Path to a pipeline YAML config"
     ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show DEBUG detail"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Only warnings/errors"),
 ) -> None:
     """Show which steps have [green]completed[/] for a config, and which are queued."""
     from .manifest import Manifest
 
+    _configure_logging(verbose, quiet)
     cfg = _load(config)
     manifest = Manifest.load_or_create(cfg.workdir, cfg.element)
     console.print(_header(cfg))
@@ -193,12 +217,15 @@ def validate(
     config: Path = typer.Argument(
         ..., exists=True, dir_okay=False, help="Path to a pipeline YAML config"
     ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show DEBUG detail"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Only warnings/errors"),
 ) -> None:
     """[green]Pre-flight[/] a config: parse it, summarise it, and check referenced files exist.
 
     Loads no backend and runs no calculation — safe to run anywhere, and answers
     "will this config do what I think, and are its paths real?" before a long run.
     """
+    _configure_logging(verbose, quiet)
     cfg = _load(config)
     console.print(_header(cfg))
 

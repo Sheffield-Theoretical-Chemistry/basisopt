@@ -11,6 +11,7 @@ module never imports a backend and is testable with dummy steps.
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -102,7 +103,7 @@ def _run_export(
     """Perform one configured export; return a provenance dict, or None. Export
     failures are logged but never abort the run (a completed basis must not be
     lost to an export typo)."""
-    from basisopt import bo_logger
+    from basisopt.api import ab_logger
 
     path = export_cfg.get("path")
     if not path:
@@ -110,11 +111,31 @@ def _run_export(
     fmt = _export_format(export_cfg, global_export)
     try:
         export_basis(basis, path, fmt)
-    except Exception as exc:  # noqa: BLE001 - export is a convenience, never fatal
-        bo_logger.warning("[auto-basis] export of %s to %s (%s) failed: %s", label, path, fmt, exc)
+    except Exception:  # noqa: BLE001 - export is a convenience, never fatal
+        ab_logger.warning("export of %s to %s (%s) failed", label, path, fmt, exc_info=True)
         return None
-    bo_logger.info("[auto-basis] exported %s basis -> %s (%s)", label, path, fmt)
+    ab_logger.info("exported %s basis -> %s (%s)", label, path, fmt)
     return {"path": str(path), "format": fmt}
+
+
+def _summarise_record(record: dict) -> str:
+    """One-line human summary of a step's ``record`` for the run log."""
+    from basisopt.util import format_with_prefix
+
+    parts: list[str] = []
+    if record.get("composition"):
+        parts.append(str(record["composition"]))
+    if record.get("dE_CBS") is not None:
+        parts.append(f"dE_CBS={format_with_prefix(record['dE_CBS'], 'Eh')}")
+    if record.get("target_met") is not None:
+        parts.append("target met" if record["target_met"] else "TARGET NOT MET")
+    if record.get("decontract_error_percent") is not None:
+        parts.append(f"decontract err {record['decontract_error_percent']:.3g}%")
+    if record.get("final_loss") is not None:
+        parts.append(f"loss={record['final_loss']:.3e}")
+    if record.get("stop_reason"):
+        parts.append(f"stop={record['stop_reason']}")
+    return " · ".join(parts) if parts else "done"
 
 
 def _resolve_input(cfg: PipelineConfig, name: str, manifest: Manifest):
@@ -145,7 +166,7 @@ def run_config(
     ``timestamp`` is stamped into each step record (pass one in; the driver does
     not read the clock). ``force`` re-runs steps even if already recorded.
     """
-    from basisopt import bo_logger
+    from basisopt.api import ab_logger
 
     workdir = Path(cfg.workdir)
     workdir.mkdir(parents=True, exist_ok=True)
@@ -159,17 +180,26 @@ def run_config(
         step_export = _normalize_export(step_cfg.get("export"))
 
         if manifest.has(name) and not force and not step_cfg.get("force"):
-            bo_logger.info("[auto-basis] skipping '%s' (already done); use force to rerun", name)
+            ab_logger.info("skipping '%s' (already done); use force to rerun", name)
             # still honour a configured per-step export, from the recorded basis
             if step_export and step_export.get("path"):
                 _run_export(load_basis(manifest.basis_path(name)), step_export, global_export, name)
             continue
 
-        bo_logger.info("[auto-basis] running step '%s' for %s", name, cfg.element)
+        ab_logger.info(
+            "running step '%s' for %s (backend=%s)", name, cfg.element, cfg.step_backend(name)
+        )
         state = RunState(
             config=cfg, element=cfg.element, input_basis=_resolve_input(cfg, name, manifest)
         )
+        started = time.perf_counter()
         result = get_step(name, registry)(state, step_cfg)
+        ab_logger.info(
+            "step '%s' done in %.1fs — %s",
+            name,
+            time.perf_counter() - started,
+            _summarise_record(result.record),
+        )
 
         step_dir = workdir / _step_dirname(name)
         step_dir.mkdir(parents=True, exist_ok=True)
@@ -201,9 +231,8 @@ def run_config(
                 load_basis(manifest.basis_path(final)), global_export, global_export, "final"
             )
         else:
-            bo_logger.warning(
-                "[auto-basis] global export requested but the final step '%s' did not complete",
-                final,
+            ab_logger.warning(
+                "global export requested but the final step '%s' did not complete", final
             )
     return manifest
 

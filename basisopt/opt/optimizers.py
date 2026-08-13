@@ -96,21 +96,23 @@ def _run_strategy(
         if len(guess) > 0:
             res = minimize(objective, guess, method=algorithm, **opt_params)
             objective_value = res.fun
-            lines = [
-                f"Parameters: {res.x}",
-                f"Objective: {objective_value}",
-                f"Delta: {objective_value - strategy.last_objective}",
-            ]
+            bo_logger.debug(
+                "step %d: objective=%.8g, delta=%.2e, params=%s",
+                ctr,
+                objective_value,
+                objective_value - strategy.last_objective,
+                res.x,
+            )
             if verbose and cbs_limit is not None:
                 dE_CBS = objective_value - cbs_limit
                 res['dE_CBS'] = dE_CBS
-                lines.append("Difference to atomic CBS limit: " + format_with_prefix(dE_CBS, 'Eₕ'))
+                bo_logger.info(
+                    "Difference to atomic CBS limit: %s", format_with_prefix(dE_CBS, 'Eₕ')
+                )
             results[f"atomicopt{ctr}"] = res
             ctr += 1
-            info_str = "\n".join(lines)
         else:
-            info_str = "Skipping empty shell"
-        bo_logger.info(info_str)
+            bo_logger.debug("Skipping empty shell")
 
     if finalize is not None:
         finalize(results, objective_value)
@@ -264,27 +266,28 @@ def _atomic_opt_auto(
     """
 
     def finalize(results: OptResult, objective_value: float):
-        bo_logger.info("Optimization finished")
-        bo_logger.info("Final energy: %f", objective_value)
+        bo_logger.info(
+            "Optimization finished; final energy %s", format_with_prefix(objective_value, 'Eh')
+        )
         exps = '\n'.join(
             [
                 f"\t{shell.l}: " + ','.join([f"{exp:.6e}" for exp in shell.exps])
                 for shell in basis[element]
             ]
         )
-        bo_logger.info(f"\n\tFinal exponents:\n{exps}")
+        bo_logger.debug("Final exponents:\n%s", exps)
         try:
             final_leg = '\n'.join(
                 [f"\t{shell.l}: " + str(shell.leg_params[0].tolist()) for shell in basis[element]]
             )
-            bo_logger.info(f"\n\tFinal Legendre parameters:\n {final_leg}")
+            bo_logger.debug("Final Legendre parameters:\n%s", final_leg)
         except Exception:
-            pass
+            bo_logger.debug("no Legendre parameters to report", exc_info=True)
         bo_logger.info(
-            "Difference to atomic CBS limit: "
-            + format_with_prefix(abs(objective_value - strategy.cbs_limit), 'E\u2095')
+            "Difference to atomic CBS limit: %s",
+            format_with_prefix(abs(objective_value - strategy.cbs_limit), 'E\u2095'),
         )
-        bo_logger.info(f"Basis composition: {get_composition(basis, element)}")
+        bo_logger.info("Basis composition: %s", get_composition(basis, element))
 
     return _run_strategy(
         basis,
@@ -944,9 +947,11 @@ class Optimizer:
             element (str): Element to optimize over
             algorithm (str): Scipy optimization algorithm to use
         """
-        bo_logger.info(f"Starting optimization of {self.strategy.eval_type} {element.capitalize()}")
-        bo_logger.info(f"Using {algorithm} algorithm for strategy {self.strategy.name}")
-        bo_logger.info(f"Using loss function: {self.loss.__name__}")
+        bo_logger.info(
+            "Starting optimization of %s %s", self.strategy.eval_type, element.capitalize()
+        )
+        bo_logger.info("Using %s algorithm for strategy %s", algorithm, self.strategy.name)
+        bo_logger.info("Using loss function: %s", self.loss.__name__)
 
         with BasisOptimizationLogger(
             basis=self.basis,
@@ -989,31 +994,21 @@ class Optimizer:
                             **self.opt_params,
                         )
                     objective_value = res.fun
-
-                    info_lines = [
-                        f"Parameters: {res.x}",
-                        f"Objective value: {res.fun}",
-                    ]
-                    if self.strategy.target is not None:
-                        info_lines.append(f"Target value: {self.strategy.target}")
-                        info_lines.append(
-                            f"Difference to target: {objective_value - self.strategy.target}"
-                        )
-                    info_lines.extend(
-                        [
-                            f"Step Delta: {objective_value - self.strategy.last_objective}",
-                            f"Total Delta: {objective_value - initial_objective}",
-                        ]
+                    bo_logger.debug(
+                        "step %d: objective=%.8g, step_delta=%.2e, total_delta=%.2e, params=%s",
+                        ctr,
+                        objective_value,
+                        objective_value - self.strategy.last_objective,
+                        objective_value - initial_objective,
+                        res.x,
                     )
-                    info_str = "\n".join(info_lines)
                     # Namespace by element: a shared self.results dict with a
                     # per-element ctr reset meant multi-element runs overwrote
                     # earlier elements' steps.
                     self.results[f"{element}_opt{ctr}"] = res
                     ctr += 1
                 else:
-                    info_str = "Skipping empty shell"
-                bo_logger.info(info_str)
+                    bo_logger.debug("Skipping empty shell")
             bo_logger.info(self._completion_message)
 
     _completion_message = "Optimization complete."

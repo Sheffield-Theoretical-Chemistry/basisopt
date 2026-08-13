@@ -90,6 +90,14 @@ class Psi4Wrapper(Wrapper):
         - sets options from globals and params
         - converts basis set (TODO: handle jkfit)
         """
+        # Direct psi4's binary scratch (PSIO files) to the configured tmp dir instead
+        # of the default /tmp. /tmp accumulates stale `psi.<pid>.<unit>` files from any
+        # aborted run, which is a classic source of "PSIO_ERROR: Incorrect block start
+        # address"; a dedicated per-run scratch dir avoids that and keeps it cleanable.
+        if tmp:
+            os.makedirs(tmp, exist_ok=True)
+            psi4.core.IOManager.shared_object().set_default_path(os.path.abspath(tmp))
+
         # create output file
         outfile = os.path.join(tmp, f"{m.name}-{m.method}-{name}.out")
         psi4.core.set_output_file(outfile, False)

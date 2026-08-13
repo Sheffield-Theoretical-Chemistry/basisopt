@@ -83,9 +83,14 @@ def _target(state: RunState, step_cfg: dict, step_name: str) -> float:
 
 def _run_energy(mol, params) -> Optional[float]:
     """Run a single-point calc and return the energy (None on failure)."""
-    from basisopt import api
+    from basisopt import api, bo_logger
 
     if api.run_calculation(mol=mol, params=params) != 0:
+        bo_logger.warning(
+            "energy calculation failed for '%s' (backend=%s)",
+            mol.name,
+            api.get_backend()._name,
+        )
         return None
     # run_calculation stores the result under the evaluate key ("energy"), not
     # under the method name; get_value(mol.method) always missed and returned None.
@@ -369,8 +374,9 @@ def step_uncontraction(state: RunState, step_cfg: dict) -> StepResult:
         from basisopt.exceptions import FailedCalculation
 
         raise FailedCalculation(
-            "uncontraction reference calculation failed "
-            f"(uncontracted={uncontracted_energy}, contracted={contracted_energy})"
+            f"uncontraction reference calculation failed for {state.element} "
+            f"(backend={backend}, uncontracted={uncontracted_energy}, "
+            f"contracted={contracted_energy})"
         )
     # uncontract_percentage reads these off the molecule (via get_result); without
     # storing them it saw 0.0/0.0 and raised ZeroDivisionError.
@@ -527,6 +533,7 @@ def _parallel_settings(state: RunState, backend: str, step_cfg: Optional[dict] =
         "backend": backend,
         "tmp_dir": state.config.backend.tmp_dir,
         "threads_per_job": pcfg.get("threads_per_job", 1),
+        "log_level": api.bo_logger.level,  # so worker logs match the driver's verbosity
     }
     if pcfg.get("n_workers"):
         ray_params["n_workers"] = pcfg["n_workers"]
@@ -781,12 +788,14 @@ def step_polarisation(state: RunState, step_cfg: dict) -> StepResult:
         if sampling_cfg:
             # Parallel multi-start (perturb the seed exponent); each start runs its
             # molecule set serially, so the starts -- not the molecules -- get Ray.
+            from basisopt import api
             from basisopt.opt import sampling
 
             sampling_ray = {
                 "backend": backend,
                 "tmp_dir": state.config.backend.tmp_dir,
                 "threads_per_job": sampling_cfg.get("threads_per_job", 1),
+                "log_level": api.bo_logger.level,  # so worker logs match the driver
             }
             obj, stop_reason, combined, n_starts = sampling.multistart_polarisation(
                 molecules,

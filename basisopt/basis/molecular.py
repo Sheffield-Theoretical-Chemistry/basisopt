@@ -510,11 +510,11 @@ class MoleculeLoader:
         n = len(self)
         for ix, mol in enumerate(self._molecules.values()):
             try:
-                bo_logger.info(f"Running calculation for molecule {mol.name} (#{ix} of {n})")
+                bo_logger.info("Running calculation for molecule %s (#%d of %d)", mol.name, ix, n)
                 api.run_calculation(mol=mol, params=params)
                 mol.add_result('energy', wrapper.get_value('energy'))
-            except Exception as e:
-                bo_logger.error(f"Calculation failed for molecule {mol.name}: {e}")
+            except Exception:
+                bo_logger.exception("Calculation failed for molecule %s", mol.name)
             finally:
                 if clean:
                     wrapper.clean()

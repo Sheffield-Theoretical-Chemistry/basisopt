@@ -424,7 +424,7 @@ def rank_shell_contractions(mol, shell, params, skip_zeros=False, ref_energy=Non
     if ref_energy is None:
         api.run_calculation(mol=mol, params=params)
         ref_energy = api.get_backend().get_value('energy')
-    bo_logger.info(f'Ranking {shell.l} contractions')
+    bo_logger.debug("Ranking %s contractions", shell.l)
     for idx, coeffs in enumerate(shell.coefs):
         en = []
         er = []
@@ -442,7 +442,7 @@ def rank_shell_contractions(mol, shell, params, skip_zeros=False, ref_energy=Non
                 er.append(abs(en[-1] - ref_energy))
                 shell.coefs[idx] = copy.deepcopy(old_coeffs)
             except Exception as e:
-                bo_logger.error(f'Error: {e} on {shell.l} {idx} {i}')
+                bo_logger.warning("ranking calc failed for %s coef[%d][%d]: %s", shell.l, idx, i, e)
                 shell.coefs[idx] = copy.deepcopy(old_coeffs)
                 en.append(np.nan)
                 # a failed calculation must NOT look like a zero-cost removal
@@ -469,20 +469,30 @@ def prune_shell(mol, element, shell, target, reference_energy, params):
             idx, exp_idx = ranked_idx.pop(0)
         else:
             shell.coefs[idx][exp_idx] = 0.0
-            bo_logger.info(f'Pruned {shell.l} {idx} {exp_idx}')
             api.run_calculation(mol=mol, params=params)
             energy = api.get_backend().get_value('energy')
-            bo_logger.info(f'Energy: {energy}')
-            bo_logger.info(f'Target: {reference_energy+target}')
-            bo_logger.info(f'Diff: {energy - reference_energy}')
+            bo_logger.debug(
+                "prune %s %s[%d,%d]: E=%s, target=%s, ΔE=%s",
+                element,
+                shell.l,
+                idx,
+                exp_idx,
+                format_with_prefix(energy, 'Eh'),
+                format_with_prefix(reference_energy + target, 'Eh'),
+                format_with_prefix(energy - reference_energy, 'Eh'),
+            )
             if energy > reference_energy + target:
                 shell.coefs = old_coefs
-                bo_logger.info(f'Reverted Prune of {shell.l} {idx} {exp_idx}')
                 api.run_calculation(mol=mol, params=params)
                 energy = api.get_backend().get_value('energy')
-                bo_logger.info(f'Energy: {energy}')
-                bo_logger.info(f'Target: {reference_energy+target}')
-                bo_logger.info(f'Diff: {energy - reference_energy}')
+                bo_logger.debug(
+                    "reverted prune %s %s[%d,%d]: E=%s",
+                    element,
+                    shell.l,
+                    idx,
+                    exp_idx,
+                    format_with_prefix(energy, 'Eh'),
+                )
                 break
     return mol
 

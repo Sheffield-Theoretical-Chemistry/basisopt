@@ -2,7 +2,6 @@ from typing import Any
 
 import numpy as np
 
-
 from basisopt.basis.basis import legendre_expansion
 from basisopt.containers import InternalBasis
 from basisopt.data import get_legendre_params
@@ -111,7 +110,7 @@ class LegendrePairsHybrid(Strategy):
 
     def get_active(self, basis: InternalBasis, element: str) -> np.ndarray:
         """Returns the Legendre params for the current shell"""
-        (A_vals, n) = self.shells[self._step][0]
+        A_vals, n = self.shells[self._step][0]
         if self._just_added:
             if n <= self.n_exp_cutoff:
                 return np.array(A_vals)
@@ -122,7 +121,7 @@ class LegendrePairsHybrid(Strategy):
 
     def set_active(self, values: np.ndarray, basis: InternalBasis, element: str):
         """Given the Legendre params for a shell, expands the basis"""
-        (A_vals, n) = self.shells[self._step][0]
+        A_vals, n = self.shells[self._step][0]
         if n <= self.n_exp_cutoff:
             self.shells[self._step][0] = (values, n)
         else:
@@ -161,16 +160,20 @@ class LegendrePairsHybrid(Strategy):
             self._INITIAL_Guess = []
             try:
                 self._INITIAL_Guess = self.guess_params['initial_guess']
-            except Exception as e:
+            except Exception:
                 bo_logger.info(
                     "No initial guess provided, checking database for %s", element.upper()
                 )
-                bo_logger.error(e)
+                bo_logger.debug("no 'initial_guess' in guess_params", exc_info=True)
                 try:
                     if self.ignore_database:
                         raise Exception("Ignoring database")
                     self._database_guesses = get_legendre_params(atom=element.upper())
-                    bo_logger.warning(self._database_guesses)
+                    bo_logger.debug(
+                        "database Legendre guesses for %s: %s",
+                        element.upper(),
+                        self._database_guesses,
+                    )
                     for idx, shell in enumerate(basis[element.lower()]):
                         if len(shell.exps) > self.n_exp_cutoff:
                             self._INITIAL_Guess.append(
@@ -180,7 +183,7 @@ class LegendrePairsHybrid(Strategy):
                             self._INITIAL_Guess.append([(shell.exps, len(shell.exps))])
                 except Exception as e:
                     bo_logger.info("No initial guess found in database, using default")
-                    bo_logger.error(e)
+                    bo_logger.debug("database lookup skipped/failed: %s", e)
                     for shell in basis[element.lower()]:
                         if len(shell.exps) <= self.n_exp_cutoff:
                             self._INITIAL_Guess.append([(shell.exps, len(shell.exps))])
@@ -211,7 +214,7 @@ class LegendrePairsHybrid(Strategy):
         self.delta_objective = np.abs(self.last_objective - objective)
         self.last_objective = objective
         carry_on = True
-        (A_vals, n) = self.shells[self._step][0]
+        A_vals, n = self.shells[self._step][0]
         if isinstance(self.max_n_a, (tuple, list)):
             max_n_a = self.max_n_a[self._step]
         else:
